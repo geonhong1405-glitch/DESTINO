@@ -30,35 +30,48 @@
                     <p>데스티노와 함께 즐거운 여행을 시작하세요.</p>
                 </section>
 
-                <form class="signup-form">
+                <form class="signup-form" action="/users" method="post">
                     <div class="input-group">
-                        <label>아이디</label>
-                        <input type="text" placeholder="아이디를 입력해주세요" required />
+                        <label for="nickname">닉네임</label>
+                        <input type="text" name="nickname" id="nickname" placeholder="닉네임을 입력해주세요" required />
+                        <span id="nickname-check" class="check-msg"></span>
                     </div>
-
                     <div class="input-group">
-                        <label>비밀번호</label>
-                        <input type="password" placeholder="영문, 숫자, 특수문자 조합 8자 이상" required />
+                        <label for="username">아이디</label>
+                        <input type="text" name="username" id="username" placeholder="아이디를 입력해주세요" required />
+                        <span id="username-check" class="check-msg"></span>
                     </div>
-
                     <div class="input-group">
-                        <label>비밀번호 확인</label>
-                        <input type="password" placeholder="비밀번호를 다시 입력해주세요" required />
+                        <label for="password">비밀번호</label>
+                        <input
+                            type="password"
+                            name="password"
+                            id="password"
+                            placeholder="영문, 숫자, 특수문자 조합 8자 이상"
+                            required
+                        />
                     </div>
-
                     <div class="input-group">
-                        <label>이름</label>
-                        <input type="text" placeholder="실명을 입력해주세요" required />
+                        <label for="password_confirm">비밀번호 확인</label>
+                        <input
+                            type="password"
+                            name="password_confirm"
+                            id="password_confirm"
+                            placeholder="비밀번호를 다시 입력해주세요"
+                            required
+                        />
+                        <span id="pw-match-check" class="check-msg"></span>
                     </div>
-
                     <div class="input-group">
-                        <label>휴대폰 번호</label>
-                        <div class="flex-row">
-                            <input type="tel" placeholder="010-0000-0000" required />
-                            <button type="button" class="btn-outline-small">인증요청</button>
-                        </div>
+                        <label for="email">이메일</label>
+                        <input type="email" name="email" id="email" placeholder="이메일을 입력해주세요" required />
+                        <span id="email-check" class="check-msg"></span>
                     </div>
-
+                    <div class="input-group">
+                        <label for="phone">휴대폰 번호</label>
+                        <input type="tel" name="phone" id="phone" placeholder="010-0000-0000" required />
+                        <span id="phone-check" class="check-msg"></span>
+                    </div>
                     <div class="terms-box">
                         <div class="term-item all-agree">
                             <input type="checkbox" id="all-agree" />
@@ -78,7 +91,6 @@
                             <label for="term3">마케팅 정보 수신 동의 (선택)</label>
                         </div>
                     </div>
-
                     <button type="submit" class="btn-login signup-submit-btn">가입 완료하기</button>
                 </form>
 
@@ -89,4 +101,127 @@
             </div>
         </main>
     </body>
+    <script>
+        // 실시간 중복확인 및 비밀번호 일치 체크
+        function showCheckMsg(el, ok, msgOk, msgFail) {
+            el.textContent = ok ? msgOk : msgFail;
+            el.style.color = ok ? 'green' : 'red';
+            el.textContent && (el.style.display = 'inline');
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+            // 전체동의 체크박스 기존 코드 ...
+            const allAgree = document.getElementById('all-agree');
+            const terms = [
+                document.getElementById('term1'),
+                document.getElementById('term2'),
+                document.getElementById('term3'),
+            ];
+            if (allAgree) {
+                allAgree.addEventListener('change', function () {
+                    terms.forEach((cb) => (cb.checked = this.checked));
+                });
+            }
+            terms.forEach((cb) => {
+                cb.addEventListener('change', function () {
+                    if (!this.checked) allAgree.checked = false;
+                    else if (terms.every((c) => c.checked)) allAgree.checked = true;
+                });
+            });
+
+            // 아이디 중복확인
+            const username = document.getElementById('username');
+            const usernameCheck = document.getElementById('username-check');
+            username &&
+                username.addEventListener('input', function () {
+                    if (!this.value) {
+                        usernameCheck.textContent = '';
+                        return;
+                    }
+                    fetch(`/check-username?username=${encodeURIComponent(this.value)}`)
+                        .then((r) => r.json())
+                        .then((d) => {
+                            showCheckMsg(usernameCheck, !d.exists, '사용 가능', '중복입니다');
+                        });
+                });
+            // 이메일 중복확인
+            const email = document.getElementById('email');
+            const emailCheck = document.getElementById('email-check');
+            email &&
+                email.addEventListener('input', function () {
+                    if (!this.value) {
+                        emailCheck.textContent = '';
+                        return;
+                    }
+                    fetch(`/check-email?email=${encodeURIComponent(this.value)}`)
+                        .then((r) => r.json())
+                        .then((d) => {
+                            showCheckMsg(emailCheck, !d.exists, '사용 가능', '중복입니다');
+                        });
+                });
+            // 닉네임 중복확인
+            const nickname = document.getElementById('nickname');
+            const nicknameCheck = document.getElementById('nickname-check');
+            nickname &&
+                nickname.addEventListener('input', function () {
+                    if (!this.value) {
+                        nicknameCheck.textContent = '';
+                        return;
+                    }
+                    fetch(`/check-nickname?nickname=${encodeURIComponent(this.value)}`)
+                        .then((r) => r.json())
+                        .then((d) => {
+                            showCheckMsg(nicknameCheck, !d.exists, '사용 가능', '중복입니다');
+                        });
+                });
+            // 휴대폰 중복확인
+            const phone = document.getElementById('phone');
+            const phoneCheck = document.getElementById('phone-check');
+            phone &&
+                phone.addEventListener('input', function () {
+                    if (!this.value) {
+                        phoneCheck.textContent = '';
+                        return;
+                    }
+                    fetch(`/check-phone?phone=${encodeURIComponent(this.value)}`)
+                        .then((r) => r.json())
+                        .then((d) => {
+                            showCheckMsg(phoneCheck, !d.exists, '✔', '이미 가입된 번호');
+                        });
+                });
+            // 비밀번호 일치 체크
+            const pw = document.getElementById('password');
+            const pwc = document.getElementById('password_confirm');
+            const pwMatch = document.getElementById('pw-match-check');
+            function checkPwMatch() {
+                if (!pw.value && !pwc.value) {
+                    pwMatch.textContent = '';
+                    return;
+                }
+                showCheckMsg(pwMatch, pw.value === pwc.value, '✔', '✗');
+            }
+            pw && pw.addEventListener('input', checkPwMatch);
+            pwc && pwc.addEventListener('input', checkPwMatch);
+        });
+        // 전체 동의 체크박스 클릭 시 하위 체크박스 모두 체크/해제
+        document.addEventListener('DOMContentLoaded', function () {
+            const allAgree = document.getElementById('all-agree');
+            const terms = [
+                document.getElementById('term1'),
+                document.getElementById('term2'),
+                document.getElementById('term3'),
+            ];
+            if (allAgree) {
+                allAgree.addEventListener('change', function () {
+                    terms.forEach((cb) => (cb.checked = this.checked));
+                });
+            }
+            // 하위 체크박스 중 하나라도 해제되면 전체동의도 해제
+            terms.forEach((cb) => {
+                cb.addEventListener('change', function () {
+                    if (!this.checked) allAgree.checked = false;
+                    else if (terms.every((c) => c.checked)) allAgree.checked = true;
+                });
+            });
+        });
+    </script>
 </html>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Destino - 로그인하기</title>
+        <link rel="stylesheet" href="../static/signin.css" />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap"
+            rel="stylesheet"
+        />
+    </head>
+    <body>
+        <header class="header">
+            <div class="container header-inner">
+                <h1 class="logo"><a href="/">DESTINO</a></h1>
+                <div class="header-search-bar">
+                    <input type="text" placeholder="어디로 떠나시나요?" />
+                </div>
+                <nav class="header-nav">
+                    <a href="/login">로그인</a>
+                    <a href="#">이용안내</a>
+                    <a href="#">고객센터</a>
+                    <a href="#">KOR</a>
+                </nav>
+            </div>
+        </header>
+
+        <main class="login-full-section">
+            <div class="login-inner detail-container">
+                <section class="login-title-area left-align">
+                    <h2 class="form-title">로그인하기</h2>
+                </section>
+
+                {% if error %}
+                <div style="color: red; margin-bottom: 10px">{{ error }}</div>
+                {% endif %}
+                <form class="email-login-form" action="/signin" method="post">
+                    <div class="input-group">
+                        <label>아이디<span class="required-dot">*</span></label>
+                        <input type="text" name="username" placeholder="아이디를 입력하세요." required />
+                    </div>
+
+                    <div class="input-group">
+                        <label>비밀번호<span class="required-dot">*</span></label>
+                        <input type="password" name="password" placeholder="비밀번호를 입력하세요." required />
+                        <div class="password-helper">
+                            <a href="#">비밀번호 재설정</a>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-login active-blue">로그인</button>
+                </form>
+
+                <div class="login-support-box">
+                    <p>계정이 없으신가요?</p>
+                    <a href="/join" class="go-signup">회원가입</a>
+                </div>
+
+                <a href="/login" class="back-link">← 다른 방법으로 로그인</a>
+            </div>
+        </main>
+    </body>
+</html>
