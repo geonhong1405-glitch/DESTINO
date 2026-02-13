@@ -52,8 +52,8 @@ def planner(request: Request):
     return templates.TemplateResponse("planner.html", {"request": request})
 
 # 해외숙소 페이지 렌더링
-@app.get("/gloval-hotel", response_class=HTMLResponse)
-def gloval_hotel(request: Request):
+@app.get("/gloval", response_class=HTMLResponse)
+def gloval(request: Request):
     return templates.TemplateResponse("gloval-hotel.html", {"request": request})
 
 # 데이터베이스 테이블 생성
