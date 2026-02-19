@@ -29,7 +29,7 @@ body {
     right: 0;
     background: var(--destino-black);
     z-index: 1000;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .header-inner {
@@ -48,7 +48,7 @@ body {
 }
 
 .header-search-simple {
-    background: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 99px;
     padding: 8px 16px;
     display: flex;
@@ -114,14 +114,15 @@ body {
     position: relative;
     padding: 60px 0 100px;
     /* 항공기 창문 뷰 등 항공 관련 이미지로 교체 */
-    background: url('https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=1920&auto=format&fit=crop') center/cover no-repeat;
+    background: url('https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=1920&auto=format&fit=crop')
+        center/cover no-repeat;
     min-height: 400px;
 }
 
 .hero-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0,0,0,0.3);
+    background: rgba(0, 0, 0, 0.3);
 }
 
 .hero-title {
@@ -163,6 +164,8 @@ body {
     display: flex;
     align-items: center;
     padding: 10px 20px;
+    gap: 16px;
+    flex-wrap: wrap;
 }
 
 .input-group {
@@ -173,6 +176,9 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: center;
+    min-width: 140px;
+    flex: 1 1 140px;
+    box-sizing: border-box;
 }
 
 .input-group:hover {
@@ -186,7 +192,8 @@ body {
     font-weight: 500;
 }
 
-.input-group input, .date-text {
+.input-group input,
+.date-text {
     font-size: 1.1rem;
     font-weight: 700;
     color: #111827;
@@ -249,7 +256,7 @@ body {
     top: 100%;
     left: 0;
     background: white;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
     border-radius: 12px;
     width: 300px;
     z-index: 100;
@@ -322,7 +329,8 @@ body {
     cursor: not-allowed;
 }
 
-.nav-btn, .pax-btn {
+.nav-btn,
+.pax-btn {
     width: 32px;
     height: 32px;
     border-radius: 50%;
@@ -331,7 +339,8 @@ body {
     align-items: center;
     justify-content: center;
 }
-.nav-btn:hover, .pax-btn:hover {
+.nav-btn:hover,
+.pax-btn:hover {
     background: #f9fafb;
 }
 
@@ -380,18 +389,26 @@ body {
 
 /* --- Mobile Responsive --- */
 @media (max-width: 992px) {
-    body { padding-top: 64px; }
-    .gnb { display: none; } /* 모바일 GNB 숨김 */
-    .header-search-simple { display: none; }
-    .nav-item-hidden { display: none; }
-    
+    body {
+        padding-top: 64px;
+    }
+    .gnb {
+        display: none;
+    } /* 모바일 GNB 숨김 */
+    .header-search-simple {
+        display: none;
+    }
+    .nav-item-hidden {
+        display: none;
+    }
+
     .widget-body {
         flex-direction: column;
         align-items: stretch;
         padding: 15px;
         gap: 10px;
     }
-    
+
     .input-group {
         border-right: none;
         border-bottom: 1px solid #f3f4f6;
@@ -402,14 +419,16 @@ body {
     .input-group:last-child {
         border-bottom: none;
     }
-    
+
     .swap-btn {
         margin: -20px auto;
         transform: rotate(90deg);
         position: relative;
         z-index: 20;
     }
-    .swap-btn:hover { transform: rotate(90deg); }
+    .swap-btn:hover {
+        transform: rotate(90deg);
+    }
 
     .search-submit-btn {
         width: 100%;
