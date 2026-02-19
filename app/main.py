@@ -73,7 +73,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-
 app.include_router(main_router)
 
 @app.get("/mypage", response_class=HTMLResponse)
@@ -239,8 +238,6 @@ def login(request: Request):
 @app.get("/join", response_class=HTMLResponse)
 def join(request: Request):
     return templates.TemplateResponse("join.html", {"request": request})
-
-
 
 # 데이터베이스 테이블 생성
 Base.metadata.create_all(bind=engine)
