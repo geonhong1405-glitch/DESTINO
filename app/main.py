@@ -75,6 +75,11 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 app.include_router(main_router)
+
+@app.get("/mypage", response_class=HTMLResponse)
+def mypage(request: Request):
+    return templates.TemplateResponse("mypage.html", {"request": request})
+
 @app.get("/airport", response_class=HTMLResponse)
 def airport(request: Request):
     session_token = request.cookies.get("session_token")

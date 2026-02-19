@@ -1,41 +1,32 @@
 <!doctype html>
 <html lang="ko">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>DESTINO - 해외 숙소 예약</title>
-        <!-- Pretendard 폰트 -->
-        <link
-            rel="stylesheet"
-            as="style"
-            crossorigin
-            href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"
-        />
-        <!-- Lucide 아이콘 라이브러리 -->
-        <script src="https://unpkg.com/lucide@latest"></script>
-        <!-- CSS 파일 연결 -->
-        <link rel="stylesheet" href="../static/gloval-hotel.css" />
-    </head>
-    <body>
-        <!-- Header -->
-        <header class="header">
-            <div class="container header-inner">
-                <h1 class="logo"><a href="/">DESTINO</a></h1>
-                <div class="header-search-bar">
-                    <input type="text" placeholder="어디로 떠나시나요?" />
-                </div>
-                <nav class="header-nav">
-                    {% if nickname %}
-                    <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
-                    <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
-                    {% else %}
-                    <a href="/login">로그인</a>
-                    {% endif %}
-                    <a href="#">이용안내</a>
-                    <a href="#">고객센터</a>
-                    <a href="#">KOR</a>
-                </nav>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DESTINO - 해외 숙소 예약</title>
+    <!-- Lucide 아이콘 라이브러리 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- CSS 파일 연결 -->
+    <link rel="stylesheet" href="/static/gloval-hotel.css">
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="container header-inner">
+            <h1 class="logo"><a href="/">DESTINO</a></h1>
+            <div class="header-search-bar">
+                <input type="text" placeholder="어디로 떠나시나요?" />
             </div>
+            <nav class="header-nav">
+                <a href="/login">로그인</a>
+                <a href="#">이용안내</a>
+                <a href="#">고객센터</a>
+                <a href="#">KOR</a>
+            </nav>
+        </div>
+        
+    </header>
 
             <!-- GNB (텍스트 전용) -->
             <nav class="gnb">
@@ -150,8 +141,41 @@
                         </div>
                     </div>
 
-                    <!-- 검색 버튼: 항상 활성화 -->
-                    <button class="btn-search" type="button">검색</button>
+        <!-- Pre-Search Content 1: Trending Destinations -->
+        <section class="content-section">
+            <div class="section-header">
+                <h2>지금 뜨는 인기 해외 여행지 ✈️</h2>
+            </div>
+            <div class="trending-grid">
+                <div class="trending-card">
+                    <img src="https://cdn.pixabay.com/photo/2018/09/09/12/51/japan-3664500_1280.jpg" alt="오사카" class="trending-img">
+                    <div class="trending-name">오사카</div>
+                    <div class="trending-sub">일본</div>
+                </div>
+                <div class="trending-card">
+                    <img src="https://images.unsplash.com/photo-1558862107-d49ef2a04d72?auto=format&fit=crop&w=300&q=80" alt="다낭" class="trending-img">
+                    <div class="trending-name">다낭</div>
+                    <div class="trending-sub">베트남</div>
+                </div>
+                <div class="trending-card">
+                    <img src="https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=300&q=80" alt="방콕" class="trending-img">
+                    <div class="trending-name">방콕</div>
+                    <div class="trending-sub">태국</div>
+                </div>
+                <div class="trending-card">
+                    <img src="https://images.unsplash.com/photo-1551641506-ee5bf4cb45f1?auto=format&fit=crop&w=300&q=80" alt="타이베이" class="trending-img">
+                    <div class="trending-name">타이베이</div>
+                    <div class="trending-sub">대만</div>
+                </div>
+                <div class="trending-card">
+                    <img src="https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=300&q=80" alt="파리" class="trending-img">
+                    <div class="trending-name">파리</div>
+                    <div class="trending-sub">프랑스</div>
+                </div>
+                <div class="trending-card">
+                    <img src="https://images.unsplash.com/photo-1537953773345-d172ccf13cf1?auto=format&fit=crop&w=300&q=80" alt="발리" class="trending-img">
+                    <div class="trending-name">발리</div>
+                    <div class="trending-sub">인도네시아</div>
                 </div>
             </section>
 

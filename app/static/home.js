@@ -1,3 +1,164 @@
+
+window.onload = () => {
+    // Lucide Icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+
+    // Initialize Destination Data
+    initDest();
+
+    // Set Default Dates
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 3);
+    
+    const startInput = document.getElementById('startDate');
+    const endInput = document.getElementById('endDate');
+    
+    if(startInput) startInput.valueAsDate = today;
+    if(endInput) endInput.valueAsDate = tomorrow;
+};
+
+/* ================= Data ================= */
+const regionsData = {
+    '일본': ['도쿄', '오사카', '후쿠오카', '삿포로', '오키나와', '나고야', '교토', '고베'],
+    '동남아': ['방콕', '다낭', '나트랑', '세부', '발리', '싱가포르', '푸껫', '코타키나발루', '마닐라'],
+    '중국/홍콩': ['홍콩', '마카오', '상하이', '베이징', '칭다오', '광저우'],
+    '유럽': ['파리', '런던', '로마', '바르셀로나', '프라하', '인터라켄', '베네치아', '피렌체'],
+    '미주': ['하와이', '뉴욕', '로스앤젤레스', '라스베이거스', '샌프란시스코', '밴쿠버']
+};
+
+let currentRegion = '일본';
+let guests = { adult: 2, child: 0, room: 1 };
+
+/* ================= Tab Switching ================= */
+function switchTab(el, type) {
+    document.querySelectorAll('.search-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    const input = document.getElementById('destInput');
+    if(!input) return;
+
+    if(type === 'flight') {
+        input.placeholder = "도시 또는 공항 검색";
+    } else {
+        input.placeholder = "어느 숙소를 찾으시나요?";
+    }
+}
+
+/* ================= Date Picker Fix ================= */
+/**
+ * Focuses on the input element. 
+ * Prevents SecurityError from automated showPicker() in iframes.
+ */
+function focusInput(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.focus();
+    }
+}
+
+/* ================= Destination Popover ================= */
+function initDest() {
+    const tabs = document.getElementById('regionTabs');
+    if(!tabs) return;
+    tabs.innerHTML = '';
+    
+    Object.keys(regionsData).forEach(region => {
+        const btn = document.createElement('button');
+        btn.className = `dest-tab ${region === currentRegion ? 'active' : ''}`;
+        btn.textContent = region;
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            currentRegion = region;
+            initDest();
+            renderCities(regionsData[region]);
+        };
+        tabs.appendChild(btn);
+    });
+    renderCities(regionsData[currentRegion]);
+}
+
+function renderCities(cities) {
+    const grid = document.getElementById('cityGrid');
+    if(!grid) return;
+    grid.innerHTML = '';
+    
+    cities.forEach(city => {
+        const btn = document.createElement('button');
+        btn.className = 'city-btn';
+        btn.textContent = city;
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const destInput = document.getElementById('destInput');
+            if(destInput) destInput.value = city;
+            closeAllPopovers();
+        };
+        grid.appendChild(btn);
+    });
+}
+
+function filterCities() {
+    const termInput = document.getElementById('citySearchInput');
+    if(!termInput) return;
+    
+    const term = termInput.value.toLowerCase();
+    const allCities = Object.values(regionsData).flat();
+    const filtered = allCities.filter(c => c.includes(term));
+    
+    if(term === '') {
+        renderCities(regionsData[currentRegion]);
+    } else {
+        renderCities(filtered);
+    }
+}
+
+/* ================= Guest Counter ================= */
+function updateCount(type, delta) {
+    // Stop propagation if event exists
+    if(typeof event !== 'undefined') event.stopPropagation();
+    
+    let val = guests[type] + delta;
+    
+    // Limits
+    if(type === 'adult' && val < 1) val = 1;
+    if(type === 'child' && val < 0) val = 0;
+    if(type === 'room' && val < 1) val = 1;
+    
+    guests[type] = val;
+    
+    // UI Update
+    const valDisplay = document.getElementById(`val-${type}`);
+    const minusBtn = document.getElementById(`minus-${type}`);
+    if(valDisplay) valDisplay.textContent = val;
+    
+    if(minusBtn) {
+        minusBtn.disabled = (type === 'child' ? val <= 0 : val <= 1);
+    }
+    
+    const guestInput = document.getElementById('guestInput');
+    if(guestInput) {
+        guestInput.value = `성인 ${guests.adult}, 아동 ${guests.child}, 객실 ${guests.room}`;
+    }
+}
+
+/* ================= Common UI Logic ================= */
+function openPopover(id) {
+    closeAllPopovers();
+    const pop = document.getElementById(id);
+    const overlay = document.getElementById('uiOverlay');
+    if(pop) pop.classList.add('active');
+    if(overlay) overlay.classList.add('active');
+}
+
+function closeAllPopovers() {
+    document.querySelectorAll('.popover').forEach(p => p.classList.remove('active'));
+    const overlay = document.getElementById('uiOverlay');
+    if(overlay) overlay.classList.remove('active');
+}
+
+
+
 document.addEventListener('DOMContentLoaded', () => {
     const sliderWrapper = document.querySelector('.event-slider-wrapper');
     const sliderTrack = document.querySelector('.grid-33'); // 슬라이드 트랙 역할

@@ -16,7 +16,9 @@
                 </div>
                 <nav class="header-nav">
                     {% if nickname %}
-                    <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                    <a href="/mypage">
+                        <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                    </a>
                     <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
                     {% else %}
                     <a href="/login">로그인</a>
@@ -38,11 +40,84 @@
                         <button>국내숙소</button>
                         <button>패키지</button>
                     </div>
-                    <div class="search-form">
-                        <input type="text" placeholder="오사카, 일본" />
-                        <input type="text" placeholder="2024.03.18 - 03.24" />
-                        <input type="text" placeholder="성인 2명" />
-                        <button class="btn-search">검색하기</button>
+
+                    <!-- SEARCH BOX -->
+                    <div class="search-widget" id="searchWidget">
+
+                        <!-- Destination -->
+                        <div class="search-item dest-item" onclick="openPopover('destPopover')">
+                            <label class="search-label">목적지</label>
+                            <input type="text" id="destInput" placeholder="도시 또는 공항 검색" class="search-input" readonly>
+
+                            <!-- Dest Popover -->
+                            <div id="destPopover" class="popover">
+                                <div class="dest-sidebar" id="regionTabs"></div>
+                                <div class="dest-content">
+                                    <div class="search-box-inner">
+                                        <div class="relative">
+                                            <i data-lucide="search" class="search-icon-inner"></i>
+                                            <input type="text" id="citySearchInput" placeholder="도시명을 입력하세요 (예: 도쿄)" class="city-search-field" onkeyup="filterCities()">
+                                        </div>
+                                    </div>
+                                    <div class="city-grid" id="cityGrid"></div>
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <!-- Start Date -->
+                        <div class="search-item date-item" onclick="focusInput('startDate')">
+                            <label class="search-label">가는 날</label>
+                            <input type="date" id="startDate" class="search-input" onclick="event.stopPropagation()">
+                        </div>
+                    
+                        <!-- End Date -->
+                        <div class="search-item date-item" onclick="focusInput('endDate')">
+                            <label class="search-label">오는 날</label>
+                            <input type="date" id="endDate" class="search-input" onclick="event.stopPropagation()">
+                        </div>
+                    
+                        <!-- Guests -->
+                        <div class="search-item guest-item" onclick="openPopover('guestPopover')">
+                            <label class="search-label">인원 및 객실</label>
+                            <input type="text" id="guestInput" value="성인 2, 아동 0, 객실 1" class="search-input" readonly>
+                        
+                            <!-- Guest Popover -->
+                            <div id="guestPopover" class="popover">
+                                <div class="space-y-6">
+                                    <div class="guest-row">
+                                        <div><p class="guest-title">성인</p><p class="guest-subtitle">만 18세 이상</p></div>
+                                        <div class="counter-group">
+                                            <button class="cnt-btn" id="minus-adult" onclick="updateCount('adult', -1)">-</button>
+                                            <span class="cnt-value" id="val-adult">2</span>
+                                            <button class="cnt-btn" onclick="updateCount('adult', 1)">+</button>
+                                        </div>
+                                    </div>
+                                    <div class="guest-row">
+                                        <div><p class="guest-title">아동</p><p class="guest-subtitle">만 17세 이하</p></div>
+                                        <div class="counter-group">
+                                            <button class="cnt-btn" id="minus-child" onclick="updateCount('child', -1)">-</button>
+                                            <span class="cnt-value" id="val-child">0</span>
+                                            <button class="cnt-btn" onclick="updateCount('child', 1)">+</button>
+                                        </div>
+                                    </div>
+                                    <div class="guest-row">
+                                        <div><p class="guest-title">객실</p></div>
+                                        <div class="counter-group">
+                                            <button class="cnt-btn" id="minus-room" onclick="updateCount('room', -1)">-</button>
+                                            <span class="cnt-value" id="val-room">1</span>
+                                            <button class="cnt-btn" onclick="updateCount('room', 1)">+</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <!-- Search Button -->
+                        <div class="p-3">
+                            <button class="search-submit-btn">
+                                검색
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -54,90 +129,67 @@
                     <div class="icon-item">
                         <a href="/planner">
                             <div class="icon-img-box color-ai">
-                                <img
-                                    src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM0ZjQ2ZTUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1ib3QtaWNvbiBsdWNpZGUtYm90Ij48cGF0aCBkPSJNMTIgOFY0SDgiLz48cmVjdCB3aWR0aD0iMTYiIGhlaWdodD0iMTIiIHg9IjQiIHk9IjgiIHJ4PSIyIi8+PHBhdGggZD0iTTIgMTRoMiIvPjxwYXRoIGQ9Ik0yMCAxNGgyIi8+PHBhdGggZD0iTTE1IDEzdjIiLz48cGF0aCBkPSJNOSAxM3YyIi8+PC9zdmc+"
-                                    alt="AI 가이드"
-                                />
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM0ZjQ2ZTUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1ib3QtaWNvbiBsdWNpZGUtYm90Ij48cGF0aCBkPSJNMTIgOFY0SDgiLz48cmVjdCB3aWR0aD0iMTYiIGhlaWdodD0iMTIiIHg9IjQiIHk9IjgiIHJ4PSIyIi8+PHBhdGggZD0iTTIgMTRoMiIvPjxwYXRoIGQ9Ik0yMCAxNGgyIi8+PHBhdGggZD0iTTE1IDEzdjIiLz48cGF0aCBkPSJNOSAxM3YyIi8+PC9zdmc+" alt="AI 가이드" />
                             </div>
                             <span>AI 가이드</span>
                         </a>
                     </div>
                     <div class="icon-item">
-                        <div class="icon-img-box color-group">
-                            <a href="#">
-                                <img
-                                    src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNlYzQ4OTkiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS11c2Vycy1pY29uIGx1Y2lkZS11c2VycyI+PHBhdGggZD0iTTE2IDIxdi0yYTQgNCAwIDAgMC00LTRINmE0IDQgMCAwIDAtNCA0djIiLz48cGF0aCBkPSJNMTYgMy4xMjhhNCA0IDAgMCAxIDAgNy43NDQiLz48cGF0aCBkPSJNMjIgMjF2LTJhNCA0IDAgMCAwLTMtMy44NyIvPjxjaXJjbGUgY3g9IjkiIGN5PSI3IiByPSI0Ii8+PC9zdmc+"
-                                    alt="공동예매"
-                                />
-                            </a>
-                        </div>
-                        <span>공동예매</span>
+                        <a href="#">
+                            <div class="icon-img-box color-group">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNlYzQ4OTkiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS11c2Vycy1pY29uIGx1Y2lkZS11c2VycyI+PHBhdGggZD0iTTE2IDIxdi0yYTQgNCAwIDAgMC00LTRINmE0IDQgMCAwIDAtNCA0djIiLz48cGF0aCBkPSJNMTYgMy4xMjhhNCA0IDAgMCAxIDAgNy43NDQiLz48cGF0aCBkPSJNMjIgMjF2LTJhNCA0IDAgMCAwLTMtMy44NyIvPjxjaXJjbGUgY3g9IjkiIGN5PSI3IiByPSI0Ii8+PC9zdmc+" alt="공동예매" />
+                            </div>
+                            <span>공동예매</span>
+                        </a>
                     </div>
                     <div class="icon-item">
-                        <div class="icon-img-box color-flight">
-                            <a href="/airport">
-                                <img
-                                    src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMwZWE1ZTkiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1wbGFuZS10YWtlb2ZmLWljb24gbHVjaWRlLXBsYW5lLXRha2VvZmYiPjxwYXRoIGQ9Ik0yIDIyaDIwIi8+PHBhdGggZD0iTTYuMzYgMTcuNCA0IDE3bC0yLTQgMS4xLS41NWEyIDIgMCAwIDEgMS44IDBsLjE3LjFhMiAyIDAgMCAwIDEuOCAwTDggMTIgNSA2bC45LS40NWEyIDIgMCAwIDEgMi4wOS4ybDQuMDIgM2EyIDIgMCAwIDAgMi4xLjJsNC4xOS0yLjA2YTIuNDEgMi40MSAwIDAgMSAxLjczLS4xN0wyMSA3YTEuNCAxLjQgMCAwIDEgLjg3IDEuOTlsLS4zOC43NmMtLjIzLjQ2LS42Ljg0LTEuMDcgMS4wOEw3LjU4IDE3LjJhMiAyIDAgMCAxLTEuMjIuMThaIi8+PC9zdmc+"
-                                    alt="항공"
-                                />
-                            </a>
-                        </div>
-                        <span>항공</span>
+                        <a href="/airport">
+                            <div class="icon-img-box color-flight">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMwZWE1ZTkiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1wbGFuZS10YWtlb2ZmLWljb24gbHVjaWRlLXBsYW5lLXRha2VvZmYiPjxwYXRoIGQ9Ik0yIDIyaDIwIi8+PHBhdGggZD0iTTYuMzYgMTcuNCA0IDE3bC0yLTQgMS4xLS41NWEyIDIgMCAwIDEgMS44IDBsLjE3LjFhMiAyIDAgMCAwIDEuOCAwTDggMTIgNSA2bC45LS40NWEyIDIgMCAwIDEgMi4wOS4ybDQuMDIgM2EyIDIgMCAwIDAgMi4xLjJsNC4xOS0yLjA2YTIuNDEgMi40MSAwIDAgMSAxLjczLS4xN0wyMSA3YTEuNCAxLjQgMCAwIDEgLjg3IDEuOTlsLS4zOC43NmMtLjIzLjQ2LS42Ljg0LTEuMDcgMS4wOEw3LjU4IDE3LjJhMiAyIDAgMCAxLTEuMjIuMThaIi8+PC9zdmc+" alt="항공" />
+                            </div>
+                            <span>항공</span>
+                        </a>
                     </div>
                     <div class="icon-item">
-                        <div class="icon-img-box color-overseas">
-                            <a href="/gloval-hotel">
-                                <img
-                                    src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMwNTk2NjkiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1nbG9iZS1pY29uIGx1Y2lkZS1nbG9iZSI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48cGF0aCBkPSJNMTIgMmExNC41IDE0LjUgMCAwIDAgMCAyMCAxNC41IDE0LjUgMCAwIDAgMC0yMCIvPjxwYXRoIGQ9Ik0yIDEyaDIwIi8+PC9zdmc+"
-                                    alt="해외"
-                                />
-                            </a>
-                        </div>
-                        <span>해외</span>
+                        <a href="/gloval-hotel">
+                            <div class="icon-img-box color-overseas">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMwNTk2NjkiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1nbG9iZS1pY29uIGx1Y2lkZS1nbG9iZSI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48cGF0aCBkPSJNMTIgMmExNC41IDE0LjUgMCAwIDAgMCAyMCAxNC41IDE0LjUgMCAwIDAgMC0yMCIvPjxwYXRoIGQ9Ik0yIDEyaDIwIi8+PC9zdmc+" alt="해외" />
+                            </div>
+                            <span>해외숙소</span>
+                        </a>
                     </div>
                     <div class="icon-item">
-                        <div class="icon-img-box color-domestic">
-                            <a href="#">
-                                <img
-                                    src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNlYTU4MGMiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1tYXAtcGluLWljb24gbHVjaWRlLW1hcC1waW4iPjxwYXRoIGQ9Ik0yMCAxMGMwIDQuOTkzLTUuNTM5IDEwLjE5My03LjM5OSAxMS43OTlhMSAxIDAgMCAxLTEuMjAyIDBDOS41MzkgMjAuMTkzIDQgMTQuOTkzIDQgMTBhOCA4IDAgMCAxIDE2IDAiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjEwIiByPSIzIi8+PC9zdmc+"
-                                    alt="국내"
-                                />
-                            </a>
-                        </div>
-                        <span>국내</span>
+                        <a href="#">
+                            <div class="icon-img-box color-domestic">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNlYTU4MGMiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1tYXAtcGluLWljb24gbHVjaWRlLW1hcC1waW4iPjxwYXRoIGQ9Ik0yMCAxMGMwIDQuOTkzLTUuNTM5IDEwLjE5My03LjM5OSAxMS43OTlhMSAxIDAgMCAxLTEuMjAyIDBDOS41MzkgMjAuMTkzIDQgMTQuOTkzIDQgMTBhOCA4IDAgMCAxIDE2IDAiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjEwIiByPSIzIi8+PC9zdmc+" alt="국내" />
+                            </div>
+                            <span>국내숙소</span>
+                        </a>
                     </div>
                     <div class="icon-item">
-                        <div class="icon-img-box color-package">
-                            <a href="#">
-                                <img
-                                    src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM5MzMzZWEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1ib3gtaWNvbiBsdWNpZGUtYm94Ij48cGF0aCBkPSJNMjEgOGEyIDIgMCAwIDAtMS0xLjczbC03LTRhMiAyIDAgMCAwLTIgMGwtNyA0QTIgMiAwIDAgMCAzIDh2OGEyIDIgMCAwIDAgMSAxLjczbDcgNGEyIDIgMCAwIDAgMiAwbDctNEEyIDIgMCAwIDAgMjEgMTZaIi8+PHBhdGggZD0ibTMuMyA3IDguNyA1IDguNy01Ii8+PHBhdGggZD0iTTEyIDIyVjEyIi8+PC9zdmc+"
-                                    alt="패키지"
-                                />
-                            </a>
-                        </div>
-                        <span>패키지</span>
+                        <a href="#">
+                            <div class="icon-img-box color-package">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM5MzMzZWEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1ib3gtaWNvbiBsdWNpZGUtYm94Ij48cGF0aCBkPSJNMjEgOGEyIDIgMCAwIDAtMS0xLjczbC03LTRhMiAyIDAgMCAwLTIgMGwtNyA0QTIgMiAwIDAgMCAzIDh2OGEyIDIgMCAwIDAgMSAxLjczbDcgNGEyIDIgMCAwIDAgMiAwbDctNEEyIDIgMCAwIDAgMjEgMTZaIi8+PHBhdGggZD0ibTMuMyA3IDguNyA1IDguNy01Ii8+PHBhdGggZD0iTTEyIDIyVjEyIi8+PC9zdmc+" alt="패키지" />
+                            </div>
+                            <span>패키지</span> 
+                        </a> 
                     </div>
                     <div class="icon-item">
-                        <div class="icon-img-box color-tour">
-                            <a href="#">
-                                <img
-                                    src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNkOTc3MDYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS10aWNrZXQtaWNvbiBsdWNpZGUtdGlja2V0Ij48cGF0aCBkPSJNMiA5YTMgMyAwIDAgMSAwIDZ2MmEyIDIgMCAwIDAgMiAyaDE2YTIgMiAwIDAgMCAyLTJ2LTJhMyAzIDAgMCAxIDAtNlY3YTIgMiAwIDAgMC0yLTJINGEyIDIgMCAwIDAtMiAyWiIvPjxwYXRoIGQ9Ik0xMyA1djIiLz48cGF0aCBkPSJNMTMgMTd2MiIvPjxwYXRoIGQ9Ik0xMyAxMXYyIi8+PC9zdmc+"
-                                    alt="투어"
-                                />
-                            </a>
-                        </div>
-                        <span>투어</span>
+                        <a href="#">
+                            <div class="icon-img-box color-tour">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNkOTc3MDYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS10aWNrZXQtaWNvbiBsdWNpZGUtdGlja2V0Ij48cGF0aCBkPSJNMiA5YTMgMyAwIDAgMSAwIDZ2MmEyIDIgMCAwIDAgMiAyaDE2YTIgMiAwIDAgMCAyLTJ2LTJhMyAzIDAgMCAxIDAtNlY3YTIgMiAwIDAgMC0yLTJINGEyIDIgMCAwIDAtMiAyWiIvPjxwYXRoIGQ9Ik0xMyA1djIiLz48cGF0aCBkPSJNMTMgMTd2MiIvPjxwYXRoIGQ9Ik0xMyAxMXYyIi8+PC9zdmc+" alt="투어" />
+                            </div>
+                            <span>투어</span>    
+                        </a>
                     </div>
                     <div class="icon-item">
-                        <div class="icon-img-box color-rentcar">
-                            <a href="#">
-                                <img
-                                    src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMwZDk0ODgiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1jYXItaWNvbiBsdWNpZGUtY2FyIj48cGF0aCBkPSJNMTkgMTdoMmMuNiAwIDEtLjQgMS0xdi0zYzAtLjktLjctMS43LTEuNS0xLjlDMTguNyAxMC42IDE2IDEwIDE2IDEwcy0xLjMtMS40LTIuMi0yLjNjLS41LS40LTEuMS0uNy0xLjgtLjdINWMtLjYgMC0xLjEuNC0xLjQuOWwtMS40IDIuOUEzLjcgMy43IDAgMCAwIDIgMTJ2NGMwIC42LjQgMSAxIDFoMiIvPjxjaXJjbGUgY3g9IjciIGN5PSIxNyIgcj0iMiIvPjxwYXRoIGQ9Ik05IDE3aDYiLz48Y2lyY2xlIGN4PSIxNyIgY3k9IjE3IiByPSIyIi8+PC9zdmc+"
-                                    alt="렌터카"
-                                />
-                            </a>
-                        </div>
-                        <span>렌터카</span>
+                        <a href="#">
+                            <div class="icon-img-box color-rentcar">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMwZDk0ODgiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1jYXItaWNvbiBsdWNpZGUtY2FyIj48cGF0aCBkPSJNMTkgMTdoMmMuNiAwIDEtLjQgMS0xdi0zYzAtLjktLjctMS43LTEuNS0xLjlDMTguNyAxMC42IDE2IDEwIDE2IDEwcy0xLjMtMS40LTIuMi0yLjNjLS41LS40LTEuMS0uNy0xLjgtLjdINWMtLjYgMC0xLjEuNC0xLjQuOWwtMS40IDIuOUEzLjcgMy43IDAgMCAwIDIgMTJ2NGMwIC42LjQgMSAxIDFoMiIvPjxjaXJjbGUgY3g9IjciIGN5PSIxNyIgcj0iMiIvPjxwYXRoIGQ9Ik05IDE3aDYiLz48Y2lyY2xlIGN4PSIxNyIgY3k9IjE3IiByPSIyIi8+PC9zdmc+" alt="렌터카" />
+                            </div>
+                            <span>렌터카</span>
+                        </a>
+
                     </div>
                 </div>
             </section>
@@ -183,29 +235,31 @@
                                 </div>
                             </div>
 
-                            <div class="event-c yellow-card">
+                            <div class="event-c black-card">
                                 <div class="event-content">
                                     <span class="event-sub">Spring Edition</span>
                                     <h4 class="event-main-title">일본 벚꽃 개화 시기 확정!</h4>
                                     <a href="#" class="btn-event-link">특가 확인하기</a>
                                 </div>
                             </div>
-
-                            <div class="event-c image-card">
+                        
+                            <div class="event-c green-card">
                                 <div class="event-content light">
                                     <span class="event-sub">Global Pass</span>
                                     <h4 class="event-main-title">
-                                        2026 유럽 배낭여행유레일패스 최대 25% 선할인<br />최대 할인
-                                    </h4>
+                                        2026 유럽 배낭여행유레일패스 <br>
+                                        최대 25% 선할인</h4>
                                     <a href="#" class="btn-event-link">패스 구매하기</a>
                                 </div>
                             </div>
-
-                            <div class="event-c pink-card">
+                        
+                            <div class="event-c blue-card">
                                 <div class="event-content">
                                     <span class="event-sub">Stay Focus</span>
-                                    <h4 class="event-main-title">제주 감성 스테이 독채 자쿠지 숙소 단독 예약<br /></h4>
-                                    <button class="btn-event-link">숙소 둘러보기</button>
+                                    <h4 class="event-main-title">
+                                        제주 감성 스테이 <br>
+                                        독채 자쿠지 숙소 단독 예약 </h4>
+                                    <button class="btn-event-link">숙소 둘러보기 </button>
                                 </div>
                             </div>
                         </div>
@@ -261,9 +315,15 @@
                     </ul>
                 </div>
                 <div class="ai-content grid-3">
-                    <div class="ai-card">이미지 1</div>
-                    <div class="ai-card">이미지 2</div>
-                    <div class="ai-card">이미지 3</div>
+                    <div class="ai-card">
+                        <img src="https://media.istockphoto.com/id/536048545/ko/%EC%82%AC%EC%A7%84/%EC%97%B4%EB%8C%80-%EB%A6%AC%EC%A1%B0%ED%8A%B8.jpg?b=1&s=1024x1024&w=0&k=20&c=0QcU3W7r3fYh2tWziXLuBxlEI7OHsx_zzVgbMmCDDyE=" alt="AI 핫플" />
+                    </div>
+                    <div class="ai-card">
+                        <img src="https://media.istockphoto.com/id/2188890502/ko/%EC%82%AC%EC%A7%84/%EC%9D%BC%EC%B6%9C-%EC%8B%9C%EA%B0%84%EC%97%90-sol-d-en-serra-%ED%95%B4%EB%B3%80-%EC%9D%B4%EB%B9%84%EC%9E%90.jpg?b=1&s=1024x1024&w=0&k=20&c=I_Sdc010p_-IzrT6CtH4xeig9lGsPL5dOtJZh68ZcTY=" alt="AI 핫플" />
+                    </div>
+                    <div class="ai-card">
+                        <img src="	https://media.istockphoto.com/id/168301497/ko/%EC%82%AC%EC%A7%84/%EB%9F%AD%EC%85%94%EB%A6%AC%ED%95%98%EB%8B%A4-%ED%95%98%EC%99%80%EC%9D%B4%EC%96%B4-5%EC%84%B1%EA%B8%89-%EB%A6%AC%EC%A1%B0%ED%8A%B8%EC%9E%85%EB%8B%88%EB%8B%A4.jpg?b=1&s=1024x1024&w=0&k=20&c=wXXcvoTO-VH_bgUZW0oTHYkm4RDBL8CcRsm97TLSGRw=" alt="AI 핫플" />
+                    </div>
                 </div>
             </section>
         </main>
@@ -272,9 +332,9 @@
             <div class="container">
                 <h3 class="section-title light">지금 가장 핫한 여행지, AI는 알고 있어요 ✨</h3>
                 <div class="grid-3">
-                    <div class="dest-card">태국</div>
-                    <div class="dest-card">파리, 프랑스</div>
-                    <div class="dest-card">후쿠오카, 일본</div>
+                    <div class="dest-card hot1"><span>태국</span></div>
+                    <div class="dest-card hot2"><span>파리, 프랑스</span></div>
+                    <div class="dest-card hot3"><span>후쿠오카, 일본</span></div>
                 </div>
             </div>
         </section>

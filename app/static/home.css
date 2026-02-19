@@ -82,11 +82,29 @@ ul {
 
 /* Hero Section */
 .hero {
-    background: #000;
+    background: url(https://media.istockphoto.com/id/1371256107/ko/%EC%82%AC%EC%A7%84/%ED%95%B4%EC%95%88%EA%B3%BC-%ED%95%B4%EB%B3%80%EC%97%90%EC%84%9C-%EC%97%AC%EB%A6%84-%ED%95%B4%EB%B3%80%EC%9D%98-%EC%B2%AD%EB%A1%9D%EC%83%89-%ED%8C%8C%EB%8F%84-%EB%AC%BC-%EB%B0%B0%EA%B2%BD-%EC%97%AC%EB%A6%84-%ED%8C%A8%ED%84%B4-%EC%9D%B4%EB%AF%B8%EC%A7%80.jpg?b=1&s=1024x1024&w=0&k=20&c=bwFhN0dflXI0wr-ZdbOrepVQHAfD4lHPsECxRK8Si10=) no-repeat center/cover;
     color: #fff;
     padding: 80px 0;
     text-align: center;
+    position: relative;
+    z-index: 0;
 }
+
+.hero::after {
+    content: "";
+    width: 100%; height: 100%;
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.2);
+    z-index: 1;
+}
+
+.container {
+    position: relative;
+    z-index: 999;
+}
+
 .hero-title {
     font-size: 32px;
     margin-bottom: 40px;
@@ -115,33 +133,272 @@ ul {
     color: #00aaff;
     border-bottom: 2px solid #00aaff;
 }
-.search-form {
+
+/* --- Search Widget Box --- */
+.search-widget {
+    background-color: white;
     display: flex;
-    gap: 10px;
-}
-.search-form input {
-    flex: 1;
-    padding: 12px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-}
-.btn-search {
-    background: #00aaff;
-    color: #fff;
-    border: none;
-    padding: 0 30px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
+    position: relative;
 }
 
-@media (max-width: 768px) {
-    .search-form {
-        flex-direction: column;
+.search-item {
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-right: 1px solid #f1f5f9;
+}
+
+.search-item:hover {
+    background-color: #f8fafc;
+}
+
+.dest-item {
+    flex: 1;
+    border-top-left-radius: 30px;
+    border-bottom-left-radius: 30px;
+}
+
+.date-item {
+    width: 12rem;
+}
+
+.guest-item {
+    flex: 1;
+    border-right: none;
+}
+
+.search-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 900;
+    color: #94a3b8;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.search-input {
+    width: 100%;
+    font-weight: 700;
+    color: #1e293b;
+    outline: none;
+    background: transparent;
+    cursor: pointer;
+    border: none;
+}
+
+.search-submit-btn {
+    height: 100%;
+    background-color: #00aaff;
+    color: white;
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+    border-radius: 22px;
+    font-weight: 900;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    box-shadow: 0 10px 15px -3px rgba(14, 165, 233, 0.2);
+}
+
+.search-submit-btn:hover {
+    background-color: #009fef;
+}
+
+/* --- Popover Common --- */
+.popover {
+    position: absolute;
+    top: calc(100% + 15px);
+    left: 0;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--border);
+    z-index: 300;
+    display: none;
+    overflow: hidden;
+    animation: slideUp 0.2s ease-out;
+}
+
+.popover.active {
+    display: flex;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
     }
-    .btn-search {
-        padding: 15px;
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
+}
+
+/* --- Destination Popover Specific --- */
+#destPopover {
+    width: 650px;
+    height: 480px;
+}
+
+.dest-sidebar {
+    width: 180px;
+    background: #f1f5f9;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+}
+
+.dest-tab {
+    width: 100%;
+    text-align: left;
+    padding: 15px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #64748b;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.dest-tab.active {
+    background: white;
+    color: var(--primary);
+    border-right: 4px solid var(--primary);
+}
+
+.dest-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.search-box-inner {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.search-icon-inner {
+    position: absolute;
+    left: 0.75rem;
+    top: 0.75rem;
+    width: 1rem;
+    height: 1rem;
+    color: #94a3b8;
+}
+
+.city-search-field {
+    width: 100%;
+    background-color: #f1f5f9;
+    border: none;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem 0.75rem 2.5rem;
+    font-size: 0.875rem;
+    outline: none;
+}
+
+.city-search-field:focus {
+    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+}
+
+.city-grid {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    align-content: start;
+}
+
+.city-btn {
+    padding: 10px;
+    border: 1px solid #f1f5f9;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+    transition: 0.2s;
+    background: white;
+    cursor: pointer;
+}
+
+.city-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: #f0f9ff;
+}
+
+/* --- Guest Popover Specific --- */
+#guestPopover {
+    width: 320px;
+    flex-direction: column;
+    padding: 25px;
+    right: 0;
+    left: auto;
+}
+
+.guest-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.guest-title {
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.guest-subtitle {
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.counter-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.cnt-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.2s;
+    background: white;
+    cursor: pointer;
+}
+
+.cnt-btn:hover:not(:disabled) {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.cnt-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.cnt-value {
+    font-weight: 700;
+    width: 1rem;
+    text-align: center;
+}
+
+/* --- Overlay --- */
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: transparent;
+    z-index: 150;
+    display: none;
+}
+
+.overlay.active {
+    display: block;
 }
 
 /* Quick Icons 섹션 스타일 */
@@ -165,6 +422,7 @@ ul {
     gap: 12px;
     cursor: pointer;
     flex: 1;
+    text-align: center;
 }
 
 .icon-img-box {
@@ -175,6 +433,7 @@ ul {
     justify-content: center;
     align-items: center;
     transition: transform 0.2s;
+    margin-bottom: 8px;
 }
 
 .icon-img-box:hover {
@@ -187,7 +446,7 @@ ul {
     object-fit: contain;
 }
 
-.icon-item span {
+.icon-item a span {
     font-size: 15px;
     font-weight: 500;
     color: #333;
@@ -419,6 +678,56 @@ ul {
     z-index: 1;
 }
 
+.black-card {
+    background: url(https://media.istockphoto.com/id/1483972933/ko/%EC%82%AC%EC%A7%84/%EB%A9%94%EA%B5%AC%EB%A1%9C-%EA%B0%95%EC%9D%98-%EB%B0%A4-%EB%B2%9A%EA%BD%83-%EB%8F%84%EC%BF%84-%EC%9D%BC%EB%B3%B8.jpg?b=1&s=1024x1024&w=0&k=20&c=0FBurJ8mjNSLZibH_uYnRxqUyqPn_wGwdD0qweJp5z8=
+) no-repeat center/100% auto;
+    color: #fff;
+}
+
+.black-card::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4); /* 반투명 검은색 오버레이 */
+    z-index: 1;
+}
+
+.green-card {
+    background: url(https://cdn.pixabay.com/photo/2020/10/14/18/37/santorini-5655111_1280.jpg
+) no-repeat center/100% auto;
+    color: #fff;
+}
+
+.green-card::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4); /* 반투명 검은색 오버레이 */
+    z-index: 1;
+}
+
+.blue-card {
+    background: url(https://media.istockphoto.com/id/187015701/ko/%EC%82%AC%EC%A7%84/%EC%88%99%EB%B0%95-%EB%B3%B4%EA%B8%B0%EB%A5%BC-%EC%97%B4%EB%8C%80-%EB%A6%AC%EC%A1%B0%ED%8A%B8-%ED%98%B8%ED%85%94.jpg?b=1&s=1024x1024&w=0&k=20&c=Am_SIb7uEkf7pdJAsoHt9oGjHu115t7RKk1oNClI7Xg=) no-repeat center/100% auto;
+    color: #fff;
+}
+
+.blue-card::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4); /* 반투명 검은색 오버레이 */
+    z-index: 1;
+}
+
 .event-content.light {
     color: #fff;
 }
@@ -567,9 +876,19 @@ ul {
     flex: 1;
 }
 .ai-card {
+    width: 100%; height: 200px;
+    overflow: hidden;
     background: #ddd;
     border-radius: 12px;
     height: 250px;
+    position: relative;
+}
+
+.ai-card img {
+    height: 100%;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
 }
 
 @media (max-width: 992px) {
@@ -604,6 +923,32 @@ ul {
     padding: 20px;
     font-weight: bold;
     font-size: 20px;
+}
+
+.dest-card span {
+    z-index: 2;
+}
+
+.hot1 {
+    background: url(https://media.istockphoto.com/id/507913346/ko/%EC%82%AC%EC%A7%84/%EC%99%93-%EC%95%84%EB%A3%AC-%EC%82%AC%EC%9B%90-%EC%9D%BC%EB%AA%B0-%EB%B0%A9%EC%BD%95-%ED%83%9C%EA%B5%AD.jpg?b=1&s=1024x1024&w=0&k=20&c=QXQefD1LUCdutKIydQfCDQ8NZeqPciYKEcb7ghhnrvk=) no-repeat center/cover;
+    position: relative;
+}
+
+.hot1::after {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 1;
+}
+
+.hot2 {
+    background: url(https://media.istockphoto.com/id/2119799972/ko/%EC%82%AC%EC%A7%84/%ED%8C%8C%EB%A6%AC-%EC%97%90%ED%8E%A0%ED%83%91%EC%9D%98-%EB%B4%84-%EC%A0%80%EB%85%81-%ED%92%8D%EA%B2%BD.jpg?b=1&s=1024x1024&w=0&k=20&c=W9lvxwjHotRjXfKp0CYM6Xx_3Z3aSUok-G8DntMAFCs=) no-repeat center/cover;
+}
+
+.hot3 {
+    background: url(https://cdn.pixabay.com/photo/2021/12/21/03/56/street-6884534_1280.jpg) no-repeat center/cover;
 }
 
 /* Footer */
