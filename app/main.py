@@ -69,6 +69,11 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
 app.include_router(main_router)
+
+@app.get("/mypage", response_class=HTMLResponse)
+def mypage(request: Request):
+    return templates.TemplateResponse("mypage.html", {"request": request})
+
 @app.get("/airport", response_class=HTMLResponse)
 def airport(request: Request):
     return templates.TemplateResponse("airport.html", {"request": request})
