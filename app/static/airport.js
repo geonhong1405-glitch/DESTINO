@@ -1,249 +1,225 @@
 /**
- * DESTINO 항공권 예약 시스템 (flight.js)
+ * DESTINO 항공권 예약 시스템 스크립트
  */
 
-// 전역 상태
-let tripType = 'round'; // round(왕복), one(편도), multi(다구간)
-let currentDate = new Date();
-let displayYear = currentDate.getFullYear();
-let displayMonth = currentDate.getMonth();
-let selectedStartDate = null;
-let selectedEndDate = null;
-let pax = { adult: 1, child: 0, infant: 0 };
+function initIcons() {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
 
-// 초기화
-window.addEventListener('DOMContentLoaded', () => {
-    renderCalendar();
-    updateDateDisplay();
-    updatePaxDisplay();
+/* ================= 데이터 & 상태 ================= */
+const airportData = {
+    '한국/동북아': [
+        { name: '인천', code: 'ICN', country: '대한민국' },
+        { name: '김포', code: 'GMP', country: '대한민국' },
+        { name: '도쿄(나리타)', code: 'NRT', country: '일본' },
+        { name: '도쿄(하네다)', code: 'HND', country: '일본' },
+        { name: '오사카(간사이)', code: 'KIX', country: '일본' },
+    ],
+    동남아: [
+        { name: '방콕(수완나품)', code: 'BKK', country: '태국' },
+        { name: '다낭', code: 'DAD', country: '베트남' },
+    ],
+    '미주/유럽': [
+        { name: '로스앤젤레스', code: 'LAX', country: '미국' },
+        { name: '파리(샤를드골)', code: 'CDG', country: '프랑스' },
+    ],
+};
+
+let currentTripType = 'round';
+let segments = [
+    { id: 1, dep: '인천 (ICN)', arr: '', date: '' },
+    { id: 2, dep: '', arr: '인천 (ICN)', date: '' },
+];
+
+// 인원 및 좌석 상태
+let passengerState = {
+    adult: 1,
+    child: 0,
+    infant: 0,
+    cabin: '일반석',
+};
+
+/* ================= 초기화 ================= */
+document.addEventListener('DOMContentLoaded', () => {
+    renderForm();
+    initAirportPopover();
+    initIcons();
 });
 
-// 여정 타입 변경
 function setTripType(type) {
-    tripType = type;
-    document.querySelectorAll('.widget-tab').forEach((el) => el.classList.remove('active'));
-    document.getElementById(`tab-${type}`).classList.add('active');
+    currentTripType = type;
+    document.querySelectorAll('.flight-tab-btn').forEach((btn) => {
+        btn.classList.remove('active');
+        if (btn.getAttribute('onclick').includes(type)) btn.classList.add('active');
+    });
+    const addBtn = document.getElementById('addSegmentBtn');
+    if (addBtn) addBtn.style.display = type === 'multi' ? 'flex' : 'none';
+    renderForm();
+}
 
-    // 편도 선택 시 도착일 초기화
-    if (type === 'one') {
-        selectedEndDate = null;
+function renderForm() {
+    const container = document.getElementById('flightForm');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const passValue = `성인 ${passengerState.adult}${passengerState.child > 0 ? ', 소아 ' + passengerState.child : ''}, ${passengerState.cabin}`;
+
+    if (currentTripType === 'multi') {
+        segments.forEach((seg, index) => {
+            const row = document.createElement('div');
+            row.className = 'flight-row';
+            row.innerHTML = `
+                <div class="input-group" onclick="openAirportPopover('seg-${index}-dep')">
+                    <label>출발지</label>
+                    <input type="text" id="seg-${index}-dep" value="${seg.dep}" readonly placeholder="도시/공항">
+                </div>
+                <div class="swap-btn" style="transform: rotate(90deg); border:none;"><i data-lucide="plane" width="18"></i></div>
+                <div class="input-group" onclick="openAirportPopover('seg-${index}-arr')">
+                    <label>도착지</label>
+                    <input type="text" id="seg-${index}-arr" value="${seg.arr}" readonly placeholder="도시/공항">
+                </div>
+                <div class="input-group" style="flex: 0.6;"><label>가는 날</label><input type="date"></div>
+                ${segments.length > 2 ? `<button type="button" class="remove-segment-btn" onclick="removeSegment(${index})">&times;</button>` : ''}
+            `;
+            container.appendChild(row);
+        });
+        // 다구간일 때 하단에 인원 선택 바 추가 (구조상 별도 행)
+        const bottomRow = document.createElement('div');
+        bottomRow.className = 'flight-row';
+        bottomRow.innerHTML = `
+            <div class="input-group" onclick="openPassengerPopover()" style="width:100%">
+                <label>인원 및 좌석</label>
+                <input type="text" id="pass-input" value="${passValue}" readonly>
+            </div>
+        `;
+        container.appendChild(bottomRow);
+    } else {
+        const row = document.createElement('div');
+        row.className = 'flight-row';
+        row.innerHTML = `
+            <div class="input-group" onclick="openAirportPopover('main-dep')">
+                <label>출발지</label>
+                <input type="text" id="main-dep" value="인천 (ICN)" readonly>
+            </div>
+            <button type="button" class="swap-btn" onclick="swapMainLocations(event)"><i data-lucide="arrow-right-left" width="16"></i></button>
+            <div class="input-group" onclick="openAirportPopover('main-arr')">
+                <label>도착지</label>
+                <input type="text" id="main-arr" value="" readonly placeholder="어디로 떠나시나요?">
+            </div>
+            <div class="input-group"><label>가는 날</label><input type="date"></div>
+            ${currentTripType === 'round' ? '<div class="input-group"><label>오는 날</label><input type="date"></div>' : ''}
+            <div class="input-group" onclick="openPassengerPopover()">
+                <label>인원 및 좌석</label>
+                <input type="text" id="pass-input" value="${passValue}" readonly>
+            </div>
+        `;
+        container.appendChild(row);
+    }
+    initIcons();
+}
+
+/* ================= 팝업 제어 ================= */
+function openAirportPopover(targetId) {
+    activeInputId = targetId;
+    document.getElementById('airportPopover').classList.add('active');
+    document.getElementById('overlay').classList.add('active');
+}
+
+function openPassengerPopover() {
+    document.getElementById('passengerPopover').classList.add('active');
+    document.getElementById('overlay').classList.add('active');
+}
+
+function closeAllPopovers() {
+    document.querySelectorAll('.popover').forEach((p) => p.classList.remove('active'));
+    document.getElementById('overlay').classList.remove('active');
+    updatePassInput();
+}
+
+/* ================= 인원 조절 로직 ================= */
+function updateCount(type, delta) {
+    const newVal = passengerState[type] + delta;
+    if (type === 'adult' && newVal < 1) return; // 성인 최소 1명
+    if (newVal < 0) return; // 소아, 유아 최소 0명
+    if (passengerState.adult + passengerState.child + passengerState.infant + delta > 9) {
+        alert('최대 9명까지 선택 가능합니다.');
+        return;
     }
 
-    updateDateDisplay();
-    renderCalendar();
+    passengerState[type] = newVal;
+    document.getElementById(`count-${type}`).textContent = newVal;
+    updatePassInput();
 }
 
-// 모달 제어
-function openSearchModal(type) {
-    closeAllModals();
-    document.getElementById(`${type}-modal`).classList.remove('hidden');
+function updateCabin(val) {
+    passengerState.cabin = val;
+    updatePassInput();
 }
 
-function toggleModal(id) {
-    const el = document.getElementById(id);
-    const isHidden = el.classList.contains('hidden');
-    closeAllModals();
-    if (isHidden) el.classList.remove('hidden');
+function updatePassInput() {
+    const input = document.getElementById('pass-input');
+    if (!input) return;
+    const total = passengerState.adult + passengerState.child + passengerState.infant;
+    let text = `성인 ${passengerState.adult}`;
+    if (passengerState.child > 0) text += `, 소아 ${passengerState.child}`;
+    if (passengerState.infant > 0) text += `, 유아 ${passengerState.infant}`;
+    text += `, ${passengerState.cabin}`;
+    input.value = text;
 }
 
-function closeAllModals() {
-    const modals = ['dep-modal', 'arr-modal', 'date-modal', 'pax-modal'];
-    modals.forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) el.classList.add('hidden');
+/* ================= 공항 선택 (기존 유지) ================= */
+function initAirportPopover() {
+    const tabs = document.getElementById('airportRegionTabs');
+    if (!tabs) return;
+    tabs.innerHTML = '';
+    Object.keys(airportData).forEach((region, i) => {
+        const btn = document.createElement('button');
+        btn.className = `popover-tab ${i === 0 ? 'active' : ''}`;
+        btn.textContent = region;
+        btn.onclick = (e) => {
+            document.querySelectorAll('.popover-tab').forEach((t) => t.classList.remove('active'));
+            e.target.classList.add('active');
+            renderAirportList(region);
+        };
+        tabs.appendChild(btn);
+        if (i === 0) renderAirportList(region);
     });
 }
 
-// 위치 선택
-function selectLocation(type, name, country) {
-    document.getElementById(`${type}-input`).value = name;
-    document.getElementById(`${type}-sub`).innerText = country;
-    closeAllModals();
+function renderAirportList(region) {
+    const list = document.getElementById('airportList');
+    list.innerHTML = '';
+    airportData[region].forEach((ap) => {
+        const div = document.createElement('div');
+        div.className = 'airport-item';
+        div.innerHTML = `<div><span class="airport-name">${ap.name}</span><span class="airport-country">${ap.country}</span></div><span class="airport-code">${ap.code}</span>`;
+        div.onclick = () => {
+            if (activeInputId) document.getElementById(activeInputId).value = `${ap.name} (${ap.code})`;
+            closeAllPopovers();
+        };
+        list.appendChild(div);
+    });
 }
 
-// 출발지 <-> 도착지 교체
-function swapLocations() {
-    const depInput = document.getElementById('dep-input');
-    const depSub = document.getElementById('dep-sub');
-    const arrInput = document.getElementById('arr-input');
-    const arrSub = document.getElementById('arr-sub');
-
-    // 값이 둘 다 있을 때만 교체 (선택사항)
-    // if (!depInput.value || !arrInput.value) return;
-
-    const tempVal = depInput.value;
-    const tempSub = depSub.innerText;
-
-    depInput.value = arrInput.value;
-    depSub.innerText = arrSub.innerText;
-    arrInput.value = tempVal;
-    arrSub.innerText = tempSub;
+function swapMainLocations(e) {
+    e.stopPropagation();
+    const d = document.getElementById('main-dep'),
+        a = document.getElementById('main-arr');
+    const t = d.value;
+    d.value = a.value;
+    a.value = t;
 }
 
-// 달력 로직
-function changeMonth(delta, event) {
-    if (event) event.stopPropagation();
-    displayMonth += delta;
-    if (displayMonth > 11) {
-        displayMonth = 0;
-        displayYear++;
-    } else if (displayMonth < 0) {
-        displayMonth = 11;
-        displayYear--;
-    }
-    renderCalendar();
+function addMultiCitySegment() {
+    segments.push({ id: Date.now(), dep: '', arr: '', date: '' });
+    renderForm();
 }
-
-function renderCalendar() {
-    const grid = document.getElementById('calendar-grid');
-    if (!grid) return;
-
-    const monthYearTitle = document.getElementById('cal-month-year');
-    monthYearTitle.innerText = `${displayYear}년 ${displayMonth + 1}월`;
-    grid.innerHTML = '';
-
-    const firstDay = new Date(displayYear, displayMonth, 1).getDay();
-    const daysInMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    for (let i = 0; i < firstDay; i++) {
-        grid.appendChild(document.createElement('div'));
-    }
-
-    for (let day = 1; day <= daysInMonth; day++) {
-        const cellDate = new Date(displayYear, displayMonth, day);
-        const cell = document.createElement('div');
-        cell.className = 'calendar-day';
-        cell.innerText = day;
-
-        if (cellDate < today) {
-            cell.classList.add('disabled');
-        } else {
-            cell.onclick = (e) => {
-                e.stopPropagation();
-                handleDateClick(cellDate);
-            };
-        }
-
-        // 선택 상태 스타일링
-        const time = cellDate.getTime();
-        const start = selectedStartDate ? selectedStartDate.getTime() : null;
-        const end = selectedEndDate ? selectedEndDate.getTime() : null;
-
-        if (start && time === start) cell.classList.add('selected');
-        if (end && time === end) cell.classList.add('selected');
-
-        // 범위 표시 (옵션: CSS에 .in-range 스타일 추가 필요)
-        // if (start && end && time > start && time < end) cell.classList.add('in-range');
-
-        grid.appendChild(cell);
-    }
+function removeSegment(i) {
+    segments.splice(i, 1);
+    renderForm();
 }
-
-function handleDateClick(date) {
-    if (tripType === 'one') {
-        selectedStartDate = date;
-        selectedEndDate = null;
-        // 편도면 선택 후 모달 닫기
-        // closeAllModals();
-    } else {
-        if (!selectedStartDate || (selectedStartDate && selectedEndDate)) {
-            selectedStartDate = date;
-            selectedEndDate = null;
-        } else if (date < selectedStartDate) {
-            selectedStartDate = date;
-        } else {
-            selectedEndDate = date;
-            // 왕복 선택 완료 후 모달 닫기 (선택사항)
-            // closeAllModals();
-        }
-    }
-    renderCalendar();
-    updateDateDisplay();
+function performSearch() {
+    alert('검색을 시작합니다.');
 }
-
-function updateDateDisplay() {
-    const startEl = document.getElementById('start-date-display');
-    const endEl = document.getElementById('end-date-display');
-
-    if (!startEl || !endEl) return;
-
-    const format = (d) => `${d.getMonth() + 1}월 ${d.getDate()}일`;
-
-    if (!selectedStartDate) {
-        startEl.innerText = '날짜 선택';
-        startEl.style.color = '';
-        startEl.style.fontWeight = '';
-    } else {
-        startEl.innerText = format(selectedStartDate);
-        startEl.style.color = '#111827';
-        startEl.style.fontWeight = '700';
-    }
-
-    if (tripType === 'one') {
-        endEl.innerText = '-';
-        endEl.style.color = '#9ca3af';
-    } else {
-        if (!selectedEndDate) {
-            endEl.innerText = '날짜 선택';
-            endEl.style.color = '';
-            endEl.style.fontWeight = '';
-        } else {
-            endEl.innerText = format(selectedEndDate);
-            endEl.style.color = '#111827';
-            endEl.style.fontWeight = '700';
-        }
-    }
-}
-
-// 인원 변경
-function changePax(type, delta, event) {
-    if (event) event.stopPropagation();
-    const newVal = pax[type] + delta;
-    if (newVal < 0) return;
-    if (type === 'adult' && newVal < 1) return; // 성인은 최소 1명
-
-    pax[type] = newVal;
-    document.getElementById(`${type}-count`).innerText = newVal;
-    updatePaxDisplay();
-}
-
-function updatePaxDisplay() {
-    const total = pax.adult + pax.child + pax.infant;
-    const el = document.getElementById('pax-display');
-    if (el) {
-        el.innerText = `성인 ${pax.adult}명, 소아 ${pax.child}명`;
-        el.style.color = '#111827';
-        el.style.fontWeight = '700';
-    }
-}
-
-// 리스트 필터링
-function filterList(keyword, listId) {
-    const list = document.getElementById(listId);
-    const items = list.getElementsByTagName('li');
-    const lower = keyword.toLowerCase();
-    for (let item of items) {
-        const text = item.innerText.toLowerCase();
-        item.style.display = text.includes(lower) ? 'flex' : 'none';
-    }
-}
-
-// 검색 실행
-function performFlightSearch() {
-    const dep = document.getElementById('dep-input').value;
-    const arr = document.getElementById('arr-input').value;
-
-    if (!arr) return alert('도착지를 선택해주세요.');
-    if (!selectedStartDate) return alert('출발 날짜를 선택해주세요.');
-
-    alert(`[검색 요청]\n출발: ${dep}\n도착: ${arr}\n날짜: ${document.getElementById('start-date-display').innerText}`);
-}
-
-// 외부 클릭 닫기
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('.input-group') && !e.target.closest('.dropdown-modal')) {
-        closeAllModals();
-    }
-});

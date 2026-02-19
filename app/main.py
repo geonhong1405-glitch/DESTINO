@@ -67,7 +67,6 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-
 app.include_router(main_router)
 @app.get("/airport", response_class=HTMLResponse)
 def airport(request: Request):
@@ -108,8 +107,6 @@ def login(request: Request):
 @app.get("/join", response_class=HTMLResponse)
 def join(request: Request):
     return templates.TemplateResponse("join.html", {"request": request})
-
-
 
 # 데이터베이스 테이블 생성
 Base.metadata.create_all(bind=engine)
