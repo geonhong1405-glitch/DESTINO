@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -79,7 +79,6 @@
                                     <li onclick="selectLocation('dep', '부산 (PUS)', '대한민국')"><span>부산 (PUS)</span><span class="code">KR</span></li>
                                 </ul>
                             </div>
-                        </div>
 
                         <!-- 교체 버튼 -->
                         <button onclick="swapLocations()" class="swap-btn">
@@ -147,6 +146,7 @@
                                 <div class="text-right">
                                     <button onclick="closeAllModals()" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold text-sm">선택 완료</button>
                                 </div>
+                                <div id="pax-display" class="text-xs text-gray-500 mt-1 font-medium">성인 1명</div>
                             </div>
                         </div>
 
@@ -200,8 +200,7 @@
 
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
         <!-- [콘텐츠 1] 실시간 최저가 항공권 -->
         <section class="container py-12">

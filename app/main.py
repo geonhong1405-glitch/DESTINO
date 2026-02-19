@@ -1,3 +1,4 @@
+# ...existing code...
 from fastapi import Query
 from app.session import get_user_id_from_session, create_session, delete_session
 from app.db.db import Base, engine, SessionLocal
@@ -68,6 +69,33 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
 app.include_router(main_router)
+@app.get("/airport", response_class=HTMLResponse)
+def airport(request: Request):
+    return templates.TemplateResponse("airport.html", {"request": request})
+
+@app.get("/gloval-hotel", response_class=HTMLResponse)
+def gloval_hotel(request: Request):
+    return templates.TemplateResponse("gloval-hotel.html", {"request": request})
+
+@app.get("/home", response_class=HTMLResponse)
+def home_page(request: Request):
+    return templates.TemplateResponse("home.html", {"request": request})
+
+@app.get("/planner", response_class=HTMLResponse)
+def planner(request: Request):
+    return templates.TemplateResponse("planner.html", {"request": request})
+
+@app.get("/join", response_class=HTMLResponse)
+def join(request: Request):
+    return templates.TemplateResponse("join.html", {"request": request})
+
+@app.get("/login", response_class=HTMLResponse)
+def login(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.get("/signin", response_class=HTMLResponse)
+def signin_get(request: Request):
+    return templates.TemplateResponse("signin.html", {"request": request})
 app.include_router(rag_router)
 
 
@@ -183,6 +211,14 @@ def create_user(
         return templates.TemplateResponse("join.html", {"request": request, "error": "이미 사용 중인 휴대폰 번호입니다."})
     if db.query(User).filter(User.nickname == nickname).first():
         return templates.TemplateResponse("join.html", {"request": request, "error": "이미 사용 중인 닉네임입니다."})
+    if password != password_confirm:
+        return templates.TemplateResponse("join.html", {"request": request, "error": "비밀번호가 일치하지 않습니다."})
+    # 회원 생성
+    user = User(name=username, password=password, nickname=nickname, email=email, phone=phone)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return RedirectResponse(url="/login", status_code=302)
     if password != password_confirm:
         return templates.TemplateResponse("join.html", {"request": request, "error": "비밀번호가 일치하지 않습니다."})
     user = User(name=username, email=email, phone=phone, password=password, nickname=nickname)
