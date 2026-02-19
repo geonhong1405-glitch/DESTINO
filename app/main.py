@@ -154,6 +154,11 @@ def planner(request: Request):
 def gloval_hotel(request: Request):
     return templates.TemplateResponse("gloval-hotel.html", {"request": request})
 
+# 항공 페이지 렌더링
+@app.get("/airport", response_class=HTMLResponse)
+def airport(request: Request):
+    return templates.TemplateResponse("airport.html", {"request": request})
+
 # 데이터베이스 테이블 생성
 Base.metadata.create_all(bind=engine)
 
