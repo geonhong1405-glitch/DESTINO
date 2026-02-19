@@ -23,7 +23,12 @@
             </div>
 
             <nav class="header-nav">
+                {% if nickname %}
+                <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
+                {% else %}
                 <a href="/login" class="nav-item-login">로그인</a>
+                {% endif %}
                 <a href="#" class="nav-item-hidden">이용안내</a>
                 <a href="#" class="nav-item-hidden">고객센터</a>
                 <a href="#" class="nav-item-lang">KOR</a>
@@ -62,12 +67,11 @@
                     </div>
 
                     <div class="widget-body">
-                        <!-- 출발지 -->
+
                         <div class="input-group group relative flex-[1.5]">
                             <label>출발지</label>
                             <input type="text" id="dep-input" value="인천 (ICN)" onclick="openSearchModal('dep')" readonly>
                             <div id="dep-sub" class="sub-text">대한민국</div>
-                            
                             <!-- 출발지 모달 -->
                             <div id="dep-modal" class="dropdown-modal hidden">
                                 <div class="p-3 bg-gray-50 border-b">
@@ -79,18 +83,14 @@
                                     <li onclick="selectLocation('dep', '부산 (PUS)', '대한민국')"><span>부산 (PUS)</span><span class="code">KR</span></li>
                                 </ul>
                             </div>
-
-                        <!-- 교체 버튼 -->
-                        <button onclick="swapLocations()" class="swap-btn">
+                        </div>
+                        <button onclick="swapLocations()" class="swap-btn" style="align-self: flex-end; margin-bottom: 24px; margin-left: -8px; margin-right: -8px;">
                             <i class="fa-solid fa-arrow-right-arrow-left"></i>
                         </button>
-
-                        <!-- 도착지 -->
                         <div class="input-group group relative flex-[1.5]">
                             <label>도착지</label>
                             <input type="text" id="arr-input" placeholder="어디로 갈까요?" onclick="openSearchModal('arr')" readonly>
                             <div id="arr-sub" class="sub-text">공항 검색</div>
-                            
                             <!-- 도착지 모달 -->
                             <div id="arr-modal" class="dropdown-modal hidden">
                                 <div class="p-3 bg-gray-50 border-b">
@@ -105,27 +105,19 @@
                                 </ul>
                             </div>
                         </div>
-
-                        <!-- 가는 날 -->
                         <div class="input-group relative flex-1" onclick="toggleModal('date-modal')">
                             <label>가는 날</label>
                             <div id="start-date-display" class="date-text">날짜 선택</div>
                         </div>
-
-                        <!-- 오는 날 -->
                         <div class="input-group relative flex-1" onclick="toggleModal('date-modal')">
                             <label>오는 날</label>
                             <div id="end-date-display" class="date-text text-gray-400">날짜 선택</div>
                         </div>
-
-                        <!-- 인원 및 좌석 -->
                         <div class="input-group relative border-none flex-[1.2]" onclick="toggleModal('pax-modal')">
                             <label>인원 및 좌석</label>
                             <div id="pax-display" class="date-text">성인 1명, 일반석</div>
                         </div>
-
-                        <!-- 검색 버튼 -->
-                        <button onclick="performFlightSearch()" class="search-submit-btn">
+                        <button onclick="performFlightSearch()" class="search-submit-btn" style="min-width:120px;">
                             검색
                         </button>
 
