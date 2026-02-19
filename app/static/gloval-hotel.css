@@ -42,7 +42,7 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 }
 
 /* 컨테이너 */
-.container, .header-inner, .gnb-inner {
+.container, .header-inner {
     max-width: var(--max-width);
     margin: 0 auto;
     padding: 0 1.5rem;
@@ -89,39 +89,10 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     }
 }
 
-/* ================= GNB (Sub Header) ================= */
-.gnb {
-    width: 100%; 
-    height: var(--gnb-height);
-    background-color: var(--white);
-    border-bottom: 1px solid var(--border-color);
-    z-index: 999;
-    position: fixed;
-    top: var(--header-height); 
-    left: 0;
-}
-.gnb-inner { 
-    display: flex; 
-    gap: 30px;
-    height: 100%;
-    align-items: center;
-}
-
-.gnb-inner a {
-    font-size: 15px; font-weight: 600; color: var(--text-sub);
-    padding: 16px 0; position: relative;
-    white-space: nowrap;
-}
-.gnb-inner a.active { color: var(--primary-color); }
-.gnb-inner a.active::after {
-    content: ''; position: absolute; bottom: -1px; left: 0;
-    width: 100%; height: 3px; background-color: var(—primary-color);
-}
-
 main { 
-    padding-top: calc(var(—header-height) + var(—gnb-height) + 2rem) !important;
+    padding-top: var(—header-height) !important;
     max-width: var(—max-width) !important;
-    margin: 126px auto 0 auto;
+    margin: 70px auto 0 auto;
 }
 
 /* ================= Hero / Search Widget ================= */
@@ -205,10 +176,11 @@ main {
 .section-header a { font-size: 14px; color: var(--primary-color); font-weight: 600; }
 
 /* Destination Cards */
-.trending-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px; }
+/* .trending-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px; } */
+.trending-grid { display: flex; justify-content: space-between; }
 .trending-card { text-align: center; cursor: pointer; transition: transform 0.2s; }
 .trending-card:hover { transform: translateY(-5px); }
-.trending-img { width: 100%; aspect-ratio: 1; border-radius: 50%; object-fit: cover; margin-bottom: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+.trending-img { width: 160px; height: 160px; aspect-ratio: 1; border-radius: 50%; object-fit: cover; margin-bottom: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
 .trending-name { font-size: 16px; font-weight: 700; }
 .trending-sub { font-size: 13px; color: var(--text-sub); }
 
