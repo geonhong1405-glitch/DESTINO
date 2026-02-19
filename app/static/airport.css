@@ -1,0 +1,371 @@
+/* ================= Base & Variables ================= */
+:root {
+    --primary-color: #007bff; 
+    --primary-hover: #0056b3;
+    --bg-color: #f8f9fa; 
+    --text-main: #222222;
+    --text-sub: #666666;
+    --border-color: #e0e4e8;
+    --white: #ffffff;
+    --red-accent: #ff4757;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+    /* 고정 높이 변수 */
+    --header-height: 70px;
+    --gnb-height: 56px;
+    /* 전체 레이아웃 최대 너비 */
+    --max-width: 1280px; 
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Pretendard', sans-serif; }
+body { background-color: var(--bg-color); color: var(--text-main); line-height: 1.5; }
+a { text-decoration: none; color: inherit; }
+ul { list-style: none; }
+button { cursor: pointer; border: none; background: none; font-family: inherit; }
+
+/* Responsive Grid */
+.grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+@media (max-width: 992px) {
+    .grid-3 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+@media (max-width: 600px) {
+    .grid-3 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* 컨테이너 */
+.container, .header-inner, .gnb-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 1.5rem;
+}
+
+/* Header */
+.header {
+    height: var(--header-height);
+    border-bottom: 1px solid #eee;
+    position: fixed; 
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: #fff;
+    z-index: 1000;
+}
+.header-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%; 
+    height: 100%;
+}
+.logo {
+    color: #00aaff;
+    font-size: 24px;
+    font-weight: 800;
+}
+.header-search-bar input {
+    padding: 8px 15px;
+    border-radius: 20px;
+    border: 1px solid #ddd;
+    width: 300px;
+}
+.header-nav a {
+    margin-left: 15px;
+    font-size: 14px;
+    color: #666;
+}
+
+@media (max-width: 768px) {
+    .header-search-bar {
+        display: none;
+    }
+}
+
+/* ================= GNB (Sub Header) ================= */
+.gnb {
+    width: 100%; 
+    height: var(--gnb-height);
+    background-color: var(--white);
+    border-bottom: 1px solid var(--border-color);
+    z-index: 999;
+    position: fixed;
+    top: var(--header-height); 
+    left: 0;
+}
+.gnb-inner { 
+    display: flex; 
+    gap: 30px;
+    height: 100%;
+    align-items: center;
+}
+
+.gnb-inner a {
+    font-size: 15px; font-weight: 600; color: var(--text-sub);
+    padding: 16px 0; position: relative;
+    white-space: nowrap;
+}
+.gnb-inner a.active { color: var(--primary-color); }
+.gnb-inner a.active::after {
+    content: ''; position: absolute; bottom: -1px; left: 0;
+    width: 100%; height: 3px; background-color: var(--primary-color);
+}
+
+/* 본문 영역 */
+main { 
+    padding-top: calc(var(--header-height) + var(--gnb-height) + 2rem) !important;
+    max-width: var(--max-width) !important;
+    margin: 0 auto;
+}
+
+/* ================= Hero / Search Widget (New Design) ================= */
+.hero-section {
+    background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('https://images.unsplash.com/photo-1499856871958-5b9627545d1a?auto=format&fit=crop&w=1920&q=80') center/cover;
+    padding: 80px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-radius: 20px; /* 컨테이너 내부에 있을 경우를 대비해 둥근 모서리 적용 */
+    margin-bottom: 40px;
+    text-align: center;
+}
+
+.hero-title {
+    color: var(--white);
+    font-size: 32px;
+    font-weight: 800;
+    margin-bottom: 30px;
+    text-align: center;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* 검색 위젯 컨테이너 */
+.search-widget {
+    background: var(--white);
+    border-radius: var(--radius-lg);
+    padding: 10px;
+    display: flex;
+    width: 100%;
+    max-width: 1000px;
+    box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+    position: relative;
+    gap: 0; /* Flex gap 대신 border 사용 */
+}
+
+/* 입력 그룹 (공통 스타일) */
+.input-group {
+    flex: 1;
+    padding: 15px 20px;
+    border-right: 1px solid var(--border-color);
+    position: relative;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: background 0.2s;
+    min-width: 0; /* Flexbox 내부 오버플로우 방지 */
+}
+
+.input-group:hover {
+    background: #f8f9fa;
+}
+
+.input-group:last-of-type {
+    border-right: none;
+}
+
+.input-group label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-sub);
+    margin-bottom: 6px;
+    font-weight: 600;
+    pointer-events: none;
+}
+
+.input-group input { 
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-size: 16px; 
+    font-weight: 700;
+    color: var(--text-main);
+    outline: none;
+    cursor: pointer;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    padding: 0;
+}
+
+.input-group input::placeholder {
+    color: #aaa;
+    font-weight: 500;
+}
+
+/* 검색 버튼 스타일 (위젯 내부 혹은 옆에 배치될 경우) */
+.search-btn-widget {
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: 700;
+    border-radius: var(--radius-md);
+    padding: 0 30px;
+    margin-left: 10px;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.search-btn-widget:hover {
+    background-color: var(--primary-hover);
+}
+
+/* ================= Mobile Responsive for Search Widget ================= */
+@media (max-width: 768px) {
+    .hero-section {
+        padding: 40px 20px;
+        /* 모바일에서는 좌우 여백을 채워 넓게 보이도록 조정 */
+        margin-left: -1.5rem; 
+        margin-right: -1.5rem;
+        width: calc(100% + 3rem);
+        border-radius: 0;
+    }
+
+    .hero-title {
+        font-size: 24px;
+        margin-bottom: 20px;
+    }
+
+    .search-widget {
+        flex-direction: column; /* 세로 정렬 */
+        padding: 15px;
+        gap: 10px; /* 요소 간 간격 추가 */
+    }
+
+    .input-group {
+        width: 100%;
+        border-right: none; /* 세로형이므로 오른쪽 구분선 제거 */
+        border-bottom: 1px solid var(--border-color); /* 아래쪽 구분선 추가 */
+        padding: 12px 5px;
+        border-radius: 8px;
+    }
+    
+    .input-group:hover {
+        background: transparent; /* 모바일 터치 시 배경 변경 제거 (선택사항) */
+    }
+
+    .input-group:last-of-type {
+        border-bottom: none; /* 마지막 요소 구분선 제거 */
+    }
+
+    .search-btn-widget {
+        width: 100%;
+        margin-left: 0;
+        margin-top: 10px;
+        height: 50px;
+    }
+}
+
+/* 텍스트 그라데이션 */
+.destino-gradient-text {
+    background: linear-gradient(90deg, #1d4ed8 0%, #06b6d4 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* 기존 카드 스타일 유지 */
+.content-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.search-tab {
+    color: #6b7280;
+    font-weight: 500;
+    padding-bottom: 8px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.search-tab.active {
+    color: #2563eb;
+    border-bottom: 2px solid #2563eb;
+    font-weight: 700;
+}
+
+/* 스크롤바 숨기기 */
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+/* 달력 및 애니메이션 스타일 유지 */
+.calendar-day { width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 9999px; font-size: 0.875rem; transition: all 0.2s; }
+.calendar-day:hover:not(.disabled) { background-color: #eff6ff; color: #2563eb; }
+.calendar-day.selected { background-color: #2563eb; color: white; }
+.calendar-day.in-range { background-color: #dbeafe; color: #1e40af; border-radius: 0; }
+.calendar-day.range-start { border-top-left-radius: 9999px; border-bottom-left-radius: 9999px; background-color: #2563eb; color: white; }
+.calendar-day.range-end { border-top-right-radius: 9999px; border-bottom-right-radius: 9999px; background-color: #2563eb; color: white; }
+.calendar-day.disabled { color: #d1d5db; cursor: not-allowed; }
+
+.dropdown-enter { animation: slideDown 0.2s ease-out forwards; }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Footer */
+.footer {
+    width: 100%;
+    background-color: #f9f9f9;
+    padding: 60px 0 40px;
+    color: #666;
+    font-size: 14px;
+    border-top: 1px solid #eee;
+}
+
+.footer-container {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 1.5rem;
+}
+
+.footer-top {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 30px;
+    margin-bottom: 40px;
+}
+
+.footer-column h3 { font-size: 16px; font-weight: 700; color: #333; margin-bottom: 20px; }
+.footer-column p { margin-bottom: 8px; line-height: 1.5; }
+.footer-column ul { list-style: none; padding: 0; }
+.footer-column ul li { margin-bottom: 10px; }
+.footer-column ul li a:hover { text-decoration: underline; }
+
+/* CS 버튼 스타일 */
+.cs-buttons { display: flex; gap: 10px; margin-top: 15px; }
+.btn-cs { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #ddd; padding: 10px 15px; border-radius: 8px; text-decoration: none; color: #333; min-width: 140px; }
+.btn-cs .icon { font-size: 18px; }
+
+.footer-divider { border: 0; border-top: 1px solid #eee; margin-bottom: 30px; }
+.footer-bottom { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 20px; }
+.company-info p { font-size: 13px; color: #999; margin-bottom: 5px; }
+.company-info .disclaimer { margin: 15px 0; max-width: 800px; }
+.footer-policy { margin-top: 20px; display: flex; gap: 20px; }
+.footer-policy a { color: #333; text-decoration: none; }
+.social-links { display: flex; gap: 15px; }
+.social-icon { font-size: 12px; color: #999; text-transform: uppercase; }
+
+/* Footer 반응형 */
+@media (max-width: 768px) {
+    .footer-top { grid-template-columns: repeat(2, 1fr); display: grid; }
+    .footer-bottom { flex-direction: column; align-items: flex-start; }
+    .social-links { order: -1; margin-bottom: 20px; }
+}
