@@ -1,0 +1,177 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DESTINO - 해외 숙소 예약</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/gloval-hotel.css" />
+</head>
+<body>
+    <header class="header">
+        <div class="container header-inner">
+            <h1 class="logo"><a href="/">DESTINO</a></h1>
+            <div class="header-search-bar">
+                <input type="text" placeholder="어디로 떠나시나요?" />
+            </div>
+            <nav class="header-nav">
+                <a href="/login">로그인</a>
+                <a href="#">이용안내</a>
+                <a href="#">고객센터</a>
+                <a href="#">KOR</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero-section">
+            <h1 class="hero-title">전 세계 완벽한 숙소를 찾아보세요</h1>
+
+            <div class="search-widget">
+                <div class="overlay" id="widgetOverlay" onclick="closeAllPopovers()"></div>
+
+                <div class="input-group" onclick="openPopover('destPopover')">
+                    <label>목적지</label>
+                    <input type="text" id="destInput" readonly placeholder="여행지 선택" />
+
+                    <div class="popover" id="destPopover" onclick="event.stopPropagation()">
+                        <div class="dest-sidebar" id="regionTabs"></div>
+                        <div class="dest-content">
+                            <h4 id="selectedRegionTitle">일본 주요 도시</h4>
+                            <div class="city-grid" id="cityGrid"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <div class="dates-wrapper">
+                        <div class="date-box">
+                            <label>체크인</label>
+                            <input type="date" id="checkinDate" required />
+                        </div>
+                        <div class="date-box">
+                            <label>체크아웃</label>
+                            <input type="date" id="checkoutDate" required />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-group" onclick="openPopover('guestPopover')">
+                    <label>인원 및 객실</label>
+                    <input type="text" id="guestInput" readonly value="성인 2명, 아동 0명, 객실 1개" />
+
+                    <div class="popover" id="guestPopover" onclick="event.stopPropagation()">
+                        <div class="guest-row">
+                            <div class="guest-info">
+                                <h5>성인</h5>
+                                <p>만 18세 이상</p>
+                            </div>
+                            <div class="guest-controls">
+                                <button class="cnt-btn" onclick="updateGuest('adult', -1)" id="btnAdultMinus">-</button>
+                                <span class="cnt-val" id="valAdult">2</span>
+                                <button class="cnt-btn" onclick="updateGuest('adult', 1)">+</button>
+                            </div>
+                        </div>
+
+                        <div class="guest-row">
+                            <div class="guest-info">
+                                <h5>아동</h5>
+                                <p>만 0~17세</p>
+                            </div>
+                            <div class="guest-controls">
+                                <button class="cnt-btn" onclick="updateGuest('child', -1)" id="btnChildMinus" disabled>-</button>
+                                <span class="cnt-val" id="valChild">0</span>
+                                <button class="cnt-btn" onclick="updateGuest('child', 1)">+</button>
+                            </div>
+                        </div>
+
+                        <div class="guest-row">
+                            <div class="guest-info"><h5>객실</h5></div>
+                            <div class="guest-controls">
+                                <button class="cnt-btn" onclick="updateGuest('room', -1)" id="btnRoomMinus" disabled>-</button>
+                                <span class="cnt-val" id="valRoom">1</span>
+                                <button class="cnt-btn" onclick="updateGuest('room', 1)">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn-search">검색</button>
+            </div>
+        </section>
+
+        <section class="content-section" style="margin-top: 20px">
+            <div class="section-header">
+                <h2>검색 결과</h2>
+            </div>
+            {% if hotels %}
+            <div class="deals-grid">
+                {% for hotel in hotels %}
+                <article class="hotel-card">
+                    <div class="hotel-img-wrap">
+                        <img src="{{ hotel.image if hotel.image else 'https://images.unsplash.com/photo-1560347876-aeef00ee58a1?auto=format&fit=crop&w=600&q=80' }}" alt="호텔 이미지" style="object-fit: cover; width: 100%; height: 180px" />
+                        <div class="badge-discount">{{ hotel.source }}</div>
+                    </div>
+                    <div class="hotel-info">
+                        <div class="hotel-location">{{ hotel.address }}</div>
+                        <div class="hotel-name">{{ hotel.name }}</div>
+                        {% if hotel.price %}
+                        <div class="hotel-price"><div class="final-price">{{ '{:,}'.format(hotel.price|int) }}원</div></div>
+                        {% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% if total_pages and total_pages > 1 %}
+            <div style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:20px;">
+                {% if has_prev %}
+                <a href="/gloval-hotel?city={{ city or '' }}&country={{ country or '' }}&checkin={{ checkin or '' }}&checkout={{ checkout or '' }}&lat={{ lat or '' }}&lon={{ lon or '' }}&page={{ page-1 }}" style="padding:8px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;">이전</a>
+                {% endif %}
+                <span style="font-weight:700;">{{ page }} / {{ total_pages }}</span>
+                {% if has_next %}
+                <a href="/gloval-hotel?city={{ city or '' }}&country={{ country or '' }}&checkin={{ checkin or '' }}&checkout={{ checkout or '' }}&lat={{ lat or '' }}&lon={{ lon or '' }}&page={{ page+1 }}" style="padding:8px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;">다음</a>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="deals-grid">
+                <article class="hotel-card">
+                    <div class="hotel-img-wrap">
+                        <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=80" alt="호텔" />
+                        <div class="badge-discount">최대 40%</div>
+                    </div>
+                    <div class="hotel-info">
+                        <div class="hotel-location">일본, 도쿄</div>
+                        <div class="hotel-name">도쿄 럭셔리 스테이 호텔 신주쿠</div>
+                        <div class="hotel-price"><div class="original-price">320,000원</div><div class="final-price">192,000원~</div></div>
+                    </div>
+                </article>
+            </div>
+            {% endif %}
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-top">
+                <div class="footer-column">
+                    <h3>고객센터</h3>
+                    <p>오전 9시 ~ 새벽 3시 운영</p>
+                    <p>채팅 상담 문의: 24시간 운영</p>
+                </div>
+                <div class="footer-column">
+                    <h3>회사</h3>
+                    <ul><li><a href="#">회사소개</a></li><li><a href="#">채용정보</a></li><li><a href="#">제휴문의</a></li></ul>
+                </div>
+                <div class="footer-column">
+                    <h3>서비스</h3>
+                    <ul><li><a href="#">공지사항</a></li><li><a href="#">자주 묻는 질문</a></li><li><a href="#">여행 매거진</a></li></ul>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/gloval-hotel.js"></script>
+</body>
+</html>
+
