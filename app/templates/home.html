@@ -4,7 +4,8 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>DESTINO - 당신의 여행 운명</title>
-        <link rel="stylesheet" href="/static/home.css" />
+        <link rel="stylesheet" href="../static/home.css" />
+        <script src="../static/home.js" defer></script>
     </head>
     <body>
         <header class="header">
@@ -14,7 +15,14 @@
                     <input type="text" placeholder="어디로 떠나시나요?" />
                 </div>
                 <nav class="header-nav">
+                    {% if nickname %}
+                    <a href="/mypage">
+                        <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                    </a>
+                    <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
+                    {% else %}
                     <a href="/login">로그인</a>
+                    {% endif %}
                     <a href="#">이용안내</a>
                     <a href="#">고객센터</a>
                     <a href="#">KOR</a>
@@ -32,11 +40,84 @@
                         <button>국내숙소</button>
                         <button>패키지</button>
                     </div>
-                    <div class="search-form">
-                        <input type="text" placeholder="오사카, 일본" />
-                        <input type="text" placeholder="2024.03.18 - 03.24" />
-                        <input type="text" placeholder="성인 2명" />
-                        <button class="btn-search">검색하기</button>
+
+                    <!-- SEARCH BOX -->
+                    <div class="search-widget" id="searchWidget">
+
+                        <!-- Destination -->
+                        <div class="search-item dest-item" onclick="openPopover('destPopover')">
+                            <label class="search-label">목적지</label>
+                            <input type="text" id="destInput" placeholder="도시 또는 공항 검색" class="search-input" readonly>
+
+                            <!-- Dest Popover -->
+                            <div id="destPopover" class="popover">
+                                <div class="dest-sidebar" id="regionTabs"></div>
+                                <div class="dest-content">
+                                    <div class="search-box-inner">
+                                        <div class="relative">
+                                            <i data-lucide="search" class="search-icon-inner"></i>
+                                            <input type="text" id="citySearchInput" placeholder="도시명을 입력하세요 (예: 도쿄)" class="city-search-field" onkeyup="filterCities()">
+                                        </div>
+                                    </div>
+                                    <div class="city-grid" id="cityGrid"></div>
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <!-- Start Date -->
+                        <div class="search-item date-item" onclick="focusInput('startDate')">
+                            <label class="search-label">가는 날</label>
+                            <input type="date" id="startDate" class="search-input" onclick="event.stopPropagation()">
+                        </div>
+                    
+                        <!-- End Date -->
+                        <div class="search-item date-item" onclick="focusInput('endDate')">
+                            <label class="search-label">오는 날</label>
+                            <input type="date" id="endDate" class="search-input" onclick="event.stopPropagation()">
+                        </div>
+                    
+                        <!-- Guests -->
+                        <div class="search-item guest-item" onclick="openPopover('guestPopover')">
+                            <label class="search-label">인원 및 객실</label>
+                            <input type="text" id="guestInput" value="성인 2, 아동 0, 객실 1" class="search-input" readonly>
+                        
+                            <!-- Guest Popover -->
+                            <div id="guestPopover" class="popover">
+                                <div class="space-y-6">
+                                    <div class="guest-row">
+                                        <div><p class="guest-title">성인</p><p class="guest-subtitle">만 18세 이상</p></div>
+                                        <div class="counter-group">
+                                            <button class="cnt-btn" id="minus-adult" onclick="updateCount('adult', -1)">-</button>
+                                            <span class="cnt-value" id="val-adult">2</span>
+                                            <button class="cnt-btn" onclick="updateCount('adult', 1)">+</button>
+                                        </div>
+                                    </div>
+                                    <div class="guest-row">
+                                        <div><p class="guest-title">아동</p><p class="guest-subtitle">만 17세 이하</p></div>
+                                        <div class="counter-group">
+                                            <button class="cnt-btn" id="minus-child" onclick="updateCount('child', -1)">-</button>
+                                            <span class="cnt-value" id="val-child">0</span>
+                                            <button class="cnt-btn" onclick="updateCount('child', 1)">+</button>
+                                        </div>
+                                    </div>
+                                    <div class="guest-row">
+                                        <div><p class="guest-title">객실</p></div>
+                                        <div class="counter-group">
+                                            <button class="cnt-btn" id="minus-room" onclick="updateCount('room', -1)">-</button>
+                                            <span class="cnt-value" id="val-room">1</span>
+                                            <button class="cnt-btn" onclick="updateCount('room', 1)">+</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <!-- Search Button -->
+                        <div class="p-3">
+                            <button class="search-submit-btn">
+                                검색
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -46,38 +127,69 @@
             <section class="quick-icons-container container">
                 <div class="quick-icons-wrapper">
                     <div class="icon-item">
-                        <div class="icon-img-box color-ai">
-                            <a href="/planner"><img src="ai-guide.png" alt="AI 가이드" /></a>
-                        </div>
-                        <span>AI 가이드</span>
+                        <a href="/planner">
+                            <div class="icon-img-box color-ai">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM0ZjQ2ZTUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1ib3QtaWNvbiBsdWNpZGUtYm90Ij48cGF0aCBkPSJNMTIgOFY0SDgiLz48cmVjdCB3aWR0aD0iMTYiIGhlaWdodD0iMTIiIHg9IjQiIHk9IjgiIHJ4PSIyIi8+PHBhdGggZD0iTTIgMTRoMiIvPjxwYXRoIGQ9Ik0yMCAxNGgyIi8+PHBhdGggZD0iTTE1IDEzdjIiLz48cGF0aCBkPSJNOSAxM3YyIi8+PC9zdmc+" alt="AI 가이드" />
+                            </div>
+                            <span>AI 가이드</span>
+                        </a>
                     </div>
                     <div class="icon-item">
-                        <div class="icon-img-box color-group"><img src="group-buy.png" alt="공동예매" /></div>
-                        <span>공동예매</span>
+                        <a href="#">
+                            <div class="icon-img-box color-group">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNlYzQ4OTkiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS11c2Vycy1pY29uIGx1Y2lkZS11c2VycyI+PHBhdGggZD0iTTE2IDIxdi0yYTQgNCAwIDAgMC00LTRINmE0IDQgMCAwIDAtNCA0djIiLz48cGF0aCBkPSJNMTYgMy4xMjhhNCA0IDAgMCAxIDAgNy43NDQiLz48cGF0aCBkPSJNMjIgMjF2LTJhNCA0IDAgMCAwLTMtMy44NyIvPjxjaXJjbGUgY3g9IjkiIGN5PSI3IiByPSI0Ii8+PC9zdmc+" alt="공동예매" />
+                            </div>
+                            <span>공동예매</span>
+                        </a>
                     </div>
                     <div class="icon-item">
-                        <div class="icon-img-box color-flight"><img src="flight.png" alt="항공" /></div>
-                        <span>항공</span>
+                        <a href="/airport">
+                            <div class="icon-img-box color-flight">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMwZWE1ZTkiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1wbGFuZS10YWtlb2ZmLWljb24gbHVjaWRlLXBsYW5lLXRha2VvZmYiPjxwYXRoIGQ9Ik0yIDIyaDIwIi8+PHBhdGggZD0iTTYuMzYgMTcuNCA0IDE3bC0yLTQgMS4xLS41NWEyIDIgMCAwIDEgMS44IDBsLjE3LjFhMiAyIDAgMCAwIDEuOCAwTDggMTIgNSA2bC45LS40NWEyIDIgMCAwIDEgMi4wOS4ybDQuMDIgM2EyIDIgMCAwIDAgMi4xLjJsNC4xOS0yLjA2YTIuNDEgMi40MSAwIDAgMSAxLjczLS4xN0wyMSA3YTEuNCAxLjQgMCAwIDEgLjg3IDEuOTlsLS4zOC43NmMtLjIzLjQ2LS42Ljg0LTEuMDcgMS4wOEw3LjU4IDE3LjJhMiAyIDAgMCAxLTEuMjIuMThaIi8+PC9zdmc+" alt="항공" />
+                            </div>
+                            <span>항공</span>
+                        </a>
                     </div>
                     <div class="icon-item">
-                        <div class="icon-img-box color-overseas"><img src="overseas.png" alt="해외" /></div>
-                        <span>해외</span>
+                        <a href="/gloval-hotel">
+                            <div class="icon-img-box color-overseas">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMwNTk2NjkiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1nbG9iZS1pY29uIGx1Y2lkZS1nbG9iZSI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48cGF0aCBkPSJNMTIgMmExNC41IDE0LjUgMCAwIDAgMCAyMCAxNC41IDE0LjUgMCAwIDAgMC0yMCIvPjxwYXRoIGQ9Ik0yIDEyaDIwIi8+PC9zdmc+" alt="해외" />
+                            </div>
+                            <span>해외숙소</span>
+                        </a>
                     </div>
                     <div class="icon-item">
-                        <div class="icon-img-box color-domestic"><img src="domestic.png" alt="국내" /></div>
-                        <span>국내</span>
+                        <a href="#">
+                            <div class="icon-img-box color-domestic">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNlYTU4MGMiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1tYXAtcGluLWljb24gbHVjaWRlLW1hcC1waW4iPjxwYXRoIGQ9Ik0yMCAxMGMwIDQuOTkzLTUuNTM5IDEwLjE5My03LjM5OSAxMS43OTlhMSAxIDAgMCAxLTEuMjAyIDBDOS41MzkgMjAuMTkzIDQgMTQuOTkzIDQgMTBhOCA4IDAgMCAxIDE2IDAiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjEwIiByPSIzIi8+PC9zdmc+" alt="국내" />
+                            </div>
+                            <span>국내숙소</span>
+                        </a>
                     </div>
                     <div class="icon-item">
-                        <div class="icon-img-box color-package"><img src="package.png" alt="패키지" /></div>
-                        <span>패키지</span>
+                        <a href="#">
+                            <div class="icon-img-box color-package">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM5MzMzZWEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1ib3gtaWNvbiBsdWNpZGUtYm94Ij48cGF0aCBkPSJNMjEgOGEyIDIgMCAwIDAtMS0xLjczbC03LTRhMiAyIDAgMCAwLTIgMGwtNyA0QTIgMiAwIDAgMCAzIDh2OGEyIDIgMCAwIDAgMSAxLjczbDcgNGEyIDIgMCAwIDAgMiAwbDctNEEyIDIgMCAwIDAgMjEgMTZaIi8+PHBhdGggZD0ibTMuMyA3IDguNyA1IDguNy01Ii8+PHBhdGggZD0iTTEyIDIyVjEyIi8+PC9zdmc+" alt="패키지" />
+                            </div>
+                            <span>패키지</span> 
+                        </a> 
                     </div>
                     <div class="icon-item">
-                        <div class="icon-img-box color-tour"><img src="tour.png" alt="투어" /></div>
-                        <span>투어</span>
+                        <a href="#">
+                            <div class="icon-img-box color-tour">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNkOTc3MDYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS10aWNrZXQtaWNvbiBsdWNpZGUtdGlja2V0Ij48cGF0aCBkPSJNMiA5YTMgMyAwIDAgMSAwIDZ2MmEyIDIgMCAwIDAgMiAyaDE2YTIgMiAwIDAgMCAyLTJ2LTJhMyAzIDAgMCAxIDAtNlY3YTIgMiAwIDAgMC0yLTJINGEyIDIgMCAwIDAtMiAyWiIvPjxwYXRoIGQ9Ik0xMyA1djIiLz48cGF0aCBkPSJNMTMgMTd2MiIvPjxwYXRoIGQ9Ik0xMyAxMXYyIi8+PC9zdmc+" alt="투어" />
+                            </div>
+                            <span>투어</span>    
+                        </a>
                     </div>
                     <div class="icon-item">
-                        <div class="icon-img-box color-rentcar"><img src="rentcar.png" alt="렌터카" /></div>
-                        <span>렌터카</span>
+                        <a href="#">
+                            <div class="icon-img-box color-rentcar">
+                                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMwZDk0ODgiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1jYXItaWNvbiBsdWNpZGUtY2FyIj48cGF0aCBkPSJNMTkgMTdoMmMuNiAwIDEtLjQgMS0xdi0zYzAtLjktLjctMS43LTEuNS0xLjlDMTguNyAxMC42IDE2IDEwIDE2IDEwcy0xLjMtMS40LTIuMi0yLjNjLS41LS40LTEuMS0uNy0xLjgtLjdINWMtLjYgMC0xLjEuNC0xLjQuOWwtMS40IDIuOUEzLjcgMy43IDAgMCAwIDIgMTJ2NGMwIC42LjQgMSAxIDFoMiIvPjxjaXJjbGUgY3g9IjciIGN5PSIxNyIgcj0iMiIvPjxwYXRoIGQ9Ik05IDE3aDYiLz48Y2lyY2xlIGN4PSIxNyIgY3k9IjE3IiByPSIyIi8+PC9zdmc+" alt="렌터카" />
+                            </div>
+                            <span>렌터카</span>
+                        </a>
+
                     </div>
                 </div>
             </section>
@@ -89,45 +201,75 @@
 
                 <div class="event-slider-wrapper">
                     <button class="slider-btn prev">
-                        <img src="arrow-left.png" alt="이전 이벤트" />
+                        <img
+                            src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1jaGV2cm9uLWRvd24taWNvbiBsdWNpZGUtY2hldnJvbi1kb3duIj48cGF0aCBkPSJtNiA5IDYgNiA2LTYiLz48L3N2Zz4="
+                            alt="이전"
+                        />
                     </button>
 
-                    <div class="grid-3">
-                        <div class="event-card yellow-card">
-                            <div class="event-content">
-                                <span class="event-sub">HAPPY FRIDAY</span>
-                                <h4 class="event-main-title">티켓 1+1</h4>
-                                <p class="event-desc">인기 투어 · 티켓 단독 특가</p>
+                    <div class="event-slider-window">
+                        <div class="grid-33">
+                            <div class="event-c yellow-card">
+                                <div class="event-content">
+                                    <span class="event-sub">HAPPY FRIDAY</span>
+                                    <h4 class="event-main-title">티켓 1+1</h4>
+                                    <p class="event-desc">인기 투어 · 티켓 단독 특가</p>
+                                    <a href="#" class="btn-event-link">바로 보러가기</a>
+                                </div>
                             </div>
-                        </div>
 
-                        <div
-                            class="event-card image-card"
-                            style="
-                                background-image:
-                                    linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)),
-                                    url(&quot;taiwan-bg.jpg&quot;);
-                            "
-                        >
-                            <div class="event-content light">
-                                <span class="event-sub">DESTINO.com</span>
-                                <h4 class="event-main-title">대만 투어&티켓<br />최대 할인</h4>
-                                <a href="#" class="btn-event-link">바로 보러가기</a>
+                            <div class="event-c image-card">
+                                <div class="event-content light">
+                                    <span class="event-sub">DESTINO.com</span>
+                                    <h4 class="event-main-title">대만 투어&티켓<br />최대 할인</h4>
+                                    <a href="#" class="btn-event-link">바로 보러가기</a>
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="event-card pink-card">
-                            <div class="event-content">
-                                <span class="event-sub">2026</span>
-                                <h4 class="event-main-title">상하이 예원 등회</h4>
-                                <p class="event-desc">1월 26일 그랜드 오픈</p>
-                                <button class="btn-event-red">바로 확인하기 ></button>
+                            <div class="event-c pink-card">
+                                <div class="event-content">
+                                    <span class="event-sub">2026</span>
+                                    <h4 class="event-main-title">상하이 예원 등회</h4>
+                                    <p class="event-desc">1월 26일 그랜드 오픈</p>
+                                    <button class="btn-event-link">바로 확인하기 ></button>
+                                </div>
+                            </div>
+
+                            <div class="event-c black-card">
+                                <div class="event-content">
+                                    <span class="event-sub">Spring Edition</span>
+                                    <h4 class="event-main-title">일본 벚꽃 개화 시기 확정!</h4>
+                                    <a href="#" class="btn-event-link">특가 확인하기</a>
+                                </div>
+                            </div>
+                        
+                            <div class="event-c green-card">
+                                <div class="event-content light">
+                                    <span class="event-sub">Global Pass</span>
+                                    <h4 class="event-main-title">
+                                        2026 유럽 배낭여행유레일패스 <br>
+                                        최대 25% 선할인</h4>
+                                    <a href="#" class="btn-event-link">패스 구매하기</a>
+                                </div>
+                            </div>
+                        
+                            <div class="event-c blue-card">
+                                <div class="event-content">
+                                    <span class="event-sub">Stay Focus</span>
+                                    <h4 class="event-main-title">
+                                        제주 감성 스테이 <br>
+                                        독채 자쿠지 숙소 단독 예약 </h4>
+                                    <button class="btn-event-link">숙소 둘러보기 </button>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <button class="slider-btn next">
-                        <img src="arrow-right.png" alt="다음 이벤트" />
+                        <img
+                            src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1jaGV2cm9uLWRvd24taWNvbiBsdWNpZGUtY2hldnJvbi1kb3duIj48cGF0aCBkPSJtMTggMTUgLTYgLTYgLTYgNiIvPjwvc3ZnPg=="
+                            alt="다음"
+                        />
                     </button>
                 </div>
             </section>
@@ -136,7 +278,7 @@
                 <h3 class="section-title">👋 실시간 공동구매 중인 핫딜 <span class="live-tag">LIVE</span></h3>
                 <div class="grid-3">
                     <div class="product-card">
-                        <div class="img-box">이미지</div>
+                        <div class="img-box box1">이미지</div>
                         <div class="info-box">
                             <p class="p-title">[제주] 감성 숙소 + 렌터카 패키지</p>
                             <p class="p-price"><span>100,000원</span> 320,000원~</p>
@@ -144,7 +286,7 @@
                         </div>
                     </div>
                     <div class="product-card">
-                        <div class="img-box">이미지</div>
+                        <div class="img-box box2">이미지</div>
                         <div class="info-box">
                             <p class="p-title">[보라카이] 해변 인근 4성급 리조트</p>
                             <p class="p-price"><span>850,000원</span> 450,000원~</p>
@@ -152,7 +294,7 @@
                         </div>
                     </div>
                     <div class="product-card">
-                        <div class="img-box">이미지</div>
+                        <div class="img-box box3">이미지</div>
                         <div class="info-box">
                             <p class="p-title">[시드니] 오페라하우스 뷰 5성급 호텔 특가</p>
                             <p class="p-price"><span>2,450,000원</span> 1,490,000원~</p>
@@ -173,9 +315,15 @@
                     </ul>
                 </div>
                 <div class="ai-content grid-3">
-                    <div class="ai-card">이미지 1</div>
-                    <div class="ai-card">이미지 2</div>
-                    <div class="ai-card">이미지 3</div>
+                    <div class="ai-card">
+                        <img src="https://media.istockphoto.com/id/536048545/ko/%EC%82%AC%EC%A7%84/%EC%97%B4%EB%8C%80-%EB%A6%AC%EC%A1%B0%ED%8A%B8.jpg?b=1&s=1024x1024&w=0&k=20&c=0QcU3W7r3fYh2tWziXLuBxlEI7OHsx_zzVgbMmCDDyE=" alt="AI 핫플" />
+                    </div>
+                    <div class="ai-card">
+                        <img src="https://media.istockphoto.com/id/2188890502/ko/%EC%82%AC%EC%A7%84/%EC%9D%BC%EC%B6%9C-%EC%8B%9C%EA%B0%84%EC%97%90-sol-d-en-serra-%ED%95%B4%EB%B3%80-%EC%9D%B4%EB%B9%84%EC%9E%90.jpg?b=1&s=1024x1024&w=0&k=20&c=I_Sdc010p_-IzrT6CtH4xeig9lGsPL5dOtJZh68ZcTY=" alt="AI 핫플" />
+                    </div>
+                    <div class="ai-card">
+                        <img src="	https://media.istockphoto.com/id/168301497/ko/%EC%82%AC%EC%A7%84/%EB%9F%AD%EC%85%94%EB%A6%AC%ED%95%98%EB%8B%A4-%ED%95%98%EC%99%80%EC%9D%B4%EC%96%B4-5%EC%84%B1%EA%B8%89-%EB%A6%AC%EC%A1%B0%ED%8A%B8%EC%9E%85%EB%8B%88%EB%8B%A4.jpg?b=1&s=1024x1024&w=0&k=20&c=wXXcvoTO-VH_bgUZW0oTHYkm4RDBL8CcRsm97TLSGRw=" alt="AI 핫플" />
+                    </div>
                 </div>
             </section>
         </main>
@@ -184,9 +332,60 @@
             <div class="container">
                 <h3 class="section-title light">지금 가장 핫한 여행지, AI는 알고 있어요 ✨</h3>
                 <div class="grid-3">
-                    <div class="dest-card">태국</div>
-                    <div class="dest-card">파리, 프랑스</div>
-                    <div class="dest-card">후쿠오카, 일본</div>
+                    <div class="dest-card hot1">
+                        <div class="dcCont">
+                            <p>
+                                방콕, 태국<br>
+                                <span>화려한 사원과 길거리 음식의 천국</span>
+                            </p>
+                            <div class="combuy">
+                                <p>
+                                    ⚡️ 공동예매 참여 시 최대 35% 할인<br>
+                                    <span>항공권 최저가: </span><span class="fwBold">289,000원부터~</span>
+                                </p>
+                            </div>
+                            <div class="btn-group">
+                                <a href="#" class="apbtn">이 도시로 AI 일정 짜기</a>
+                                <a href="#" class="combtn">진행 중인 공동예매</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dest-card hot2">
+                        <div class="dcCont">
+                            <p>
+                                파리, 프랑스<br>
+                                <span>예술과 낭만이 흐르는 도시</span>
+                            </p>
+                            <div class="combuy">
+                                <p>
+                                    ⚡️ 공동예매 참여 시 최대 20% 할인<br>
+                                    <span>항공권 최저가: </span><span class="fwBold">890,000원부터~</span>
+                                </p>
+                            </div>
+                            <div class="btn-group">
+                                <a href="#" class="apbtn">이 도시로 AI 일정 짜기</a>
+                                <a href="#" class="combtn">진행 중인 공동예매</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dest-card hot3">
+                        <div class="dcCont">
+                            <p>
+                                후쿠오카, 일본<br>
+                                <span>가볍게 떠나는 미식 여행</span>
+                            </p>
+                            <div class="combuy">
+                                <p>
+                                    ⚡️ 공동예매 참여 시 최대 40% 할인<br>
+                                    <span>항공권 최저가: </span><span class="fwBold">159,000원부터~</span>
+                                </p>
+                            </div>
+                            <div class="btn-group">
+                                <a href="#" class="apbtn">이 도시로 AI 일정 짜기</a>
+                                <a href="#" class="combtn">진행 중인 공동예매</a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
