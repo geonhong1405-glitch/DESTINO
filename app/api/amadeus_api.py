@@ -119,8 +119,11 @@ def search_flight_offers_raw(
     departure_date: str,
     return_date: Optional[str] = None,
     adults: int = 1,
+    cabin: Optional[str] = None,
     max_results: int = 30,
 ):
+    import logging
+    logger = logging.getLogger("flight_search")
     token = get_amadeus_token()
     params = {
         "originLocationCode": origin_code,
@@ -131,15 +134,23 @@ def search_flight_offers_raw(
     }
     if return_date:
         params["returnDate"] = return_date
-
-    response = requests.get(
-        "https://test.api.amadeus.com/v2/shopping/flight-offers",
-        headers={"Authorization": f"Bearer {token}"},
-        params=params,
-        timeout=20,
-    )
-    response.raise_for_status()
-    return response.json()
+    if cabin:
+        params["travelClass"] = cabin
+    logger.info(f"[amadeus_api] 요청 params: {params}")
+    try:
+        response = requests.get(
+            "https://test.api.amadeus.com/v2/shopping/flight-offers",
+            headers={"Authorization": f"Bearer {token}"},
+            params=params,
+            timeout=20,
+        )
+        logger.info(f"[amadeus_api] 응답 status: {response.status_code}")
+        response.raise_for_status()
+        logger.info(f"[amadeus_api] 응답 json: {response.text}")
+        return response.json()
+    except Exception as e:
+        logger.error(f"[amadeus_api] Exception: {e}, response: {getattr(response, 'text', None)}")
+        raise
 
 
 def search_flights(origin, destination, departure_date):

@@ -1,15 +1,11 @@
 ﻿from app.api.booking_hotel_flight_api import search_hotels as booking_search_hotels, search_flights as booking_search_flights
-from app.api.amadeus_api import search_hotels as amadeus_search_hotels, resolve_location_to_iata as amadeus_resolve_location_to_iata
 from app.api.booking_api import search_car_rentals
-# ...existing code...
 from app.session import get_user_id_from_session, create_session, delete_session
 from app.db.db import Base, engine, SessionLocal
-from fastapi import FastAPI, Query
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Query, Request, Depends, Form, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-## Amadeus/Google : Booking.com??
 from app.api.geoapify import get_attractions
-from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.endpoints.routes import router as main_router
@@ -17,12 +13,24 @@ from app.endpoints.rag_api import router as rag_router
 from app.endpoints.flight_chat import router as flight_chat_router
 from sqlalchemy.orm import Session
 from app.db.models import User
-from fastapi import Depends
-
 
 app = FastAPI()
+from app.api.booking_hotel_flight_api import search_hotels as booking_search_hotels, search_flights as booking_search_flights
+from app.api.booking_api import search_car_rentals
+from app.session import get_user_id_from_session, create_session, delete_session
+from app.db.db import Base, engine, SessionLocal
+from fastapi import FastAPI, Query, Request, Depends, Form, status
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from app.api.geoapify import get_attractions
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from app.endpoints.routes import router as main_router
+from app.endpoints.rag_api import router as rag_router
+from app.endpoints.flight_chat import router as flight_chat_router
+from sqlalchemy.orm import Session
+from app.db.models import User
 
-# 濡쒓렇?占쎌썐 ?占쎌슦?? 諛섎뱶??app = FastAPI() ?占쏀썑???占쎌뼵
 @app.get("/logout")
 def logout(request: Request):
     session_token = request.cookies.get("session_token")
@@ -59,7 +67,6 @@ def check_nickname(nickname: str = Query(...), db: Session = Depends(get_db)):
     exists = db.query(User).filter(User.nickname == nickname).first() is not None
     return {"exists": exists}
 
-# Jinja2 ?占쏀뵆占??占쎌쭊 ?占쎌젙
 templates = Jinja2Templates(directory="app/templates")
 
 app.add_middleware(
@@ -112,83 +119,8 @@ def gloval_hotel(request: Request,
         if user:
             nickname = user.nickname
     hotels = []
-    # Amadeus/Google ?占쏀뀛 寃???占쎄굅: Booking.com占??占쎌슜
-
-    # Booking.com ?占쏀뀛占??占쎌슜
+    # Booking.com 호텔만 조회
     if city and checkin and checkout:
-        try:
-            city_code = amadeus_resolve_location_to_iata(city)
-            if not city_code:
-                hotels.append({"name": f"Amadeus location resolve failed: {city}", "address": "", "price": None, "source": "Amadeus"})
-            else:
-                amadeus_result = amadeus_search_hotels(city_code, checkin, checkout, adults=2)
-                try:
-                    with open(os.path.join(BASE_DIR, "hotel_debug.log"), "a", encoding="utf-8") as f:
-                        import json
-                        f.write("amadeus_result: ")
-                        f.write(json.dumps(amadeus_result, ensure_ascii=False)[:2000] + "...\n")
-                except Exception:
-                    pass
-
-                if amadeus_result and amadeus_result.get("error"):
-                    details = amadeus_result.get("details", "")
-                    msg = f"Amadeus API error: {amadeus_result.get('error')}"
-                    if details:
-                        msg += f" | {details[:180]}"
-                    hotels.append({"name": msg, "address": "", "price": None, "source": "Amadeus"})
-                elif amadeus_result and "data" in amadeus_result:
-                    hotels_list = amadeus_result.get("data", [])
-                    if isinstance(hotels_list, list):
-                        for h in hotels_list:
-                            if not isinstance(h, dict):
-                                continue
-                            hotel_obj = h.get("hotel", {}) if isinstance(h.get("hotel"), dict) else {}
-                            hotel_name = (
-                                hotel_obj.get("name")
-                                or h.get("name")
-                                or h.get("hotelName")
-                                or "Unnamed hotel"
-                            )
-
-                            address_obj = hotel_obj.get("address", {}) if isinstance(hotel_obj.get("address"), dict) else {}
-                            if not address_obj:
-                                address_obj = h.get("address", {}) if isinstance(h.get("address"), dict) else {}
-                            address_lines = address_obj.get("lines")
-                            if isinstance(address_lines, list):
-                                address = ", ".join([line for line in address_lines if isinstance(line, str)])
-                            else:
-                                address = ""
-                            if not address:
-                                address = address_obj.get("cityName") or hotel_obj.get("cityCode") or h.get("iataCode") or ""
-
-                            offers = h.get("offers", []) if isinstance(h.get("offers"), list) else []
-                            first_offer = offers[0] if offers else {}
-                            price_obj = first_offer.get("price", {}) if isinstance(first_offer, dict) else {}
-                            price = price_obj.get("total")
-                            currency = price_obj.get("currency") or "N/A"
-                            media = hotel_obj.get("media", []) if isinstance(hotel_obj.get("media"), list) else []
-                            if not media:
-                                media = h.get("media", []) if isinstance(h.get("media"), list) else []
-                            first_media = media[0] if media else {}
-                            image = None
-                            if isinstance(first_media, dict):
-                                image = first_media.get("uri") or first_media.get("url")
-
-                            hotels.append({
-                                "name": hotel_name,
-                                "address": address,
-                                "price": price,
-                                "currency": currency,
-                                "image": image,
-                                "source": "Amadeus",
-                            })
-                    else:
-                        hotels.append({"name": "Amadeus API invalid data format", "address": "", "price": None, "source": "Amadeus"})
-                else:
-                    hotels.append({"name": "Amadeus API returned no results", "address": "", "price": None, "source": "Amadeus"})
-        except Exception as e:
-            hotels.append({"name": f"Amadeus API error: {e}", "address": "", "price": None, "source": "Amadeus"})
-        # Booking.com도 함께 조회
         try:
             booking_result = booking_search_hotels(city, checkin, checkout, adults=2)
             if booking_result and booking_result.get("error"):
@@ -244,7 +176,6 @@ def gloval_hotel(request: Request,
         except Exception as e:
             hotels.append({"name": f"Booking API error: {e}", "address": "", "price": None, "source": "Booking"})
 
-    # 以묐났 ?占쎄굅 (?占쎈쫫+二쇱냼 湲곤옙?)
     seen = set()
     unique_hotels = []
     for h in hotels:
@@ -263,7 +194,6 @@ def gloval_hotel(request: Request,
     paged_hotels = unique_hotels[start_idx:end_idx]
     has_prev = page > 1
     has_next = page < total_pages
-    # ?占쎈쾭占? ?占쎈씪誘명꽣, Amadeus ?占쎈떟, ?占쏀뀛 由ъ뒪?占쏙옙? ?占쎌씪占?湲곕줉
     try:
         with open(os.path.join(BASE_DIR, "hotel_debug.log"), "a", encoding="utf-8") as f:
             import datetime, json
@@ -313,74 +243,6 @@ def signin_get(request: Request):
 app.include_router(rag_router)
 app.include_router(flight_chat_router)
 
-
-# 濡쒓렇???占쎌씠吏 ?占쎈뜑占?
-@app.get("/login", response_class=HTMLResponse)
-def login(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
-
-# ?占쎌썝媛???占쎌씠吏 ?占쎈뜑占?
-@app.get("/join", response_class=HTMLResponse)
-def join(request: Request):
-    return templates.TemplateResponse("join.html", {"request": request})
-
-# ?占쎌씠?占쎈쿋?占쎌뒪 ?占쎌씠占??占쎌꽦
-Base.metadata.create_all(bind=engine)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-# ?占쎈찓??濡쒓렇???占쎌씠吏 ?占쎈뜑占?占?濡쒓렇??泥섎━
-from fastapi import Form, status
-from fastapi.responses import RedirectResponse
-
-@app.get("/signin", response_class=HTMLResponse)
-def signin_get(request: Request):
-    return templates.TemplateResponse("signin.html", {"request": request})
-
-
-
-@app.post("/signin", response_class=HTMLResponse)
-def signin_post(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.name == username).first()
-    if not user:
-        return templates.TemplateResponse("signin.html", {"request": request, "error": "議댁옱?占쏙옙? ?占쎈뒗 ?占쎌씠?占쎌엯?占쎈떎."})
-    if user.password != password:
-        return templates.TemplateResponse("signin.html", {"request": request, "error": "鍮꾬옙?踰덊샇媛 ?占쎈컮瑜댐옙? ?占쎌뒿?占쎈떎."})
-    # 濡쒓렇???占쎄났: ?占쎌뀡 ?占쎌꽦 占??占쎌뀡 ?占쏀겙??荑좏궎???占??
-    session_token = create_session(user.id)
-    response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
-    response.set_cookie(key="session_token", value=session_token, httponly=True)
-    return response
-
-# ?占쏀뻾 ?占쎈옒???占쎌씠吏 ?占쎈뜑占?
-@app.get("/planner", response_class=HTMLResponse)
-def planner(request: Request):
-    return templates.TemplateResponse("planner.html", {"request": request})
-
-# ?占쎌쇅?占쎌냼 ?占쎌씠吏 ?占쎈뜑占?
-@app.get("/gloval", response_class=HTMLResponse)
-def gloval(request: Request):
-    return templates.TemplateResponse("gloval-hotel.html", {"request": request})
-
-# ??占쏙옙 ?占쎌씠吏 ?占쎈뜑占?
-@app.get("/airport", response_class=HTMLResponse)
-def airport(request: Request):
-    return templates.TemplateResponse("airport.html", {"request": request})
-
-# ?占쎌씠?占쎈쿋?占쎌뒪 ?占쎌씠占??占쎌꽦
-Base.metadata.create_all(bind=engine)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):

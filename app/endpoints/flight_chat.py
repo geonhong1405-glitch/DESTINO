@@ -1,51 +1,21 @@
-﻿from fastapi import APIRouter
-from pydantic import BaseModel
-import requests
-import os
-import re
-from dotenv import load_dotenv
-from openai import OpenAI
-import json
-from datetime import datetime, timedelta
-from typing import Optional
-from app.api.amadeus_api import (
-    resolve_location_to_iata as amadeus_resolve_location_to_iata,
-    search_flight_offers_raw,
-)
-try:
-    from pinecone import Pinecone
-except Exception:
-    Pinecone = None
+﻿
 
-load_dotenv()
+from fastapi import APIRouter, Query
+from app.api.amadeus_api import search_flight_offers_raw
+from app.api.booking_hotel_flight_api import search_flights as booking_search_flights
+from app.api.exchange_rate import get_exchange_rate
+
 
 router = APIRouter()
+import requests
+import re
+import json
+from pydantic import BaseModel
+from typing import Optional
+import os
 
-AMADEUS_API_KEY = os.getenv("AMADEUS_API_KEY") or os.getenv("AMADEUS_CLIENT_ID")
-AMADEUS_API_SECRET = os.getenv("AMADEUS_API_SECRET") or os.getenv("AMADEUS_CLIENT_SECRET")
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
-PINECONE_NAMESPACE = os.getenv("PINECONE_NAMESPACE", "travel-knowledge")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+# 환경변수에서 가져오거나 기본값 사용
 RAG_TOP_K = int(os.getenv("RAG_TOP_K", "5"))
-pinecone_index = None
-SESSION_STATE = {}
-SESSION_HISTORY = {}
-SLOT_KEYS = [
-    "origin",
-    "destination",
-    "departure_date",
-    "return_date",
-    "adults",
-    "max_price",
-    "limit",
-    "sort_by",
-    "trip_type",
-    "time_pref",
-    "departure_window",
-    "direct_only",
-]
 
 LOCATION_ALIASES = {
     "서울": "SEL",
@@ -71,29 +41,6 @@ LOCATION_ALIASES = {
 }
 
 COUNTRY_ALIASES = {
-    "한국": "SEL",
-    "대한민국": "SEL",
-    "일본": "TYO",
-    "중국": "BJS",
-    "대만": "TPE",
-    "홍콩": "HKG",
-    "미국": "NYC",
-    "캐나다": "YTO",
-    "영국": "LON",
-    "프랑스": "PAR",
-    "이탈리아": "ROM",
-    "스페인": "MAD",
-    "독일": "BER",
-    "태국": "BKK",
-    "베트남": "SGN",
-    "싱가포르": "SIN",
-    "인도": "DEL",
-    "말레이시아": "KUL",
-    "인도네시아": "JKT",
-    "필리핀": "MNL",
-    "호주": "SYD",
-    "뉴질랜드": "AKL",
-    "japan": "TYO",
     "korea": "SEL",
     "south korea": "SEL",
     "usa": "NYC",
@@ -127,8 +74,148 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
 
 
+
 class NeedMoreInfoError(Exception):
     pass
+
+
+def _to_float_or_none(value):
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+DEFAULT_FX_TO_KRW = {
+    "KRW": 1.0,
+    "USD": 1350.0,
+    "EUR": 1470.0,
+    "JPY": 9.0,
+    "CNY": 190.0,
+}
+
+
+def _attach_krw_prices(raw):
+    offers = raw.get("data", []) if isinstance(raw, dict) else []
+    if not isinstance(offers, list):
+        return {}
+
+    currencies = set()
+    for offer in offers:
+        if not isinstance(offer, dict):
+            continue
+        currency = (offer.get("price", {}) or {}).get("currency")
+        if currency:
+            currencies.add(str(currency).upper())
+
+    rates = {}
+    for currency in currencies:
+        if currency == "KRW":
+            rates[currency] = 1.0
+            continue
+        try:
+            rates[currency] = get_exchange_rate(base=currency, target="KRW")
+            if not rates[currency]:
+                rates[currency] = DEFAULT_FX_TO_KRW.get(currency)
+        except Exception:
+            rates[currency] = DEFAULT_FX_TO_KRW.get(currency)
+
+    for offer in offers:
+        if not isinstance(offer, dict):
+            continue
+        price_obj = offer.get("price", {}) or {}
+        currency = str(price_obj.get("currency", "")).upper()
+        total = _to_float_or_none(price_obj.get("total"))
+        rate = rates.get(currency)
+        if total is None or rate is None:
+            continue
+        price_obj["krwTotal"] = int(round(total * float(rate)))
+        price_obj["krwRate"] = float(rate)
+        offer["price"] = price_obj
+
+    return rates
+
+# GET /api/flight-search 엔드포인트 추가
+from fastapi import HTTPException
+
+@router.get("/api/flight-search")
+def api_flight_search(
+    origin: str = Query(..., description="출발 도시명 또는 IATA 코드"),
+    destination: str = Query(..., description="도착 도시명 또는 IATA 코드"),
+    departure_date: str = Query(..., description="YYYY-MM-DD"),
+    return_date: str = Query(None, description="YYYY-MM-DD, 왕복일 경우"),
+    adults: int = Query(1, description="성인 인원"),
+    child: int = Query(0, description="소아 인원"),
+    infant: int = Query(0, description="유아 인원"),
+    cabin: str = Query(None, description="좌석 등급"),
+    max_price: float = Query(None, description="최대 가격")
+):
+    try:
+        # cabin 한글/영문 → Amadeus travelClass
+        cabin_map = {
+            "일반": "ECONOMY",
+            "이코노미": "ECONOMY",
+            "economy": "ECONOMY",
+            "일반석": "ECONOMY",
+            "비즈니스": "BUSINESS",
+            "business": "BUSINESS",
+            "비즈니스석": "BUSINESS",
+            "프레스티지": "BUSINESS",
+            "퍼스트": "FIRST",
+            "first": "FIRST",
+            "일등": "FIRST",
+            "일등석": "FIRST",
+            "퍼스트석": "FIRST",
+        }
+        if cabin:
+            normalized = cabin.strip().lower()
+            cabin = cabin_map.get(normalized, cabin_map.get(normalized.replace("석", ""), "ECONOMY"))
+        # search_flights 호출 시 cabin 전달
+        raw = search_flights(
+            origin,
+            destination,
+            departure_date,
+            return_date,
+            adults,
+            max_price,
+            cabin,
+            30,
+        )
+        exchange_rates = _attach_krw_prices(raw)
+        booking_ref = raw.get("booking_reference", [])
+        if isinstance(booking_ref, list):
+            for row in booking_ref:
+                if not isinstance(row, dict):
+                    continue
+                cur = str(row.get("currency", "")).upper()
+                p = _to_float_or_none(row.get("price"))
+                rate = exchange_rates.get(cur)
+                if cur == "KRW":
+                    rate = 1.0
+                elif rate is None and cur:
+                    try:
+                        rate = get_exchange_rate(base=cur, target="KRW")
+                        if not rate:
+                            rate = DEFAULT_FX_TO_KRW.get(cur)
+                        exchange_rates[cur] = rate
+                    except Exception:
+                        rate = DEFAULT_FX_TO_KRW.get(cur)
+                        if rate:
+                            exchange_rates[cur] = rate
+                if p is not None and rate:
+                    row["price_krw"] = int(round(p * float(rate)))
+        simplified = simplify(raw)
+        return {
+            # 프론트(airport.js)는 results에 Amadeus 원본 offer를 기대함
+            "results": raw.get("data", []),
+            "simplified": simplified,
+            "meta_query": raw.get("meta_query", {}),
+            "booking_reference": raw.get("booking_reference", []),
+            "exchange_rates": exchange_rates,
+            "raw": raw,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"항공권 검색 실패: {str(e)}")
 
 
 def init_pinecone_index():
@@ -334,41 +421,65 @@ def search_flights(
     return_date=None,
     adults=1,
     max_price=None,
+    cabin=None,
     api_max=30,
 ):
-    origin_iata = resolve_location_to_iata(origin)
-    destination_iata = resolve_location_to_iata(destination)
-
-    if not origin_iata or not destination_iata:
-        raise ValueError(
-            f"출발/도착지를 공항 코드로 해석하지 못했습니다. origin={origin}, destination={destination}"
+    import logging
+    logger = logging.getLogger("flight_search")
+    if not logger.hasHandlers():
+        fh = logging.FileHandler(os.path.join(os.path.dirname(__file__), '../hotel_debug.log'), encoding='utf-8')
+        formatter = logging.Formatter('[%(asctime)s] %(levelname)s %(message)s')
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+        logger.setLevel(logging.INFO)
+    try:
+        logger.info(f"[flight_search] origin={origin}, destination={destination}, departure_date={departure_date}, return_date={return_date}, adults={adults}, max_price={max_price}")
+        origin_iata = resolve_location_to_iata(origin)
+        destination_iata = resolve_location_to_iata(destination)
+        logger.info(f"[flight_search] resolved origin_iata={origin_iata}, destination_iata={destination_iata}")
+        if not origin_iata or not destination_iata:
+            logger.error(f"[flight_search] IATA 변환 실패: origin={origin}, destination={destination}")
+            raise ValueError(f"출발/도착지를 공항 코드로 해석하지 못했습니다. origin={origin}, destination={destination}")
+        # Amadeus 메인 데이터
+        data = search_flight_offers_raw(
+            origin_code=origin_iata,
+            destination_code=destination_iata,
+            departure_date=departure_date,
+            return_date=return_date,
+            adults=adults,
+            cabin=cabin,
+            max_results=api_max,
         )
-    data = search_flight_offers_raw(
-        origin_code=origin_iata,
-        destination_code=destination_iata,
-        departure_date=departure_date,
-        return_date=return_date,
-        adults=adults,
-        max_results=api_max,
-    )
-
-    if max_price:
-        filtered = []
-        for offer in data.get("data", []):
-            price = float(offer["price"]["total"])
-            if price <= float(max_price):
-                filtered.append(offer)
-        data["data"] = filtered
-
-    data["meta_query"] = {
-        "origin": origin_iata,
-        "destination": destination_iata,
-        "departure_date": departure_date,
-        "return_date": return_date,
-        "adults": adults,
-        "max_price": max_price,
-    }
-    return data
+        logger.info(f"[flight_search] amadeus_result: {data}")
+        # Booking.com 참고 데이터
+        try:
+            booking_data = booking_search_flights(origin_iata, destination_iata, departure_date, return_date, adults)
+            data["booking_reference"] = booking_data.get("data", [])
+            logger.info(f"[flight_search] booking_reference: {booking_data}")
+        except Exception as e:
+            data["booking_reference_error"] = str(e)
+            logger.error(f"[flight_search] booking_reference_error: {e}")
+        if max_price:
+            filtered = []
+            for offer in data.get("data", []):
+                price = float(offer["price"]["total"])
+                if price <= float(max_price):
+                    filtered.append(offer)
+            data["data"] = filtered
+        data["meta_query"] = {
+            "origin": origin_iata,
+            "destination": destination_iata,
+            "departure_date": departure_date,
+            "return_date": return_date,
+            "adults": adults,
+            "max_price": max_price,
+            "cabin": cabin,
+        }
+        logger.info(f"[flight_search] meta_query: {data['meta_query']}")
+        return data
+    except Exception as e:
+        logger.error(f"[flight_search] Exception: {e}")
+        raise
 
 
 def duration_to_minutes(duration_text):
@@ -611,56 +722,78 @@ def llm_parse_partial(user_input, conversation_context=""):
         parsed["sort_by"] = "price_desc"
     elif wants_fast and wants_cheap:
         parsed["sort_by"] = "fastest_cheap"
-    elif wants_fast:
-        parsed["sort_by"] = "fastest"
-    elif wants_cheap:
-        parsed["sort_by"] = "price_asc"
-
-    if wants_now and not parsed.get("departure_date"):
-        parsed["departure_date"] = datetime.now().strftime("%Y-%m-%d")
-        parsed["time_pref"] = "after_now"
-
-    if any(k in user_input for k in ["오전", "아침"]):
-        parsed["departure_window"] = "morning"
-    elif "오후" in user_input:
-        parsed["departure_window"] = "afternoon"
-    elif "저녁" in user_input:
-        parsed["departure_window"] = "evening"
-    elif any(k in user_input for k in ["밤", "야간"]):
-        parsed["departure_window"] = "night"
-
-    if any(k in user_input for k in ["직항만", "직항으로", "경유 없이", "논스톱", "nonstop"]):
-        parsed["direct_only"] = True
-
-    if any(k in user_input for k in ["왕복", "round trip", "roundtrip"]):
-        parsed["trip_type"] = "round"
-
-    # Fallback: explicit passenger count like "성인 2명", "2명"
-    pax_match = re.search(r"(?:성인\s*)?(\d+)\s*명", user_input)
-    if pax_match:
+    def simplify(raw_data):
+        import logging
+        import traceback
+        logger = logging.getLogger("flight_search")
+        # 핸들러 중복 방지 및 강제 파일 핸들러 추가
+        if not logger.hasHandlers():
+            import os
+            fh = logging.FileHandler(os.path.join(os.path.dirname(__file__), '../hotel_debug.log'), encoding='utf-8')
+            formatter = logging.Formatter('[%(asctime)s] %(levelname)s %(message)s')
+            fh.setFormatter(formatter)
+            logger.addHandler(fh)
+            logger.setLevel(logging.INFO)
+        results = []
+        seen = set()
         try:
-            parsed["adults"] = max(1, int(pax_match.group(1)))
-        except Exception:
-            pass
+            for offer in raw_data.get("data", []):
+                itinerary_key = json.dumps(offer["itineraries"], ensure_ascii=False)
+                if itinerary_key in seen:
+                    continue
+                seen.add(itinerary_key)
 
-    # "일주일 다녀올게" 같은 표현은 출발일 기준 +7일 복귀로 보정
-    if any(k in user_input for k in ["일주일", "7일", "7박"]) and parsed.get("departure_date"):
-        try:
-            dep_dt = datetime.strptime(parsed["departure_date"], "%Y-%m-%d")
-            parsed["return_date"] = (dep_dt + timedelta(days=7)).strftime("%Y-%m-%d")
-            parsed["trip_type"] = "round"
-        except Exception:
-            pass
+                price = offer["price"]["total"]
+                price_value = float(price)
+                currency = offer["price"]["currency"]
+                airline_codes = offer.get("validatingAirlineCodes", [])
+                itinerary_duration = (
+                    offer.get("itineraries", [{}])[0].get("duration")
+                    if offer.get("itineraries")
+                    else None
+                )
+                segments_info = []
 
-    # Disambiguate India from IND (Indianapolis) when user clearly asked for India.
-    lowered_full = (user_input or "").lower()
-    if ("인도" in user_input or "india" in lowered_full):
-        destination = (parsed.get("destination") or "").strip().upper()
-        if destination in {"IND", "IN"} or not destination:
-            parsed["destination"] = "DEL"
+                for itin in offer.get("itineraries", []):
+                    for seg in itin.get("segments", []):
+                        segments_info.append(
+                            {
+                                "airline": seg.get("carrierCode", "-"),
+                                "departure": seg.get("departure", {}).get("at", "-"),
+                                "arrival": seg.get("arrival", {}).get("at", "-"),
+                                "duration": seg.get("duration", "-"),
+                            }
+                        )
 
-    return parsed
-
+                first_departure = segments_info[0]["departure"] if segments_info else None
+                first_itinerary_segments = offer.get("itineraries", [{}])[0].get("segments", [])
+                stops = max(len(first_itinerary_segments) - 1, 0)
+                primary_airline = segments_info[0]["airline"] if segments_info else "-"
+                results.append(
+                    {
+                        "price": price,
+                        "price_value": price_value,
+                        "currency": currency,
+                        "segments": segments_info,
+                        "airline_codes": airline_codes,
+                        "duration": itinerary_duration,
+                        "departure": first_departure,
+                        "stops": stops,
+                        "primary_airline": primary_airline,
+                    }
+                )
+            logger.info(f"[simplify] 결과 {len(results)}건")
+            return results
+        except Exception as e:
+            logger.error(f"[simplify] Exception: {e}")
+            logger.error(f"[simplify] raw_data: {raw_data}")
+            tb = traceback.format_exc()
+            logger.error(f"[simplify] traceback: {tb}")
+            # 파일에 직접 기록
+            with open(os.path.join(os.path.dirname(__file__), '../hotel_debug.log'), 'a', encoding='utf-8') as f:
+                f.write(f"[simplify Exception] {e}\n[simplify raw_data] {raw_data}\n[simplify traceback] {tb}\n")
+            print(f"[simplify Exception] {e}\n[simplify raw_data] {raw_data}\n[simplify traceback] {tb}\n")
+            raise
 
 def has_explicit_date_signal(text: str) -> bool:
     if not text:
