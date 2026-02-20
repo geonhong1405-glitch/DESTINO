@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DESTINO - 패키지 여행 예약</title>
+    <!-- Pretendard Font -->
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- CSS File Link -->
+    <link rel="stylesheet" href="../static/package.css">
+</head>
+<body>
+
+    <div class="overlay" id="overlay" onclick="closeAllPopovers()"></div>
+
+    <!-- Header -->
+    <header class="header">
+            <div class="container header-inner">
+                <h1 class="logo"><a href="/">DESTINO</a></h1>
+                <div class="header-search-bar">
+                    <input type="text" placeholder="어디로 떠나시나요?" />
+                </div>
+                <nav class="header-nav">
+                    {% if nickname %}
+                    <a href="/mypage">
+                        <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                    </a>
+                    <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
+                    {% else %}
+                    <a href="/login">로그인</a>
+                    {% endif %}
+                    <a href="#">이용안내</a>
+                    <a href="#">고객센터</a>
+                    <a href="#">KOR</a>
+                </nav>
+            </div>
+        </header>
+
+    <main>
+        <!-- Hero & Search Section -->
+        <section class="hero-section">
+            <div class="container">
+                <h1 class="hero-title">떠나고 싶은 순간,<br>DESTINO 패키지</h1>
+                
+                <div class="search-widget">
+                    <div class="search-form-grid">
+                        <!-- Destination Selection -->
+                        <div class="input-group">
+                            <label>목적지</label>
+                            <div class="input-field" onclick="openPopover(event, 'destinationPopover')">
+                                <i data-lucide="map-pin"></i>
+                                <span id="text-dest">어디로 떠날까요?</span>
+                            </div>
+                            <div class="popover region-popover" id="destinationPopover">
+                                <div class="popover-sidebar">
+                                    <button class="sidebar-btn active">동남아</button>
+                                    <button class="sidebar-btn">일본</button>
+                                    <button class="sidebar-btn">유럽</button>
+                                    <button class="sidebar-btn">미주/대양주</button>
+                                </div>
+                                <div class="popover-main">
+                                    <div class="popover-search">
+                                        <input type="text" placeholder="도시 또는 국가 검색" onkeyup="filterRegion(this)">
+                                    </div>
+                                    <ul class="region-list" id="dest-list">
+                                        <li class="region-item" onclick="selectRegion('dest', '베트남 다낭 (DAD)')"><span>베트남 다낭</span> <span style="color:#ccc; font-size:11px;">DAD</span></li>
+                                        <li class="region-item" onclick="selectRegion('dest', '태국 방콕 (BKK)')"><span>태국 방콕</span> <span style="color:#ccc; font-size:11px;">BKK</span></li>
+                                        <li class="region-item" onclick="selectRegion('dest', '일본 도쿄 (NRT)')"><span>일본 도쿄</span> <span style="color:#ccc; font-size:11px;">NRT</span></li>
+                                        <li class="region-item" onclick="selectRegion('dest', '일본 오사카 (KIX)')"><span>일본 오사카</span> <span style="color:#ccc; font-size:11px;">KIX</span></li>
+                                        <li class="region-item" onclick="selectRegion('dest', '프랑스 파리 (CDG)')"><span>프랑스 파리</span> <span style="color:#ccc; font-size:11px;">CDG</span></li>
+                                        <li class="region-item" onclick="selectRegion('dest', '미국 뉴욕 (JFK)')"><span>미국 뉴욕</span> <span style="color:#ccc; font-size:11px;">JFK</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Origin Selection -->
+                        <div class="input-group">
+                            <label>출발지</label>
+                            <div class="input-field" onclick="openPopover(event, 'originPopover')">
+                                <i data-lucide="plane-takeoff"></i>
+                                <span id="text-origin">인천 (ICN)</span>
+                            </div>
+                            <div class="popover region-popover" id="originPopover" style="left: auto; right: 0;">
+                                <div class="popover-main">
+                                    <div class="popover-search">
+                                        <input type="text" placeholder="출발 공항 검색" onkeyup="filterRegion(this)">
+                                    </div>
+                                    <ul class="region-list">
+                                        <li class="region-item" onclick="selectRegion('origin', '인천 (ICN)')"><span>인천</span> <span style="color:#ccc; font-size:11px;">ICN</span></li>
+                                        <li class="region-item" onclick="selectRegion('origin', '김포 (GMP)')"><span>김포</span> <span style="color:#ccc; font-size:11px;">GMP</span></li>
+                                        <li class="region-item" onclick="selectRegion('origin', '부산 (PUS)')"><span>부산</span> <span style="color:#ccc; font-size:11px;">PUS</span></li>
+                                        <li class="region-item" onclick="selectRegion('origin', '대구 (TAE)')"><span>대구</span> <span style="color:#ccc; font-size:11px;">TAE</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Start Date -->
+                        <div class="input-group">
+                            <label>가는 날</label>
+                            <div class="input-field" onclick="openPopover(event, 'calStartPopover')">
+                                <i data-lucide="calendar"></i>
+                                <span id="text-start">날짜 선택</span>
+                            </div>
+                            <div class="popover calendar-popover" id="calStartPopover">
+                                <div class="calendar-header">
+                                    <button class="cal-btn" onclick="changeMonth(-1, 'start')"><i data-lucide="chevron-left" width="16"></i></button>
+                                    <div class="calendar-title-wrap" id="title-wrap-start"></div>
+                                    <button class="cal-btn" onclick="changeMonth(1, 'start')"><i data-lucide="chevron-right" width="16"></i></button>
+                                </div>
+                                <div class="calendar-grid" id="grid-start"></div>
+                            </div>
+                        </div>
+
+                        <!-- End Date -->
+                        <div class="input-group">
+                            <label>오는 날</label>
+                            <div class="input-field" onclick="openPopover(event, 'calEndPopover')">
+                                <i data-lucide="calendar"></i>
+                                <span id="text-end">날짜 선택</span>
+                            </div>
+                            <div class="popover calendar-popover" id="calEndPopover" style="left: auto; right: 0;">
+                                <div class="calendar-header">
+                                    <button class="cal-btn" onclick="changeMonth(-1, 'end')"><i data-lucide="chevron-left" width="16"></i></button>
+                                    <div class="calendar-title-wrap" id="title-wrap-end"></div>
+                                    <button class="cal-btn" onclick="changeMonth(1, 'end')"><i data-lucide="chevron-right" width="16"></i></button>
+                                </div>
+                                <div class="calendar-grid" id="grid-end"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn-search">검색하기</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Theme Section -->
+        <section class="container section-padding">
+            <h2 class="section-title">내 취향대로 골라보는 <span>테마 여행</span></h2>
+            <div class="theme-grid">
+                <div class="theme-item">
+                    <div class="theme-icon"><i data-lucide="palmtree"></i></div>
+                    <div class="theme-name">휴양/힐링</div>
+                </div>
+                <div class="theme-item">
+                    <div class="theme-icon"><i data-lucide="camera"></i></div>
+                    <div class="theme-name">문화/관광</div>
+                </div>
+                <div class="theme-item">
+                    <div class="theme-icon"><i data-lucide="mountain"></i></div>
+                    <div class="theme-name">트레킹/액티비티</div>
+                </div>
+                <div class="theme-item">
+                    <div class="theme-icon"><i data-lucide="utensils"></i></div>
+                    <div class="theme-name">미식여행</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Package Grid -->
+        <section class="container" style="padding-bottom: 60px;">
+            <h2 class="section-title">지금 가장 인기있는 <span>특가 패키지</span></h2>
+            <div class="package-grid">
+                <a href="#" class="package-card">
+                    <div class="package-image" style="background-image: url('https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?q=80&w=600&auto=format&fit=crop')">
+                        <div class="badge">BEST</div>
+                    </div>
+                    <div class="package-body">
+                        <p class="package-loc">베트남 · 다낭</p>
+                        <h3 class="package-name">[노팁/노옵션] 다낭/호이안 5일 #미케비치 #럭셔리리조트</h3>
+                        <div class="package-price">
+                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span class="price-val">499,000원~</span>
+                        </div>
+                    </div>
+                </a>
+                <a href="#" class="package-card">
+                    <div class="package-image" style="background-image: url('https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=600&auto=format&fit=crop')">
+                        <div class="badge">오늘마감</div>
+                    </div>
+                    <div class="package-body">
+                        <p class="package-loc">일본 · 교토</p>
+                        <h3 class="package-name">간사이 감성 여행 4일 #온천호텔 #가이세키석식</h3>
+                        <div class="package-price">
+                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span class="price-val">890,000원~</span>
+                        </div>
+                    </div>
+                </a>
+                <a href="#" class="package-card">
+                    <div class="package-image" style="background-image: url('https://images.unsplash.com/photo-1533929736458-ca588d08c8be?q=80&w=600&auto=format&fit=crop')">
+                        <div class="badge">슈퍼프라이스</div>
+                    </div>
+                    <div class="package-body">
+                        <p class="package-loc">영국 · 런던</p>
+                        <h3 class="package-name">영국 완전정복 9일 #프리미어리그직관 #런던시내호텔</h3>
+                        <div class="package-price">
+                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span class="price-val">3,250,000원~</span>
+                        </div>
+                    </div>
+                </a>
+                <a href="#" class="package-card">
+                    <div class="package-image" style="background-image: url('https://images.unsplash.com/photo-1540202404-a2f29036bb52?q=80&w=600&auto=format&fit=crop')">
+                        <div class="badge">MD추천</div>
+                    </div>
+                    <div class="package-body">
+                        <p class="package-loc">태국 · 방콕</p>
+                        <h3 class="package-name">방콕/파타야 5일 #5성급호텔 #전통마사지포함</h3>
+                        <div class="package-price">
+                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span class="price-val">550,000원~</span>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </section>
+
+        <!-- Reviews Section -->
+        <section class="container section-padding" style="border-top: 1px solid var(--border-color);">
+            <h2 class="section-title">다녀오신 분들의 <span>생생한 후기</span></h2>
+            <div class="review-grid">
+                <!-- Review Card 1 -->
+                <div class="review-card">
+                    <div class="review-user">
+                        <div class="user-avatar" style="background-image: url('https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=100&auto=format&fit=crop')"></div>
+                        <div class="user-info">
+                            <div class="user-name">이지현 님</div>
+                            <div style="color:#999;">다낭 패키지 이용</div>
+                        </div>
+                    </div>
+                    <p class="review-text">가이드님이 너무 친절하셔서 부모님 모시고 가기에 최고의 여행이었어요! 숙소 퀄리티도 대만족입니다.</p>
+                    <div class="review-rating">★★★★★</div>
+                </div>
+                <!-- Review Card 2 -->
+                <div class="review-card">
+                    <div class="review-user">
+                        <div class="user-avatar" style="background-image: url('https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=100&auto=format&fit=crop')"></div>
+                        <div class="user-info">
+                            <div class="user-name">박성민 님</div>
+                            <div style="color:#999;">교토 패키지 이용</div>
+                        </div>
+                    </div>
+                    <p class="review-text">자유시간이 적절히 섞여 있어서 부담스럽지 않았고, 가이세키 요리가 정말 맛있었습니다. 추천합니다!</p>
+                    <div class="review-rating">★★★★☆</div>
+                </div>
+                <!-- Review Card 3 -->
+                <div class="review-card">
+                    <div class="review-user">
+                        <div class="user-avatar" style="background-image: url('https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=100&auto=format&fit=crop')"></div>
+                        <div class="user-info">
+                            <div class="user-name">김나영 님</div>
+                            <div style="color:#999;">런던 패키지 이용</div>
+                        </div>
+                    </div>
+                    <p class="review-text">혼자 여행하기 막막해서 신청했는데 동행분들도 좋고 일정도 알찼어요. 덕분에 좋은 추억 만들었습니다.</p>
+                    <div class="review-rating">★★★★★</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-top">
+                <div class="footer-column">
+                    <h3>고객센터</h3>
+                    <p>오전 9시 ~ 새벽 3시 운영</p>
+                    <p>채팅 상담 문의: 24시간 운영</p>
+                    <div class="cs-buttons">
+                        <a href="tel:1670-0000" class="btn-cs">
+                            <span class="icon">📞</span>
+                            <div class="text">
+                                <strong>1670-0000</strong>
+                            </div>
+                        </a>
+                        <a href="#" class="btn-cs">
+                            <span class="icon">💬</span>
+                            <div class="text">
+                                <strong>채팅 상담</strong>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <div class="footer-column">
+                    <h3>회사</h3>
+                    <ul>
+                        <li><a href="#">회사소개</a></li>
+                        <li><a href="#">채용정보</a></li>
+                        <li><a href="#">제휴문의</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>서비스</h3>
+                    <ul>
+                        <li><a href="#">공지사항</a></li>
+                        <li><a href="#">자주 묻는 질문</a></li>
+                        <li><a href="#">여행 매거진</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>혜택</h3>
+                    <ul>
+                        <li><a href="#">멤버십 안내</a></li>
+                        <li><a href="#">공동예매 가이드</a></li>
+                        <li><a href="#">포인트 정책</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>모든 여행</h3>
+                    <ul>
+                        <li><a href="#">국내 숙소</a></li>
+                        <li><a href="#">해외 숙소</a></li>
+                        <li><a href="#">항공권</a></li>
+                        <li><a href="#">렌터카</a></li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="footer-divider" />
+            <div class="footer-bottom">
+                <div class="company-info">
+                    <p>(주)데스티노 컴퍼니 | 대표이사: 김여행 | 사업자등록번호: 000-00-00000</p>
+                    <p>주소: 서울특별시 강남구 테헤란로 123 | 이메일: help@destino.com</p>
+                    <p class="disclaimer">
+                        데스티노는 통신판매중개자로서 통신판매의 당사자가 아니며, 상품의 예약, 이용 및 환불 등과
+                        관련한 의무와 책임은 각 판매자에게 있습니다.
+                    </p>
+                    <div class="footer-policy">
+                        <a href="#">이용약관</a>
+                        <a href="#"><strong>개인정보처리방침</strong></a>
+                        <a href="#">소비자 분쟁해결 기준</a>
+                    </div>
+                </div>
+                <div class="social-links">
+                    <a href="#" class="social-icon">YouTube</a>
+                    <a href="#" class="social-icon">Instagram</a>
+                    <a href="#" class="social-icon">Facebook</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JS File Link -->
+    <script src="../static/package.js"></script>
+</body>
+</html>

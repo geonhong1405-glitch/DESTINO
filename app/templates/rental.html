@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DESTINO - 렌터카 예약</title>
+    <!-- Pretendard 폰트 -->
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+    <!-- 외부 스타일시트 연결 -->
+    <link rel="stylesheet" href="../static/rental.css">
+    <!-- Lucide 아이콘 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+    <header class="header">
+        <div class="container header-inner">
+            <h1 class="logo"><a href="/">DESTINO</a></h1>
+            <div class="header-search-bar">
+                <input type="text" placeholder="어디로 떠나시나요?" />
+            </div>
+            <nav class="header-nav">
+                <a href="#">로그인</a>
+                <a href="#">이용안내</a>
+                <a href="#">고객센터</a>
+                <a href="#">KOR</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <div class="overlay" id="overlay"></div>
+
+        <section class="hero-section">
+            <h1 class="hero-title">가장 편안한 여행의 시작, 렌터카 예약</h1>
+
+            <div class="search-widget">
+                <div class="search-form">
+                    <!-- 대여 장소 -->
+                    <div class="input-group" id="locInputGroup">
+                        <label><i data-lucide="map-pin" width="14"></i> 대여 및 반납 장소</label>
+                        <div class="display-text" id="locDisplay">장소를 선택하세요</div>
+                        
+                        <div class="popover-container" id="locPopover">
+                            <div class="popover-sidebar">
+                                <button class="sidebar-btn active" data-category="all">전체</button>
+                                <button class="sidebar-btn" data-category="airport">항공</button>
+                                <button class="sidebar-btn" data-category="station">역</button>
+                                <button class="sidebar-btn" data-category="city">도시</button>
+                            </div>
+                            <div class="popover-main">
+                                <input type="text" id="locSearchInput" class="popover-search-input" placeholder="도시, 공항, 역 검색">
+                                <div class="location-list" id="locationList">
+                                    <div class="location-item" data-cat="airport" data-name="제주국제공항 (CJU)">
+                                        <i data-lucide="plane" width="16"></i>
+                                        <div class="loc-info"><span class="loc-name">제주국제공항</span><span class="loc-sub">제주특별자치도</span></div>
+                                    </div>
+                                    <div class="location-item" data-cat="station" data-name="서울역">
+                                        <i data-lucide="train" width="16"></i>
+                                        <div class="loc-info"><span class="loc-name">서울역</span><span class="loc-sub">서울특별시</span></div>
+                                    </div>
+                                    <div class="location-item" data-cat="airport" data-name="김포국제공항 (GMP)">
+                                        <i data-lucide="plane" width="16"></i>
+                                        <div class="loc-info"><span class="loc-name">김포국제공항</span><span class="loc-sub">서울특별시</span></div>
+                                    </div>
+                                    <div class="location-item" data-cat="city" data-name="강남역 인근">
+                                        <i data-lucide="map-pin" width="16"></i>
+                                        <div class="loc-info"><span class="loc-name">강남역 인근</span><span class="loc-sub">서울특별시</span></div>
+                                    </div>
+                                    <div class="location-item" data-cat="station" data-name="부산역">
+                                        <i data-lucide="train" width="16"></i>
+                                        <div class="loc-info"><span class="loc-name">부산역</span><span class="loc-sub">부산광역시</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 대여 일시 -->
+                    <div class="input-group" id="startInputGroup">
+                        <label><i data-lucide="calendar" width="14"></i> 대여 일시</label>
+                        <div class="display-text" id="startDtDisplay">날짜와 시간 선택</div>
+                        <div class="popover-container datetime-popover" id="startDtPopover">
+                            <div class="dt-section-title">대여 날짜 및 시간</div>
+                            <div class="dt-grid">
+                                <input type="date" class="dt-input" id="startDate">
+                                <input type="time" class="dt-input" id="startTime" value="10:00">
+                            </div>
+                            <button class="btn-confirm btn-search">확인</button>
+                        </div>
+                    </div>
+
+                    <!-- 반납 일시 -->
+                    <div class="input-group" id="endInputGroup">
+                        <label><i data-lucide="calendar-check" width="14"></i> 반납 일시</label>
+                        <div class="display-text" id="endDtDisplay">날짜와 시간 선택</div>
+                        <div class="popover-container datetime-popover" id="endDtPopover">
+                            <div class="dt-section-title">반납 날짜 및 시간</div>
+                            <div class="dt-grid">
+                                <input type="date" class="dt-input" id="endDate">
+                                <input type="time" class="dt-input" id="endTime" value="10:00">
+                            </div>
+                            <div class="dt-error-msg" id="dtError">반납 일시는 대여 일시보다 빠를 수 없습니다.</div>
+                            <button class="btn-confirm btn-search">확인</button>
+                        </div>
+                    </div>
+
+                    <button class="btn-search">차량 검색</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">DESTINO만의 렌터카 혜택</h2>
+            <div class="benefit-grid">
+                <div class="benefit-card">
+                    <span class="benefit-icon">🛡️</span>
+                    <h3>완전 자차 100% 보장</h3>
+                    <p>현장에서 추가 결제 없는 완전 자차 보험이 포함된 가격입니다.</p>
+                </div>
+                <div class="benefit-card">
+                    <span class="benefit-icon">⚡</span>
+                    <h3>대기 없는 빠른 인수</h3>
+                    <p>모바일 체크인으로 서류 작성 없이 바로 차량을 인수하세요.</p>
+                </div>
+                <div class="benefit-card">
+                    <span class="benefit-icon">🧼</span>
+                    <h3>청결 우선 안심 차량</h3>
+                    <p>모든 차량은 대여 전 살균 소독 및 세차를 거쳐 제공됩니다.</p>
+                </div>
+            </div>
+
+            <h2 class="section-title">지금 예약 가능한 차량</h2>
+            <div class="car-grid">
+                <div class="car-card">
+                    <div class="car-img-box"><img src="https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?q=80&w=400&auto=format&fit=crop" class="car-img" alt="Avante"></div>
+                    <div class="car-info">
+                        <h3 class="car-name">현대 아반떼 CN7</h3>
+                        <div class="car-specs"><span>5인승</span>|<span>휘발유</span>|<span>금연</span></div>
+                        <div class="car-price-row"><div class="car-price">32,900<span>원/일</span></div></div>
+                    </div>
+                </div>
+                <!-- ... 추가 차량 카드 ... -->
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <!-- 푸터 내용 생략 (기존과 동일) -->
+    </footer>
+
+    <!-- 외부 스크립트 연결 -->
+    <script src="../static/rental.js"></script>
+</body>
+</html>
