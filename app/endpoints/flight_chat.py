@@ -1,6 +1,5 @@
 ﻿from fastapi import APIRouter
 from pydantic import BaseModel
-import requests
 import os
 import re
 from dotenv import load_dotenv
@@ -12,6 +11,11 @@ from app.api.amadeus_api import (
     resolve_location_to_iata as amadeus_resolve_location_to_iata,
     search_flight_offers_raw,
 )
+from app.api.booking_hotel_flight_api import (
+    search_destination as booking_search_destination,
+    search_hotels_by_dest_id,
+    recommend_buckets as booking_recommend_buckets,
+)
 try:
     from pinecone import Pinecone
 except Exception:
@@ -21,8 +25,6 @@ load_dotenv()
 
 router = APIRouter()
 
-AMADEUS_API_KEY = os.getenv("AMADEUS_API_KEY") or os.getenv("AMADEUS_CLIENT_ID")
-AMADEUS_API_SECRET = os.getenv("AMADEUS_API_SECRET") or os.getenv("AMADEUS_CLIENT_SECRET")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
@@ -129,6 +131,80 @@ class ChatRequest(BaseModel):
 
 class NeedMoreInfoError(Exception):
     pass
+
+
+def contains_any(text, keywords):
+    return any(k in text for k in keywords)
+
+
+def strip_code_fence_json(content):
+    return (content or "").strip().replace("```json", "").replace("```", "").strip()
+
+
+def ensure_html_div(content):
+    clean = (content or "").strip()
+    if clean.startswith("<div"):
+        return clean
+    return f"<div>{clean}</div>"
+
+
+def _next_weekday(base_dt, target_weekday):
+    delta = (target_weekday - base_dt.weekday()) % 7
+    return base_dt + timedelta(days=delta)
+
+
+def parse_relative_date_from_text(text, base_dt=None):
+    raw = (text or "").lower().strip()
+    if not raw:
+        return None
+    base_dt = base_dt or datetime.now()
+    compact = re.sub(r"\s+", "", raw)
+    compact = compact.replace("내일모래", "내일모레")
+
+    if "오늘" in compact:
+        return base_dt.date()
+    if "내일모레" in compact or "모레" in compact:
+        return (base_dt + timedelta(days=2)).date()
+    if "내일" in compact:
+        return (base_dt + timedelta(days=1)).date()
+    if "그글피" in compact:
+        return (base_dt + timedelta(days=4)).date()
+    if "글피" in compact:
+        return (base_dt + timedelta(days=3)).date()
+
+    m_days = re.search(r"(\d+)\s*일\s*(뒤|후)", raw)
+    if m_days:
+        return (base_dt + timedelta(days=int(m_days.group(1)))).date()
+
+    weekday_map = {
+        "월": 0, "월요일": 0,
+        "화": 1, "화요일": 1,
+        "수": 2, "수요일": 2,
+        "목": 3, "목요일": 3,
+        "금": 4, "금요일": 4,
+        "토": 5, "토요일": 5,
+        "일": 6, "일요일": 6,
+    }
+
+    if "주말" in compact:
+        cand = _next_weekday(base_dt, 5)  # Saturday
+        if "다음주" in compact:
+            cand += timedelta(days=7)
+        return cand.date()
+
+    for k, wday in weekday_map.items():
+        if k in compact:
+            if "이번주" in compact:
+                monday = base_dt - timedelta(days=base_dt.weekday())
+                cand = monday + timedelta(days=wday)
+                if cand.date() < base_dt.date():
+                    cand += timedelta(days=7)
+                return cand.date()
+            cand = _next_weekday(base_dt, wday)
+            if "다음주" in compact:
+                cand += timedelta(days=7)
+            return cand.date()
+    return None
 
 
 def init_pinecone_index():
@@ -242,8 +318,8 @@ def is_knowledge_query(user_input):
         "설명",
         "정보",
     ]
-    has_knowledge = any(k in text for k in knowledge_keywords) or any(p in text for p in general_question_patterns)
-    has_flight = any(k in text for k in flight_keywords)
+    has_knowledge = contains_any(text, knowledge_keywords) or contains_any(text, general_question_patterns)
+    has_flight = contains_any(text, flight_keywords)
     return has_knowledge and not has_flight
 
 
@@ -260,10 +336,70 @@ def is_itinerary_query(user_input):
         "2일차",
         "여행 계획",
     ]
-    return any(k in text for k in itinerary_keywords)
+    return contains_any(text, itinerary_keywords)
 
 
-def detect_intent(user_input):
+def is_flight_query(user_input):
+    text = (user_input or "").strip().lower()
+    if not text:
+        return False
+
+    explicit_flight_keywords = [
+        "항공", "항공권", "비행기", "편도", "왕복", "출발", "도착", "탑승",
+    ]
+    if contains_any(text, explicit_flight_keywords):
+        return True
+
+    # "인천에서 부산(까지) 가고 싶어" 같은 이동 의도 문장
+    move_patterns = [
+        r".+에서\s*.+(까지|로)\s*가고",
+        r".+에서\s*.+\s*가고",
+        r".+\s*->\s*.+",
+    ]
+    if any(re.search(p, text) for p in move_patterns):
+        # 도시/공항 키워드가 하나라도 있으면 flight로 본다.
+        location_tokens = list(LOCATION_ALIASES.keys()) + list(COUNTRY_ALIASES.keys())
+        if contains_any(text, [t.lower() for t in location_tokens]):
+            return True
+    return False
+
+
+def is_hotel_query(user_input):
+    text = (user_input or "").lower().strip()
+    hotel_keywords = [
+        "호텔",
+        "숙소",
+        "숙박",
+        "숙박업소",
+        "숙박업",
+        "accommodation",
+        "lodging",
+        "호캉스",
+        "체크인",
+        "체크아웃",
+        "가성비",
+        "후기 top",
+        "위치 top",
+    ]
+    return contains_any(text, hotel_keywords)
+
+
+def detect_intent(user_input, prev_state=None):
+    text = (user_input or "").lower().strip()
+    if is_flight_query(user_input):
+        return "flight"
+    if is_hotel_query(user_input):
+        return "hotel"
+    # Keep hotel context for short follow-up requests like "후기 TOP3", "위치순으로 다시"
+    if (prev_state or {}).get("hotel_context") and contains_any(
+        text, ["후기", "위치", "가성비", "top", "랭킹", "순위", "다시", "추천"]
+    ):
+        return "hotel"
+    # Keep pending hotel flow when user is filling missing hotel conditions (e.g., date only follow-up)
+    if (prev_state or {}).get("last_intent") == "hotel" and not contains_any(
+        text, ["항공", "항공권", "비행기", "출발", "도착", "왕복", "편도"]
+    ):
+        return "hotel"
     if is_itinerary_query(user_input):
         return "itinerary"
     if is_knowledge_query(user_input):
@@ -308,8 +444,7 @@ def normalize_location_keyword(keyword):
             ],
             temperature=0,
         )
-        content = (response.choices[0].message.content or "").strip()
-        content = content.replace("```json", "").replace("```", "").strip()
+        content = strip_code_fence_json(response.choices[0].message.content)
         parsed = json.loads(content)
         converted = (parsed.get("keyword") or "").strip()
         return converted or cleaned
@@ -529,6 +664,7 @@ def build_conversational_answer(user_input, state, results):
 
 
 def llm_parse_partial(user_input, conversation_context=""):
+    user_input = (user_input or "").replace("내일모래", "내일모레")
     today = datetime.now().strftime("%Y-%m-%d")
     prompt = f"""
 너는 항공권 검색 파라미터 추출기다.
@@ -585,8 +721,7 @@ def llm_parse_partial(user_input, conversation_context=""):
         temperature=0,
     )
 
-    content = (response.choices[0].message.content or "").strip()
-    content = content.replace("```json", "").replace("```", "").strip()
+    content = strip_code_fence_json(response.choices[0].message.content)
     parsed = json.loads(content)
 
     parsed.setdefault("origin", None)
@@ -603,11 +738,11 @@ def llm_parse_partial(user_input, conversation_context=""):
     parsed.setdefault("direct_only", None)
 
     lowered = (user_input or "").lower()
-    wants_fast = any(k in user_input for k in ["가장 빨리", "최단", "빨리 갈 수", "빠르게", "가장 빠르게"])
-    wants_cheap = any(k in user_input for k in ["저렴", "싼", "가성비", "저가", "저렴한순", "싼순"]) or "cheap" in lowered
-    wants_now = any(k in user_input for k in ["지금", "지금 시간 기준", "오늘 중", "당장"]) or "asap" in lowered
+    wants_fast = contains_any(user_input, ["가장 빨리", "최단", "빨리 갈 수", "빠르게", "가장 빠르게"])
+    wants_cheap = contains_any(user_input, ["저렴", "싼", "가성비", "저가", "저렴한순", "싼순"]) or "cheap" in lowered
+    wants_now = contains_any(user_input, ["지금", "지금 시간 기준", "오늘 중", "당장"]) or "asap" in lowered
 
-    if any(k in user_input for k in ["비싼", "고가", "높은 가격", "비싼순"]) or "expensive" in lowered:
+    if contains_any(user_input, ["비싼", "고가", "높은 가격", "비싼순"]) or "expensive" in lowered:
         parsed["sort_by"] = "price_desc"
     elif wants_fast and wants_cheap:
         parsed["sort_by"] = "fastest_cheap"
@@ -620,19 +755,19 @@ def llm_parse_partial(user_input, conversation_context=""):
         parsed["departure_date"] = datetime.now().strftime("%Y-%m-%d")
         parsed["time_pref"] = "after_now"
 
-    if any(k in user_input for k in ["오전", "아침"]):
+    if contains_any(user_input, ["오전", "아침"]):
         parsed["departure_window"] = "morning"
     elif "오후" in user_input:
         parsed["departure_window"] = "afternoon"
     elif "저녁" in user_input:
         parsed["departure_window"] = "evening"
-    elif any(k in user_input for k in ["밤", "야간"]):
+    elif contains_any(user_input, ["밤", "야간"]):
         parsed["departure_window"] = "night"
 
-    if any(k in user_input for k in ["직항만", "직항으로", "경유 없이", "논스톱", "nonstop"]):
+    if contains_any(user_input, ["직항만", "직항으로", "경유 없이", "논스톱", "nonstop"]):
         parsed["direct_only"] = True
 
-    if any(k in user_input for k in ["왕복", "round trip", "roundtrip"]):
+    if contains_any(user_input, ["왕복", "round trip", "roundtrip"]):
         parsed["trip_type"] = "round"
 
     # Fallback: explicit passenger count like "성인 2명", "2명"
@@ -644,13 +779,34 @@ def llm_parse_partial(user_input, conversation_context=""):
             pass
 
     # "일주일 다녀올게" 같은 표현은 출발일 기준 +7일 복귀로 보정
-    if any(k in user_input for k in ["일주일", "7일", "7박"]) and parsed.get("departure_date"):
+    if contains_any(user_input, ["일주일", "7일", "7박"]) and parsed.get("departure_date"):
         try:
             dep_dt = datetime.strptime(parsed["departure_date"], "%Y-%m-%d")
             parsed["return_date"] = (dep_dt + timedelta(days=7)).strftime("%Y-%m-%d")
             parsed["trip_type"] = "round"
         except Exception:
             pass
+
+    # Deterministic fallback for relative-date expressions.
+    if not parsed.get("departure_date"):
+        rel_date = parse_relative_date_from_text(user_input, datetime.now())
+        if rel_date:
+            parsed["departure_date"] = rel_date.strftime("%Y-%m-%d")
+
+    # "내일부터 3일" 같은 표현은 출발 + N일 복귀로 보정
+    compact = re.sub(r"\s+", "", user_input)
+    m_from_days = re.search(r"(오늘|내일|모레|내일모레|글피|그글피)부터(\d+)일", compact)
+    if m_from_days:
+        start_word = m_from_days.group(1)
+        n_days = int(m_from_days.group(2))
+        dep_date = parse_relative_date_from_text(start_word, datetime.now())
+        if dep_date:
+            parsed["departure_date"] = dep_date.strftime("%Y-%m-%d")
+            try:
+                parsed["return_date"] = (dep_date + timedelta(days=n_days)).strftime("%Y-%m-%d")
+                parsed["trip_type"] = "round"
+            except Exception:
+                pass
 
     # Disambiguate India from IND (Indianapolis) when user clearly asked for India.
     lowered_full = (user_input or "").lower()
@@ -666,6 +822,7 @@ def has_explicit_date_signal(text: str) -> bool:
     if not text:
         return False
     lowered = text.lower()
+    compact = re.sub(r"\s+", "", lowered)
     if re.search(r"\b20\d{2}-\d{2}-\d{2}\b", text):
         return True
     date_keywords = [
@@ -688,7 +845,8 @@ def has_explicit_date_signal(text: str) -> bool:
         "next week",
         "this week",
     ]
-    return any(k in lowered for k in date_keywords)
+    compact_keywords = [re.sub(r"\s+", "", k.lower()) for k in date_keywords]
+    return contains_any(compact, compact_keywords)
 
 
 def sanitize_slot_value(value):
@@ -744,12 +902,13 @@ def apply_preference_filters(results, state):
     filtered = results
 
     if state.get("time_pref") == "after_now":
-        now = datetime.now()
         temp = []
         for row in filtered:
             dep_dt = parse_iso_datetime(row.get("first_departure"))
-            if dep_dt and dep_dt >= now:
-                temp.append(row)
+            if dep_dt:
+                now = datetime.now(dep_dt.tzinfo) if dep_dt.tzinfo else datetime.now()
+                if dep_dt >= now:
+                    temp.append(row)
         if temp:
             filtered = temp
 
@@ -845,10 +1004,7 @@ def answer_travel_knowledge(user_input, state, conversation_context):
         ],
         temperature=0.2,
     )
-    content = (response.choices[0].message.content or "").strip()
-    if not content.startswith("<div"):
-        content = f"<div>{content}</div>"
-    return content
+    return ensure_html_div(response.choices[0].message.content)
 
 
 def answer_itinerary_plan(user_input, state, conversation_context):
@@ -879,10 +1035,157 @@ def answer_itinerary_plan(user_input, state, conversation_context):
         ],
         temperature=0.3,
     )
-    content = (response.choices[0].message.content or "").strip()
-    if not content.startswith("<div"):
-        content = f"<div>{content}</div>"
-    return content
+    return ensure_html_div(response.choices[0].message.content)
+
+
+def llm_parse_hotel_request(user_input, conversation_context=""):
+    today = datetime.now().strftime("%Y-%m-%d")
+    prompt = f"""
+너는 호텔 추천 파라미터 추출기다.
+오늘 날짜는 {today} 이다.
+아래 JSON만 출력해라(설명 금지):
+{{
+  "query": "도시명 또는 목적지명",
+  "checkin_date": "YYYY-MM-DD 또는 null",
+  "checkout_date": "YYYY-MM-DD 또는 null",
+  "adults": 숫자,
+  "top_k": 숫자,
+  "bucket": "value_top 또는 review_top 또는 location_top"
+}}
+규칙:
+- query는 도시/목적지 핵심어만
+- 인원 언급 없으면 adults=2
+- top_k 언급 없으면 5
+- "가성비"면 bucket=value_top
+- "후기"면 bucket=review_top
+- "위치"면 bucket=location_top
+- 날짜가 없으면 null
+
+사용자 입력:
+{user_input}
+
+최근 대화:
+{conversation_context}
+"""
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "호텔 추천 JSON만 출력"},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0,
+    )
+    parsed = json.loads(strip_code_fence_json(response.choices[0].message.content))
+    parsed.setdefault("query", None)
+    parsed.setdefault("checkin_date", None)
+    parsed.setdefault("checkout_date", None)
+    parsed.setdefault("adults", 2)
+    parsed.setdefault("top_k", 5)
+    parsed.setdefault("bucket", "value_top")
+    return parsed
+
+
+def answer_hotel_recommendation(user_input, conversation_context, prev_state=None):
+    parsed = llm_parse_hotel_request(user_input, conversation_context)
+    prev_state = prev_state or {}
+    query = (parsed.get("query") or prev_state.get("hotel_query") or "").strip()
+    checkin = parsed.get("checkin_date") or prev_state.get("hotel_checkin")
+    checkout = parsed.get("checkout_date") or prev_state.get("hotel_checkout")
+    adults = parsed.get("adults") or prev_state.get("hotel_adults") or 2
+    top_k = parsed.get("top_k") or 5
+    bucket = parsed.get("bucket") or "value_top"
+
+    # Robust fallback for follow-up text like "후기별 top3개"
+    low = (user_input or "").lower()
+    if "후기" in user_input:
+        bucket = "review_top"
+    elif "위치" in user_input:
+        bucket = "location_top"
+    elif "가성비" in user_input:
+        bucket = "value_top"
+    m = re.search(r"top\s*(\d+)", low) or re.search(r"(\d+)\s*개", user_input)
+    if m:
+        try:
+            top_k = int(m.group(1))
+        except Exception:
+            pass
+
+    base_context = {
+        "hotel_context": True,
+        "hotel_query": query or prev_state.get("hotel_query"),
+        "hotel_checkin": checkin or prev_state.get("hotel_checkin"),
+        "hotel_checkout": checkout or prev_state.get("hotel_checkout"),
+        "hotel_adults": int(adults) if adults else int(prev_state.get("hotel_adults") or 2),
+    }
+
+    if not query:
+        return "<p>호텔을 찾을 도시를 알려주세요. (예: 오사카, 도쿄)</p>", base_context
+    if not checkin or not checkout:
+        return "<p>체크인/체크아웃 날짜를 알려주세요. (YYYY-MM-DD)</p>", base_context
+
+    dest_res = booking_search_destination(query=query)
+    candidates = dest_res.get("data", []) if isinstance(dest_res, dict) else []
+    if not candidates:
+        return "<p>목적지를 찾지 못했습니다. 도시명을 조금 더 구체적으로 입력해 주세요.</p>", base_context
+
+    first = candidates[0] if isinstance(candidates[0], dict) else {}
+    dest_id = first.get("dest_id")
+    search_type = first.get("search_type") or "CITY"
+    center_lat = first.get("latitude") or first.get("lat") or 34.703968
+    center_lon = first.get("longitude") or first.get("lon") or 135.49292
+
+    if not dest_id:
+        return "<p>목적지 ID를 찾지 못했습니다. 다른 도시명으로 다시 시도해 주세요.</p>", base_context
+
+    raw = search_hotels_by_dest_id(
+        dest_id=str(dest_id),
+        search_type=str(search_type),
+        checkin_date=checkin,
+        checkout_date=checkout,
+        adults=int(adults),
+        room_qty=1,
+        currency_code="KRW",
+        languagecode="ko",
+        page_number=1,
+    )
+    if not raw.get("status"):
+        return f"<pre>호텔 검색 실패: {raw.get('message', 'Booking API error')}</pre>", base_context
+
+    buckets = booking_recommend_buckets(
+        raw,
+        center=(float(center_lat), float(center_lon)),
+        top_k=max(1, min(int(top_k), 20)),
+    )
+    rows = buckets.get(bucket) or []
+    if not rows:
+        return "<p>조건에 맞는 호텔 결과가 없습니다.</p>", base_context
+
+    title_map = {
+        "value_top": "가성비 TOP",
+        "review_top": "후기 TOP",
+        "location_top": "위치 TOP",
+    }
+    title = title_map.get(bucket, "추천 TOP")
+    lines = []
+    for i, h in enumerate(rows, start=1):
+        name = h.get("name") or "-"
+        price = (h.get("price") or {}).get("value")
+        currency = (h.get("price") or {}).get("currency") or "-"
+        review_score = (h.get("review") or {}).get("score")
+        dist = h.get("distance_m")
+        line = f"{i}) {name} | 가격: {price} {currency}"
+        if review_score is not None:
+            line += f" | 평점: {review_score}"
+        if dist is not None:
+            line += f" | 거리: {int(dist)}m"
+        lines.append(line)
+
+    context_update = dict(base_context)
+    return (
+        f"<div><b>{query} {title} {len(rows)}개</b><br>"
+        + "<br>".join(lines)
+        + "</div>"
+    ), context_update
 
 
 @router.post("/chat")
@@ -904,14 +1207,23 @@ def chat(req: ChatRequest):
                 parsed["return_date"] = None
         state = merge_with_session(prev_state, parsed)
 
-        intent = detect_intent(req.message)
+        intent = detect_intent(req.message, prev_state)
 
         if intent == "knowledge":
+            state["last_intent"] = "knowledge"
             SESSION_STATE[session_id] = state
             knowledge_html = answer_travel_knowledge(req.message, state, context)
             history.append({"role": "assistant", "text": "여행 지식 답변을 반환했습니다."})
             return {"response": knowledge_html}
+        if intent == "hotel":
+            hotel_html, hotel_state = answer_hotel_recommendation(req.message, context, prev_state)
+            state["last_intent"] = "hotel"
+            state.update(hotel_state or {})
+            SESSION_STATE[session_id] = state
+            history.append({"role": "assistant", "text": "호텔 추천 답변을 반환했습니다."})
+            return {"response": hotel_html}
         if intent == "itinerary":
+            state["last_intent"] = "itinerary"
             SESSION_STATE[session_id] = state
             itinerary_html = answer_itinerary_plan(req.message, state, context)
             history.append({"role": "assistant", "text": "여행 일정 답변을 반환했습니다."})
@@ -936,6 +1248,37 @@ def chat(req: ChatRequest):
         simplified = simplify(raw)
         simplified = apply_preference_filters(simplified, state)
 
+        # If no results, widen date window automatically (±1~2 days).
+        if not simplified and state.get("departure_date"):
+            try:
+                base_dep = datetime.strptime(state["departure_date"], "%Y-%m-%d")
+                for delta in [1, -1, 2, -2]:
+                    dep_try = (base_dep + timedelta(days=delta)).strftime("%Y-%m-%d")
+                    ret_try = None
+                    if state.get("return_date"):
+                        base_ret = datetime.strptime(state["return_date"], "%Y-%m-%d")
+                        ret_try = (base_ret + timedelta(days=delta)).strftime("%Y-%m-%d")
+                    raw_try = search_flights(
+                        state["origin"],
+                        state["destination"],
+                        dep_try,
+                        ret_try,
+                        state.get("adults", 1),
+                        state.get("max_price"),
+                        30,
+                    )
+                    simplified_try = apply_preference_filters(simplify(raw_try), state)
+                    if simplified_try:
+                        raw = raw_try
+                        simplified = simplified_try
+                        # keep conversation context consistent with actual searched date
+                        state["departure_date"] = dep_try
+                        if ret_try:
+                            state["return_date"] = ret_try
+                        break
+            except Exception:
+                pass
+
         if state.get("sort_by") == "price_asc":
             simplified.sort(key=lambda x: x.get("price_value", float("inf")))
         elif state.get("sort_by") == "price_desc":
@@ -949,6 +1292,7 @@ def chat(req: ChatRequest):
         if isinstance(limit, int) and limit > 0:
             simplified = simplified[:limit]
 
+        state["last_intent"] = "flight"
         SESSION_STATE[session_id] = state
         convo_html = build_conversational_answer(req.message, state, simplified)
         html = convo_html + format_html(simplified, raw.get("meta_query", {}))
