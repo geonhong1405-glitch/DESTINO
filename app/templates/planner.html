@@ -10,7 +10,7 @@
         <script src="https://unpkg.com/lucide@latest"></script>
         <!-- 외부 스타일 및 스크립트 연결 -->
         <link rel="stylesheet" href="/static/planner.css" />
-        <script src="/static/planner.js?v=20260220" defer></script>
+        <script src="/static/planner.js" defer></script>
     </head>
     <body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
         <header class="header">
@@ -20,12 +20,7 @@
                     <input type="text" placeholder="어디로 떠나시나요?" />
                 </div>
                 <nav class="header-nav">
-                    {% if nickname %}
-                    <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
-                    <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
-                    {% else %}
                     <a href="/login">로그인</a>
-                    {% endif %}
                     <a href="#">이용안내</a>
                     <a href="#">고객센터</a>
                     <a href="#">KOR</a>

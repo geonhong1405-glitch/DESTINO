@@ -1,72 +1,30 @@
+// planner.js: planner.html에서 AI 챗봇과 대화형으로 연동
+
 document.addEventListener("DOMContentLoaded", function () {
     const promptInput = document.getElementById("ai-prompt");
-    if (!promptInput) return;
-
-    const sendBtn = promptInput.parentElement?.querySelector("button.bg-brand");
-    if (!sendBtn) return;
-
+    const sendBtn = document.querySelector("button.bg-brand");
     const chatBox = document.createElement("div");
     chatBox.id = "ai-chat-box";
-    chatBox.className = "mt-6 space-y-3 text-left";
-    promptInput.parentElement.appendChild(chatBox);
+    chatBox.style.marginTop = "2rem";
+    promptInput.parentNode.appendChild(chatBox);
 
-    const sessionKey = "flight_chat_session_id";
-    let sessionId = sessionStorage.getItem(sessionKey);
-    if (!sessionId) {
-        sessionId = (globalThis.crypto?.randomUUID?.() || String(Date.now()));
-        sessionStorage.setItem(sessionKey, sessionId);
-    }
-
-    function appendUserMessage(text) {
-        const item = document.createElement("div");
-        item.className = "rounded-xl bg-white border border-gray-200 px-4 py-3";
-        item.innerHTML = `<b>나:</b> ${text}`;
-        chatBox.appendChild(item);
-    }
-
-    function appendLoadingMessage() {
-        const item = document.createElement("div");
-        item.className = "rounded-xl bg-blue-50 border border-blue-200 px-4 py-3";
-        item.innerHTML = "<b>AI:</b> 응답 생성 중...";
-        chatBox.appendChild(item);
-        return item;
-    }
-
-    async function sendMessage() {
-        const message = promptInput.value.trim();
-        if (!message) return;
-
-        appendUserMessage(message);
+    sendBtn.addEventListener("click", async function () {
+        const question = promptInput.value.trim();
+        if (!question) return;
+        chatBox.innerHTML += `<div class='user-msg'><b>나:</b> ${question}</div>`;
         promptInput.value = "";
-
-        const loadingItem = appendLoadingMessage();
+        chatBox.innerHTML += `<div class='ai-msg'><b>AI:</b> <span class='loading'>답변 생성 중...</span></div>`;
+        const aiMsgDiv = chatBox.querySelector(".ai-msg:last-child span");
         try {
-            const res = await fetch("/chat", {
+            const res = await fetch("/rag/ask", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    message,
-                    session_id: sessionId,
-                }),
+                body: JSON.stringify({ question }),
             });
-
-            if (!res.ok) {
-                throw new Error(`HTTP ${res.status}`);
-            }
-
             const data = await res.json();
-            const html = data?.response || "응답을 받지 못했습니다.";
-            loadingItem.innerHTML = `<b>AI:</b><div class="mt-2">${html}</div>`;
-        } catch (error) {
-            loadingItem.innerHTML = "<b>AI:</b> 요청 중 오류가 발생했습니다.";
-        }
-    }
-
-    sendBtn.addEventListener("click", sendMessage);
-    promptInput.addEventListener("keydown", function (event) {
-        if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            sendMessage();
+            aiMsgDiv.textContent = data.answer || "오류가 발생했습니다.";
+        } catch (e) {
+            aiMsgDiv.textContent = "서버 오류";
         }
     });
 });
