@@ -3,6 +3,7 @@ from app.api.geoapify import get_attractions
 from app.api.google_places import get_google_places
 from app.api.ai_helper import ask_ai_about_attractions
 from app.api.amadeus_api import search_flights
+from app.api.booking_hotel_flight_api import search_flights as booking_search_flights
 
 router = APIRouter()
 
@@ -48,9 +49,10 @@ def recommend_attraction(
             "opening_hours": place.get("opening_hours", {}).get("weekday_text", "정보 없음")
         })
 
-    # 항공권 데이터
+    # 항공권 데이터 (Amadeus + Booking.com RapidAPI)
     flight_info = []
     if include_flights and origin and destination and departure_date:
+        # Amadeus
         flight_data = search_flights(origin, destination, departure_date)
         for offer in flight_data.get("data", []):
             segments = offer.get("itineraries", [])[0].get("segments", [])
@@ -62,7 +64,25 @@ def recommend_attraction(
                     "arrival": seg.get("arrival", {}).get("at"),
                     "origin": seg.get("departure", {}).get("iataCode"),
                     "destination": seg.get("arrival", {}).get("iataCode"),
+                    "source": "Amadeus"
                 })
+        # Booking.com RapidAPI
+        try:
+            booking_flight_data = booking_search_flights(origin, destination, departure_date)
+            for offer in booking_flight_data.get("data", []):
+                segments = offer.get("itineraries", [])[0].get("segments", [])
+                for seg in segments:
+                    flight_info.append({
+                        "airline": seg.get("carrierCode"),
+                        "flight_number": seg.get("number"),
+                        "departure": seg.get("departure", {}).get("at"),
+                        "arrival": seg.get("arrival", {}).get("at"),
+                        "origin": seg.get("departure", {}).get("iataCode"),
+                        "destination": seg.get("arrival", {}).get("iataCode"),
+                        "source": "Booking.com"
+                    })
+        except Exception as e:
+            flight_info.append({"airline": "Booking.com API 오류", "flight_number": str(e)})
 
     # 통합 데이터
     all_places = geoapify_places + google_places
