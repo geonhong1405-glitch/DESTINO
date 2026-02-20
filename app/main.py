@@ -406,6 +406,24 @@ def planner(request: Request):
     return templates.TemplateResponse("planner.html", {"request": request, "nickname": nickname})
 
 
+@app.get("/package", response_class=HTMLResponse)
+def package_page(request: Request):
+    nickname = get_nickname_from_request(request)
+    return templates.TemplateResponse("package.html", {"request": request, "nickname": nickname})
+
+
+@app.get("/tour", response_class=HTMLResponse)
+def tour_page(request: Request):
+    nickname = get_nickname_from_request(request)
+    return templates.TemplateResponse("tour.html", {"request": request, "nickname": nickname})
+
+
+@app.get("/rental", response_class=HTMLResponse)
+def rental_page(request: Request):
+    nickname = get_nickname_from_request(request)
+    return templates.TemplateResponse("rental.html", {"request": request, "nickname": nickname})
+
+
 @app.get("/join", response_class=HTMLResponse)
 def join(request: Request):
     return templates.TemplateResponse("join.html", {"request": request})
