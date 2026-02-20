@@ -650,3 +650,266 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
         margin-bottom: 20px;
     }
 }
+
+/* Flight search result */
+#flightResultArea {
+    margin-top: 16px;
+}
+
+.flight-loading,
+.flight-no-result,
+.flight-error {
+    background: #f8fafc;
+    border: 1px solid #dbe2ea;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.flight-result-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.flight-card {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    border: 1px solid #d5dde6;
+    background: #fff;
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.flight-card-main {
+    display: flex;
+    gap: 14px;
+    flex: 1;
+    padding: 14px 16px;
+}
+
+.flight-airline-badge {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: #dff3ff;
+    color: #045985;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.flight-airline {
+    width: 90px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.flight-airline-mark {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.flight-airline-logo {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+    border-radius: 10px;
+    border: 1px solid #dbe2ea;
+    background: #ffffff;
+}
+
+.flight-airline-name {
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    color: #1f2937;
+    line-height: 1.2;
+}
+
+.flight-leg-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+}
+
+.flight-leg {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr 1fr;
+    gap: 8px;
+    align-items: center;
+}
+
+.flight-leg-time {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.flight-leg-time:last-child {
+    align-items: flex-end;
+}
+
+.flight-leg-clock {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: #111827;
+}
+
+.flight-leg-code {
+    font-size: 15px;
+    font-weight: 700;
+    color: #374151;
+}
+
+.flight-leg-middle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.flight-leg-duration {
+    font-size: 14px;
+    font-weight: 700;
+    color: #4b5563;
+}
+
+.flight-leg-line {
+    width: 100%;
+    border-top: 1px solid #c6d3df;
+    position: relative;
+}
+
+.flight-leg-line::after {
+    content: "?";
+    position: absolute;
+    top: -11px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: #64748b;
+    background: #fff;
+    padding: 0 5px;
+}
+
+.flight-leg-stop {
+    font-size: 12px;
+    font-weight: 700;
+    color: #0f766e;
+}
+
+.flight-card-price {
+    width: 250px;
+    border-left: 1px solid #d5dde6;
+    background: #fbfdff;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.flight-offer-count {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.flight-price-main {
+    font-size: 36px;
+    line-height: 1.1;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.flight-price-sub {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.flight-select-btn {
+    margin-top: 4px;
+    width: 100%;
+    height: 44px;
+    border-radius: 10px;
+    background: #0a2342;
+    color: #fff;
+    font-weight: 800;
+    font-size: 18px;
+}
+
+.flight-select-btn:hover {
+    background: #0f2f56;
+}
+
+.flight-booking-ref {
+    margin-top: 16px;
+    border-top: 1px solid #dbe2ea;
+    padding-top: 12px;
+}
+
+.flight-booking-ref h4 {
+    margin-bottom: 8px;
+}
+
+.flight-multi-result {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.flight-multi-section {
+    border-top: 1px solid #dbe2ea;
+    padding-top: 12px;
+}
+
+.flight-multi-title {
+    margin-bottom: 8px;
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.flight-result-item.booking-ref {
+    border: 1px solid #dbe2ea;
+    border-radius: 10px;
+    background: #fff;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 960px) {
+    .flight-card {
+        flex-direction: column;
+    }
+
+    .flight-card-price {
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid #d5dde6;
+    }
+
+    .flight-leg-clock {
+        font-size: 22px;
+    }
+}
+
+/* 항공 검색 페이지에서는 하단 샘플 섹션 비노출 */
+.flight-deals,
+.destination-section,
+.promotion-section {
+    display: none;
+}
