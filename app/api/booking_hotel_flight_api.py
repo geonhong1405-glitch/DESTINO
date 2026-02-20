@@ -34,6 +34,8 @@ def search_hotels(city, checkin_date, checkout_date, adults=2, currency_code="KR
             dest_id = dest_json[0]['dest_id']
         if not dest_id:
             log_debug(f"No dest_id found for city={city}")
+            if dest_resp.status_code >= 400:
+                return {"error": f"searchDestination failed ({dest_resp.status_code})", "details": dest_resp.text[:500]}
             return {"error": "No dest_id found"}
     except Exception as e:
         log_debug(f"searchDestination exception: {e}")

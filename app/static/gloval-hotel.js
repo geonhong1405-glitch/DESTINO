@@ -1,13 +1,8 @@
-document.addEventListener('DOMContentLoaded', function () {
-    // 디버깅용 콘솔 로그
-    console.log('gloval-hotel.js loaded');
-
-    // Lucide 아이콘 초기화
+﻿document.addEventListener('DOMContentLoaded', function () {
     if (window.lucide && lucide.createIcons) {
         lucide.createIcons();
     }
 
-    /* ================= 목적지 데이터 및 모달 로직 ================= */
     const regionsData = {
         일본: ['도쿄', '오사카', '후쿠오카', '삿포로', '오키나와', '나고야', '교토', '고베'],
         동남아: ['방콕', '다낭', '나트랑', '세부', '발리', '싱가포르', '푸껫', '코타키나발루', '마닐라'],
@@ -23,21 +18,37 @@ document.addEventListener('DOMContentLoaded', function () {
     const regionTitle = document.getElementById('selectedRegionTitle');
     const destInput = document.getElementById('destInput');
 
-    // 지역 탭 렌더링
+    function renderCities(region) {
+        if (!regionTitle || !cityGrid) return;
+        regionTitle.textContent = `${region} 주요 도시`;
+        cityGrid.innerHTML = '';
+        regionsData[region].forEach((city) => {
+            const btn = document.createElement('button');
+            btn.className = 'city-btn';
+            btn.textContent = city;
+            btn.onclick = function (e) {
+                e.stopPropagation();
+                if (destInput) destInput.value = `${city}, ${region}`;
+                closeAllPopovers();
+            };
+            cityGrid.appendChild(btn);
+        });
+    }
+
     function initDestinations() {
+        if (!regionTabs) return;
         let isFirst = true;
         for (const region in regionsData) {
             const btn = document.createElement('button');
             btn.className = `dest-tab ${isFirst ? 'active' : ''}`;
             btn.textContent = region;
-            btn.onclick = (e) => {
+            btn.onclick = function (e) {
                 e.stopPropagation();
                 document.querySelectorAll('.dest-tab').forEach((t) => t.classList.remove('active'));
                 btn.classList.add('active');
                 renderCities(region);
             };
             regionTabs.appendChild(btn);
-
             if (isFirst) {
                 renderCities(region);
                 isFirst = false;
@@ -45,44 +56,22 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // 선택된 지역의 도시 렌더링
-    function renderCities(region) {
-        regionTitle.textContent = `${region} 주요 도시`;
-        cityGrid.innerHTML = '';
-        regionsData[region].forEach((city) => {
-            const btn = document.createElement('button');
-            btn.className = 'city-btn';
-            btn.textContent = city;
-            btn.onclick = (e) => {
-                e.stopPropagation();
-                destInput.value = `${city}, ${region}`;
-                // 국가명 자동 입력 (region이 국가명인 경우만)
-                const countryInput = document.getElementById('countryInput');
-                if (countryInput) {
-                    countryInput.value = region;
-                }
-                closeAllPopovers();
-            };
-            cityGrid.appendChild(btn);
-        });
-    }
-    initDestinations();
-
-    /* ================= 날짜 초기화 (오늘/내일) ================= */
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     const checkinInput = document.getElementById('checkinDate');
     const checkoutInput = document.getElementById('checkoutDate');
-
     if (checkinInput && checkoutInput) {
         checkinInput.valueAsDate = today;
         checkoutInput.valueAsDate = tomorrow;
     }
 
-    /* ================= 인원 및 객실 로직 ================= */
     let guests = { adult: 2, child: 0, room: 1 };
+
+    function capitalize(s) {
+        return s.charAt(0).toUpperCase() + s.slice(1);
+    }
 
     function updateGuest(type, change) {
         if (window.event) window.event.stopPropagation();
@@ -91,10 +80,13 @@ document.addEventListener('DOMContentLoaded', function () {
         if (type === 'child' && newVal < 0) newVal = 0;
         if (type === 'room' && newVal < 1) newVal = 1;
         guests[type] = newVal;
+
         const valElem = document.getElementById(`val${capitalize(type)}`);
         if (valElem) valElem.textContent = newVal;
+
         const guestInput = document.getElementById('guestInput');
         if (guestInput) guestInput.value = `성인 ${guests.adult}명, 아동 ${guests.child}명, 객실 ${guests.room}개`;
+
         const btnAdultMinus = document.getElementById('btnAdultMinus');
         const btnChildMinus = document.getElementById('btnChildMinus');
         const btnRoomMinus = document.getElementById('btnRoomMinus');
@@ -103,11 +95,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (btnRoomMinus) btnRoomMinus.disabled = guests.room <= 1;
     }
 
-    function capitalize(s) {
-        return s.charAt(0).toUpperCase() + s.slice(1);
-    }
-
-    /* ================= Popover 제어 로직 ================= */
     function openPopover(id) {
         closeAllPopovers();
         const popover = document.getElementById(id);
@@ -122,15 +109,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (overlay) overlay.classList.remove('active');
     }
 
-    // ================= 검색 버튼 동작 =================
     const searchBtn = document.querySelector('.btn-search');
-    console.log('searchBtn:', searchBtn);
     if (searchBtn) {
         searchBtn.addEventListener('click', function () {
-            console.log('검색 버튼 클릭됨');
-            const dest = document.getElementById('destInput').value.trim();
-            let city = '',
-                country = '';
+            const dest = (document.getElementById('destInput')?.value || '').trim();
+            let city = '';
+            let country = '';
             if (dest.includes(',')) {
                 const parts = dest.split(',');
                 city = parts[0].trim();
@@ -138,8 +122,9 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 city = dest;
             }
-            const checkin = document.getElementById('checkinDate').value;
-            const checkout = document.getElementById('checkoutDate').value;
+
+            const checkin = document.getElementById('checkinDate')?.value;
+            const checkout = document.getElementById('checkoutDate')?.value;
             const params = new URLSearchParams();
             if (city) params.append('city', city);
             if (country) params.append('country', country);
@@ -149,6 +134,8 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    initDestinations();
+    window.updateGuest = updateGuest;
     window.openPopover = openPopover;
     window.closeAllPopovers = closeAllPopovers;
 });
