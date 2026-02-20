@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DESTINO - 투어 & 액티비티</title>
+    <!-- 폰트 및 아이콘 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+    <link rel="stylesheet" href="../static/tour.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">DESTINO</div>
+            <div class="header-search-bar">
+                <input type="text" placeholder="검색어를 입력하세요">
+            </div>
+            <nav class="header-nav">
+                <a href="#">항공권</a>
+                <a href="#" class="active-nav">투어·티켓</a>
+                <a href="#">숙소</a>
+                <a href="#">로그인</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <h1 class="hero-title">나를 위한 최고의 투어,<br>지금 여기서 찾아보세요</h1>
+        
+        <div class="search-widget" id="searchWidget">
+            <div class="tour-search-row">
+                <div class="input-group">
+                    <label>여행지 또는 어트랙션</label>
+                    <input type="text" id="dest-input" placeholder="어디로 떠나시나요? (예: 도쿄, 유니버셜)" autocomplete="off">
+                    
+                    <!-- Search Popover -->
+                    <div id="tourPopover" class="custom-popover">
+                        <div id="default-suggestions">
+                            <div class="popover-title">✨ 인기 여행지</div>
+                            <div class="trend-grid">
+                                <div class="trend-item" onclick="selectDest('오사카, 일본')">
+                                    <img src="https://images.unsplash.com/photo-1590559899731-a382839e5549?q=80&w=100" class="trend-img">
+                                    <span class="trend-name">오사카, 일본</span>
+                                </div>
+                                <div class="trend-item" onclick="selectDest('다낭, 베트남')">
+                                    <img src="https://images.unsplash.com/photo-1555681938-38817395441b?q=80&w=100" class="trend-img">
+                                    <span class="trend-name">다낭, 베트남</span>
+                                </div>
+                                <div class="trend-item" onclick="selectDest('파리, 프랑스')">
+                                    <img src="https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&w=100" class="trend-img">
+                                    <span class="trend-name">파리, 프랑스</span>
+                                </div>
+                                <div class="trend-item" onclick="selectDest('방콕, 태국')">
+                                    <img src="https://images.unsplash.com/photo-1508009603885-50cf7c579367?q=80&w=100" class="trend-img">
+                                    <span class="trend-name">방콕, 태국</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="search-results">
+                            <div class="popover-title">🔍 실시간 검색</div>
+                            <div id="results-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn-search" onclick="handleSearch()">
+                    <i data-lucide="search" size="20"></i>
+                    검색하기
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Content Sample -->
+    <section class="container">
+        <!-- 할인 이벤트 배너 -->
+        <div class="event-banner">
+            <div class="event-content">
+                <h3>첫 구매 한정 30,000원 할인 쿠폰 🎁</h3>
+                <p>지금 바로 회원가입하고 전 세계 인기 투어 할인 혜택을 받으세요.</p>
+            </div>
+            <button class="event-btn">쿠폰 받기</button>
+        </div>
+
+        <!-- 지금 가장 핫한 상품 -->
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">지금 가장 핫한 상품 🔥</h2>
+                <p class="section-subtext">최근 일주일간 가장 많은 예약이 발생한 상품들입니다.</p>
+            </div>
+            <a href="#" class="view-all">전체보기 ></a>
+        </div>
+
+        <div class="card-grid">
+            <div class="card">
+                <div class="card-img-box">
+                    <img src="https://images.unsplash.com/photo-1513407030348-c983a97b98d8?q=80&w=600" class="card-img" alt="도쿄 시부야 스카이">
+                    <div class="badge">E-티켓</div>
+                </div>
+                <div class="card-body">
+                    <div class="card-loc">일본 · 도쿄</div>
+                    <h3 class="card-title">도쿄 시부야 스카이 전망대 입장권</h3>
+                    <div class="sale-price">18,500<span>원</span></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-img-box">
+                    <img src="https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=600" class="card-img" alt="유니버셜 스튜디오 재팬">
+                    <div class="badge">당일예약</div>
+                </div>
+                <div class="card-body">
+                    <div class="card-loc">일본 · 오사카</div>
+                    <h3 class="card-title">유니버셜 스튜디오 재팬 1일권</h3>
+                    <div class="sale-price">78,500<span>원</span></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-img-box">
+                    <img src="https://images.unsplash.com/photo-1542013976663-e7816a51daf0?q=80&w=600" class="card-img" alt="루브르 박물관">
+                    <div class="badge">우선입장</div>
+                </div>
+                <div class="card-body">
+                    <div class="card-loc">프랑스 · 파리</div>
+                    <h3 class="card-title">루브르 박물관 우선 입장권</h3>
+                    <div class="sale-price">29,800<span>원</span></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-img-box">
+                    <img src="https://images.unsplash.com/photo-1555681938-38817395441b?q=80&w=600" class="card-img" alt="바나힐 썬월드">
+                    <div class="badge">한국어 가이드</div>
+                </div>
+                <div class="card-body">
+                    <div class="card-loc">베트남 · 다낭</div>
+                    <h3 class="card-title">바나힐 썬월드 일일 투어</h3>
+                    <div class="sale-price">42,900<span>원</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 이색 체험 상품 섹션 -->
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">잊지 못할 이색 체험 ✨</h2>
+                <p class="section-subtext">평범한 여행은 지루해! 특별한 경험을 선사하는 체험형 투어</p>
+            </div>
+            <a href="#" class="view-all">전체보기 ></a>
+        </div>
+
+        <div class="card-grid">
+            <div class="card">
+                <div class="card-img-box">
+                    <img src="https://images.unsplash.com/photo-1516738901171-8eb4fc13bd20?q=80&w=600" class="card-img" alt="카파도키아 열기구">
+                    <div class="badge">열기구</div>
+                </div>
+                <div class="card-body">
+                    <div class="card-loc">튀르키예 · 카파도키아</div>
+                    <h3 class="card-title">카파도키아 일출 열기구 프리미엄 투어</h3>
+                    <div class="sale-price">245,000<span>원</span></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-img-box">
+                    <img src="https://images.unsplash.com/photo-1534067783941-51c9c23ecefd?q=80&w=600" class="card-img" alt="오로라 헌팅">
+                    <div class="badge">오로라</div>
+                </div>
+                <div class="card-body">
+                    <div class="card-loc">아이슬란드 · 레이캬비크</div>
+                    <h3 class="card-title">전문 가이드와 함께하는 오로라 헌팅 투어</h3>
+                    <div class="sale-price">112,000<span>원</span></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-img-box">
+                    <img src="https://images.unsplash.com/photo-1502740479735-869d82346162?q=80&w=600" class="card-img" alt="스카이다이빙">
+                    <div class="badge">스카이다이빙</div>
+                </div>
+                <div class="card-body">
+                    <div class="card-loc">스위스 · 인터라켄</div>
+                    <h3 class="card-title">알프스 영봉을 보며 즐기는 스카이다이빙</h3>
+                    <div class="sale-price">450,000<span>원</span></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-img-box">
+                    <img src="https://images.unsplash.com/photo-1544943911-372f883f3e18?q=80&w=600" class="card-img" alt="사막투어">
+                    <div class="badge">사막투어</div>
+                </div>
+                <div class="card-body">
+                    <div class="card-loc">아랍에미리트 · 두바이</div>
+                    <h3 class="card-title">두바이 이브닝 사막 사파리 & 디너</h3>
+                    <div class="sale-price">65,000<span>원</span></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <p>(주)디스티노 | 대표: 홍길동 | 서울특별시 중구 세종대로 110</p>
+    </footer>
+
+    <script src="../static/tour.js"></script>
+</body>
+</html>
