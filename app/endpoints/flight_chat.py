@@ -376,20 +376,27 @@ def _search_flights(
     if not origin_iata or not destination_iata:
         raise ValueError(f"출발/도착지를 공항 코드로 해석하지 못했습니다. origin={origin}, destination={destination}")
 
-    data = search_flight_offers_raw(
-        origin_code=origin_iata,
-        destination_code=destination_iata,
-        departure_date=departure_date,
-        return_date=return_date,
-        adults=adults,
-        cabin=cabin,
-        max_results=max_results,
-    )
+    amadeus_error = None
+    try:
+        data = search_flight_offers_raw(
+            origin_code=origin_iata,
+            destination_code=destination_iata,
+            departure_date=departure_date,
+            return_date=return_date,
+            adults=adults,
+            cabin=cabin,
+            max_results=max_results,
+        )
+    except Exception as e:
+        amadeus_error = str(e)
+        data = {"data": []}
     try:
         b = booking_search_flights(origin_iata, destination_iata, departure_date, return_date, adults)
         data["booking_reference"] = b.get("data", [])
     except Exception as e:
         data["booking_reference_error"] = str(e)
+    if amadeus_error:
+        data["amadeus_error"] = amadeus_error
     if max_price is not None:
         data["data"] = [
             x for x in data.get("data", []) if _to_float((x.get("price") or {}).get("total")) is not None and _to_float((x.get("price") or {}).get("total")) <= float(max_price)
@@ -811,6 +818,14 @@ def chat(req: ChatRequest):
         if not isinstance(limit, int) or limit <= 0:
             limit = 8
         rows = rows[:limit]
+        if not rows and raw.get("amadeus_error"):
+            err = raw.get("amadeus_error")
+            return {"response": (
+                f"<p>Amadeus ??? API ??: {err}</p>"
+                "<p>??? ??? ??? ??? ??? ????. ?? ??? ???? .env? "
+                "<code>AMADEUS_BASE_URL=https://api.amadeus.com</code>"
+                " ?? ? ???? ???.</p>"
+            )}
         state["last_intent"] = "flight"
         SESSION_STATE[sid] = state
         return {"response": _flight_html_intro(state, rows) + _flight_html_table(rows, raw.get("meta_query", {}))}

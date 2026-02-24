@@ -9,6 +9,7 @@ load_dotenv()
 
 AMADEUS_CLIENT_ID = os.getenv("AMADEUS_CLIENT_ID") or os.getenv("AMADEUS_API_KEY")
 AMADEUS_CLIENT_SECRET = os.getenv("AMADEUS_CLIENT_SECRET") or os.getenv("AMADEUS_API_SECRET")
+AMADEUS_BASE_URL = os.getenv("AMADEUS_BASE_URL", "https://test.api.amadeus.com").rstrip("/")
 LOCATION_ALIASES = {
     "서울": "SEL",
     "인천": "ICN",
@@ -62,7 +63,7 @@ def get_amadeus_token() -> str:
         raise RuntimeError("AMADEUS credentials are not configured.")
 
     response = requests.post(
-        "https://test.api.amadeus.com/v1/security/oauth2/token",
+        f"{AMADEUS_BASE_URL}/v1/security/oauth2/token",
         data={
             "grant_type": "client_credentials",
             "client_id": AMADEUS_CLIENT_ID,
@@ -92,7 +93,7 @@ def resolve_location_to_iata(keyword: str, token: Optional[str] = None) -> Optio
         return cleaned.upper()
 
     access_token = token or get_amadeus_token()
-    url = "https://test.api.amadeus.com/v1/reference-data/locations"
+    url = f"{AMADEUS_BASE_URL}/v1/reference-data/locations"
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {"subType": "CITY,AIRPORT", "keyword": cleaned, "page[limit]": 1}
 
@@ -139,13 +140,17 @@ def search_flight_offers_raw(
     logger.info(f"[amadeus_api] 요청 params: {params}")
     try:
         response = requests.get(
-            "https://test.api.amadeus.com/v2/shopping/flight-offers",
+            f"{AMADEUS_BASE_URL}/v2/shopping/flight-offers",
             headers={"Authorization": f"Bearer {token}"},
             params=params,
             timeout=20,
         )
         logger.info(f"[amadeus_api] 응답 status: {response.status_code}")
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except HTTPError as e:
+            detail = _extract_amadeus_error_text(response)
+            raise RuntimeError(f"Amadeus error {response.status_code}: {detail}") from e
         logger.info(f"[amadeus_api] 응답 json: {response.text}")
         return response.json()
     except Exception as e:
@@ -186,7 +191,7 @@ def search_hotels(city_code, check_in, check_out, adults=1):
 
     # 1) Try cityCode-based offers first.
     response = requests.get(
-        "https://test.api.amadeus.com/v3/shopping/hotel-offers",
+        f"{AMADEUS_BASE_URL}/v3/shopping/hotel-offers",
         headers=headers,
         params=params,
         timeout=20,
@@ -201,7 +206,7 @@ def search_hotels(city_code, check_in, check_out, adults=1):
 
     # 2) Expand results: find many hotel IDs in city, then query offers by hotelIds in batches.
     by_city = requests.get(
-        "https://test.api.amadeus.com/v1/reference-data/locations/hotels/by-city",
+        f"{AMADEUS_BASE_URL}/v1/reference-data/locations/hotels/by-city",
         headers=headers,
         params={"cityCode": city_code, "radius": 30, "radiusUnit": "KM", "hotelSource": "ALL"},
         timeout=20,
@@ -236,7 +241,7 @@ def search_hotels(city_code, check_in, check_out, adults=1):
     for i in range(0, len(hotel_ids), chunk_size):
         chunk = hotel_ids[i : i + chunk_size]
         offers = requests.get(
-            "https://test.api.amadeus.com/v3/shopping/hotel-offers",
+            f"{AMADEUS_BASE_URL}/v3/shopping/hotel-offers",
             headers=headers,
             params={
                 "hotelIds": ",".join(chunk),

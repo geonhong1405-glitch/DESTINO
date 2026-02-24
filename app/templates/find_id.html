@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Destino - 로그인</title>
+        <title>Destino - 아이디 찾기</title>
         <link rel="stylesheet" href="../static/signin.css" />
         <link
             href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap"
@@ -26,40 +26,33 @@
         <main class="login-full-section">
             <div class="login-inner detail-container">
                 <section class="login-title-area left-align">
-                    <h2 class="form-title">로그인</h2>
+                    <h2 class="form-title">아이디 찾기</h2>
                 </section>
 
-                <form class="email-login-form" action="/signin" method="post">
+                <form class="email-login-form" action="/find-id" method="post">
                     {% if error %}
                     <div style="color: red; margin-bottom: 10px; text-align: center">{{ error }}</div>
                     {% endif %}
+                    {% if result %}
+                    <div style="color: #0f172a; margin-bottom: 10px; text-align: center; font-weight: 600">{{ result }}</div>
+                    {% endif %}
+
                     <div class="input-group">
-                        <label>아이디<span class="required-dot">*</span></label>
-                        <input type="text" name="username" placeholder="아이디를 입력하세요" required />
+                        <label>이메일<span class="required-dot">*</span></label>
+                        <input type="email" name="email" placeholder="이메일을 입력하세요" required />
                     </div>
 
                     <div class="input-group">
-                        <label>비밀번호<span class="required-dot">*</span></label>
-                        <input type="password" name="password" placeholder="비밀번호를 입력하세요" required />
-                        <div class="password-helper">
-                            <a href="#">비밀번호 재설정</a>
-                        </div>
+                        <label>휴대폰 번호<span class="required-dot">*</span></label>
+                        <input type="tel" name="phone" placeholder="010-0000-0000" required />
                     </div>
 
-                    <button type="submit" class="btn-login active-blue">로그인</button>
+                    <button type="submit" class="btn-login active-blue">아이디 찾기</button>
                 </form>
 
                 <div class="login-support-box">
-                    <p>계정이 없으신가요?</p>
-                    <a href="/join" class="go-signup">회원가입</a>
+                    <a href="/login" class="go-signup">로그인으로 돌아가기</a>
                 </div>
-
-                <div class="login-support-box" style="margin-top: 6px;">
-                    <a href="/find-id" class="go-signup" style="margin-right: 12px;">아이디 찾기</a>
-                    <a href="/find-password" class="go-signup">비밀번호 찾기</a>
-                </div>
-
-                <a href="/login" class="back-link">다른 방법으로 로그인</a>
             </div>
         </main>
     </body>

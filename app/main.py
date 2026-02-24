@@ -27,6 +27,55 @@ from app.api.booking_hotel_flight_api import search_hotels as booking_search_hot
 import os
 import json
 import datetime
+import re
+import base64
+import hashlib
+import hmac
+
+_PWD_PREFIX = "pbkdf2_sha256"
+_PWD_ITERATIONS = 260000
+_PASSWORD_REGEX = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[^\w\s]).{8,}$")
+_EMAIL_REGEX = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+_PHONE_REGEX = re.compile(r"^01[0-9]-\d{3,4}-\d{4}$")
+
+
+def _validate_signup(password: str, email: str, phone: str) -> str | None:
+    if not _PASSWORD_REGEX.match(password or ""):
+        return "\ube44\ubc00\ubc88\ud638\ub294 \uc601\ubb38/\uc22b\uc790/\ud2b9\uc218\ubb38\uc790 \ud3ec\ud568 8\uc790 \uc774\uc0c1\uc774\uc5b4\uc57c \ud569\ub2c8\ub2e4."
+    if not _EMAIL_REGEX.match(email or ""):
+        return "\uc774\uba54\uc77c \ud615\uc2dd\uc774 \uc62c\ubc14\ub974\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."
+    if not _PHONE_REGEX.match(phone or ""):
+        return "\ud734\ub300\ud3f0 \ubc88\ud638 \ud615\uc2dd\uc774 \uc62c\ubc14\ub974\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."
+    return None
+
+
+def _validate_password_only(password: str) -> str | None:
+    if not _PASSWORD_REGEX.match(password or ""):
+        return "비밀번호는 영문/숫자/특수문자 포함 8자 이상이어야 합니다."
+    return None
+
+
+
+def _hash_password(password: str) -> str:
+    salt = base64.b64encode(os.urandom(16)).decode("ascii").rstrip("=")
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), _PWD_ITERATIONS)
+    digest = base64.b64encode(dk).decode("ascii").rstrip("=")
+    return f"{_PWD_PREFIX}${_PWD_ITERATIONS}${salt}${digest}"
+
+
+def _verify_password(password: str, stored: str) -> tuple[bool, bool]:
+    if not stored:
+        return False, False
+    if stored.startswith(f"{_PWD_PREFIX}$"):
+        try:
+            _, iters, salt, digest = stored.split("$", 3)
+            dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), int(iters))
+            calc = base64.b64encode(dk).decode("ascii").rstrip("=")
+            return hmac.compare_digest(calc, digest), False
+        except Exception:
+            return False, False
+    # legacy plaintext fallback; caller may upgrade
+    return hmac.compare_digest(password, stored), True
 
 
 app = FastAPI()
@@ -226,6 +275,66 @@ app.include_router(rag_router)
 app.include_router(flight_chat_router)
 
 
+
+
+@app.post("/api/verify-password")
+def api_verify_password(request: Request, payload: dict, db: Session = Depends(get_db)):
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        return {"ok": False}
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        return {"ok": False}
+    password = (payload or {}).get("password") or ""
+    ok, _ = _verify_password(password, user.password)
+    return {"ok": bool(ok)}
+
+
+@app.post("/api/update-profile")
+def api_update_profile(request: Request, payload: dict, db: Session = Depends(get_db)):
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        return {"ok": False, "error": "로그인이 필요합니다."}
+
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        return {"ok": False, "error": "사용자를 찾을 수 없습니다."}
+
+    password = (payload or {}).get("password") or ""
+    ok, _ = _verify_password(password, user.password)
+    if not ok:
+        return {"ok": False, "error": "비밀번호가 올바르지 않습니다."}
+
+    nickname = (payload or {}).get("nickname") or user.nickname
+    email = (payload or {}).get("email") or user.email
+    phone = (payload or {}).get("phone") or user.phone
+
+    if email and email != user.email:
+        exists = db.query(User).filter(User.email == email).first()
+        if exists:
+            return {"ok": False, "error": "이미 사용 중인 이메일입니다."}
+    if phone and phone != user.phone:
+        exists = db.query(User).filter(User.phone == phone).first()
+        if exists:
+            return {"ok": False, "error": "이미 사용 중인 전화번호입니다."}
+
+    user.nickname = nickname
+    user.email = email
+    user.phone = phone
+    db.commit()
+
+    return {
+        "ok": True,
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "nickname": user.nickname,
+            "email": user.email,
+            "phone": user.phone,
+        },
+    }
 @app.get("/logout")
 def logout(request: Request):
     session_token = request.cookies.get("session_token")
@@ -275,7 +384,27 @@ def home_page(request: Request):
 
 @app.get("/mypage", response_class=HTMLResponse)
 def mypage(request: Request):
-    return templates.TemplateResponse("mypage.html", {"request": request})
+    session_token = request.cookies.get("session_token")
+    nickname = None
+    email = None
+    name = None
+    phone = None
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if user_id:
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == int(user_id)).first()
+            if user:
+                nickname = user.nickname
+                email = user.email
+                name = user.name
+                phone = user.phone
+        finally:
+            db.close()
+    return templates.TemplateResponse(
+        "mypage.html",
+        {"request": request, "nickname": nickname, "email": email, "name": name, "phone": phone},
+    )
 
 
 @app.get("/airport", response_class=HTMLResponse)
@@ -283,7 +412,72 @@ def airport(request: Request):
     nickname = get_nickname_from_request(request)
     return templates.TemplateResponse("airport.html", {"request": request, "nickname": nickname})
 
-@app.get("/gloval-hotel", response_class=HTMLResponse)
+
+
+@app.get("/find-id", response_class=HTMLResponse)
+def find_id_get(request: Request):
+    return templates.TemplateResponse("find_id.html", {"request": request})
+
+
+@app.post("/find-id", response_class=HTMLResponse)
+def find_id_post(
+    request: Request,
+    email: str = Form(...),
+    phone: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = db.query(User).filter(User.email == email, User.phone == phone).first()
+    if not user:
+        return templates.TemplateResponse(
+            "find_id.html",
+            {"request": request, "error": "입력한 정보와 일치하는 계정을 찾을 수 없습니다."},
+        )
+    return templates.TemplateResponse(
+        "find_id.html",
+        {"request": request, "result": f"아이디: {user.name}"},
+    )
+
+
+@app.get("/find-password", response_class=HTMLResponse)
+def find_password_get(request: Request):
+    return templates.TemplateResponse("find_password.html", {"request": request})
+
+
+@app.post("/find-password", response_class=HTMLResponse)
+def find_password_post(
+    request: Request,
+    username: str = Form(...),
+    email: str = Form(...),
+    phone: str = Form(...),
+    new_password: str = Form(...),
+    new_password_confirm: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    if new_password != new_password_confirm:
+        return templates.TemplateResponse(
+            "find_password.html",
+            {"request": request, "error": "비밀번호가 일치하지 않습니다."},
+        )
+    validation_error = _validate_password_only(new_password)
+    if validation_error:
+        return templates.TemplateResponse(
+            "find_password.html",
+            {"request": request, "error": validation_error},
+        )
+    user = db.query(User).filter(User.name == username, User.email == email, User.phone == phone).first()
+    if not user:
+        return templates.TemplateResponse(
+            "find_password.html",
+            {"request": request, "error": "입력한 정보와 일치하는 계정을 찾을 수 없습니다."},
+        )
+    user.password = _hash_password(new_password)
+    db.commit()
+    return templates.TemplateResponse(
+        "find_password.html",
+        {"request": request, "result": "비밀번호가 변경되었습니다. 로그인해 주세요."},
+    )
+
+
 @app.get("/gloval-hotel", response_class=HTMLResponse)
 def gloval_hotel(request: Request,
                  city: str = Query(None),
@@ -470,9 +664,13 @@ def signin_post(
 ):
     user = db.query(User).filter(User.name == username).first()
     if not user:
-        return templates.TemplateResponse("signin.html", {"request": request, "error": "존재하지 않는 아이디입니다."})
-    if user.password != password:
-        return templates.TemplateResponse("signin.html", {"request": request, "error": "비밀번호가 올바르지 않습니다."})
+        return templates.TemplateResponse("signin.html", {"request": request, "error": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해주세요."})
+    ok, needs_upgrade = _verify_password(password, user.password)
+    if not ok:
+        return templates.TemplateResponse("signin.html", {"request": request, "error": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해주세요."})
+    if needs_upgrade:
+        user.password = _hash_password(password)
+        db.commit()
 
     session_token = create_session(user.id)
     response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
@@ -560,7 +758,10 @@ def gloval_alias(request: Request):
 
 @app.get("/users")
 def read_users(db: Session = Depends(get_db)):
-    return db.query(User).all()
+    return [
+        {"id": u.id, "name": u.name, "nickname": u.nickname, "email": u.email, "phone": u.phone}
+        for u in db.query(User).all()
+    ]
 
 
 @app.post("/users")
@@ -584,9 +785,22 @@ def create_user(
         return templates.TemplateResponse("join.html", {"request": request, "error": "이미 사용 중인 닉네임입니다."})
     if password != password_confirm:
         return templates.TemplateResponse("join.html", {"request": request, "error": "비밀번호가 일치하지 않습니다."})
+    validation_error = _validate_signup(password, email, phone)
+    if validation_error:
+        return templates.TemplateResponse("join.html", {"request": request, "error": validation_error})
 
-    user = User(name=username, password=password, nickname=nickname, email=email, phone=phone)
+    user = User(name=username, password=_hash_password(password), nickname=nickname, email=email, phone=phone)
     db.add(user)
     db.commit()
     db.refresh(user)
     return RedirectResponse(url="/login", status_code=302)
+
+
+
+
+
+
+
+
+
+
