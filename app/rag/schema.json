@@ -1,0 +1,16 @@
+{
+  "id": "string",
+  "text": "string",
+  "metadata": {
+    "country_code": "string",
+    "country_name": "string",
+    "scope": "country | city",
+    "city_name": "string | null",
+    "topic": "safety | culture | visa | transport | money | laws | health | emergency | connectivity",
+    "subtopic": "string | null",
+    "trust_tier": "int (1~5)",
+    "source_type": "government | embassy | wiki | operator | other",
+    "source_url": "string",
+    "fetched_at": "YYYY-MM-DD"
+  }
+}

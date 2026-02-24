@@ -1,0 +1,12 @@
+seed_id,scope,country_code,country_name,city_name,topic,source_type,trust_tier,freshness_policy,url,lang,notes
+jp_country_safety_fcdo,country,JP,Japan,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/japan,en,"치안/지역위험/도움요청 섹션 구조화"
+jp_country_visa_fcdo,country,JP,Japan,,visa,government,1,monthly,https://www.gov.uk/foreign-travel-advice/japan/entry-requirements,en,"입국요건 섹션 분리"
+jp_country_safety_usdos,country,JP,Japan,,safety,government,1,monthly,https://travel.state.gov/en/international-travel/travel-advisories/japan.html,en,"미국 시민 기준 위험/주의"
+jp_country_disaster_jnto,country,JP,Japan,,safety,operator,2,event-driven,https://www.japan.travel/en/japan-safe-travel-information/,en,"지진/경보 등 이벤트성 업데이트"
+jp_country_culture_tipping_wikivoyage,country,JP,Japan,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Tipping,en,"문화(팁) 보강용"
+jp_country_culture_cuisine_wikivoyage,country,JP,Japan,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Japanese_cuisine,en,"식사예절/서비스차지 보강"
+jp_country_emergency_jnto,country,JP,Japan,,emergency,operator,2,event-driven,https://www.jnto.go.jp/emergency/eng/mi_guide.html,en,"외국인용 의료/긴급 안내 공식 페이지"
+jp_country_money_jnto_currency,country,JP,Japan,,money,operator,2,quarterly,https://www.japan.travel/en/plan/currency/,en,"공식 통화/환전/결제 안내 페이지"
+jp_tokyo_connectivity_jnto,city,JP,Japan,Tokyo,connectivity,operator,2,quarterly,https://www.japan.travel/en/plan/wifi-and-connectivity/,en,"와이파이/유심 등 연결성"
+jp_tokyo_transport_navitime,city,JP,Japan,Tokyo,transport,other,3,monthly,https://japantravel.navitime.com/en/area/jp/guide/NTJtrv0100-en/,en,"도쿄 포함 일본 대중교통 안내(상용이지만 여행자용 정리 좋음)"
+jp_tokyo_transport_wikivoyage,city,JP,Japan,Tokyo,transport,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Tokyo#Get_around,en,"도쿄 시내 이동(지하철/버스/패스) 요약, CC 라이선스"
