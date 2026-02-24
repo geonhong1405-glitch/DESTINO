@@ -595,3 +595,114 @@ body {
 .hidden {
     display: none;
 }
+
+/* --- Settings Panel --- */
+.card-header {
+    padding: 1.75rem 2rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #eef2f7;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.card-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.card-subtitle {
+    margin: 0.25rem 0 0 0;
+    font-size: 0.875rem;
+    color: #64748b;
+}
+
+.card-body {
+    padding: 1.75rem 2rem 2rem;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+}
+
+@media (max-width: 900px) {
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.form-group {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 1rem 1.25rem;
+}
+
+.form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+.label-muted,
+.label-default {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+    margin-bottom: 0.5rem;
+}
+
+.readonly-field,
+.static-field {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.hidden-actions {
+    display: none;
+}
+
+.hidden-actions.active,
+#edit-actions.active {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+.save-btn,
+.cancel-btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.9rem;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+}
+
+.save-btn {
+    background-color: #00AEEF;
+    color: #fff;
+}
+
+.cancel-btn {
+    background-color: #e2e8f0;
+    color: #334155;
+}
+
+.card-footer {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px dashed #e2e8f0;
+}
+
+.footer-note {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #64748b;
+}

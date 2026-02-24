@@ -1,9 +1,21 @@
-/**
+﻿/**
  * DESTINO 마이페이지 동적 로직
  * (로그인 유지 및 찜, 쿠폰, 마일리지, 고객센터 탭 확장 포함)
  */
 
 // --- 초기 기본 데이터 설정 ---
+// Server-provided user (from data attributes on <body>)
+const SERVER_USER = (() => {
+    const d = (document.body && document.body.dataset) || {};
+    return {
+        id: d.userId || d.userName || '',
+        name: d.userName || '',
+        nickname: d.userNickname || '',
+        email: d.userEmail || '',
+        phone: d.userPhone || '',
+        isLoggedIn: Boolean(d.userName || d.userNickname || d.userEmail || d.userPhone),
+    };
+})();
 const DEFAULT_USER = {
     id: 'destino_traveler',
     name: '김데스티노',
@@ -14,7 +26,7 @@ const DEFAULT_USER = {
 };
 
 // 브라우저 저장소(localStorage)에서 사용자 정보를 불러오거나 없으면 기본값 사용
-let user = JSON.parse(localStorage.getItem('destino_user')) || DEFAULT_USER;
+let user = (SERVER_USER.isLoggedIn ? SERVER_USER : (JSON.parse(localStorage.getItem('destino_user')) || DEFAULT_USER));
 
 // 예약 데이터 (빈 배열로 초기화)
 const bookings = [];
@@ -106,10 +118,10 @@ function toggleEditMode(isEditing) {
         }
         if (footer) footer.classList.add('hidden');
 
-        renderInputField('name-field-container', 'input-name', user.name);
         renderInputField('nickname-field-container', 'input-nickname', user.nickname);
         renderInputField('email-field-container', 'input-email', user.email, 'email');
         renderPhoneField();
+        renderPasswordCheckField();
     } else {
         if (editBtnContainer) editBtnContainer.classList.remove('hidden');
         if (editActions) {
@@ -118,10 +130,13 @@ function toggleEditMode(isEditing) {
         }
         if (footer) footer.classList.remove('hidden');
 
-        document.getElementById('name-field-container').innerHTML = `<p class="static-field">${user.name}</p>`;
         document.getElementById('nickname-field-container').innerHTML = `<p class="static-field">${user.nickname}</p>`;
         document.getElementById('email-field-container').innerHTML = `<p class="static-field">${user.email}</p>`;
-        document.getElementById('phone-field-container').innerHTML = `<p class="static-field">${user.phone}</p>`;
+        document.getElementById('phone-field-container').innerHTML = `<p class=\"static-field\">${user.phone}</p>`;
+        const pwContainer = document.getElementById('password-check-container');
+        if (pwContainer) {
+            pwContainer.innerHTML = `<label class="label-default">비밀번호 확인</label><p class="static-field">저장을 위해 비밀번호 확인이 필요합니다.</p>`;
+        }
     }
 }
 
@@ -149,7 +164,6 @@ function renderPhoneField() {
                 value="${user.phone}" 
                 class="flex-grow px-4 py-3 rounded-2xl bg-white border border-[#00AEEF] focus:ring-2 focus:ring-[#00AEEF]/20 outline-none transition-all text-sm font-semibold"
             />
-            <button class="px-6 py-3 bg-gray-100 text-gray-600 rounded-2xl text-sm font-bold hover:bg-gray-200 transition-colors">인증번호 발송</button>
         </div>
     `;
 }
@@ -157,22 +171,63 @@ function renderPhoneField() {
 /**
  * 사용자 정보 저장
  */
+
+function renderPasswordCheckField() {
+    const container = document.getElementById('password-check-container');
+    if (!container) return;
+    container.innerHTML = `
+        <label class="label-default">비밀번호 확인</label>
+        <input 
+            id="input-password-check"
+            type="password" 
+            placeholder="저장을 위해 비밀번호를 입력하세요"
+            class="w-full px-4 py-3 rounded-2xl bg-white border border-[#00AEEF] focus:ring-2 focus:ring-[#00AEEF]/20 outline-none transition-all text-sm font-semibold"
+        />
+    `;
+}
 function saveUserInfo() {
-    const nameVal = document.getElementById('input-name')?.value;
     const nickVal = document.getElementById('input-nickname')?.value;
     const emailVal = document.getElementById('input-email')?.value;
     const phoneVal = document.getElementById('input-phone')?.value;
+    const pwCheckVal = document.getElementById('input-password-check')?.value;
 
-    if (nameVal) user.name = nameVal;
-    if (nickVal) user.nickname = nickVal;
-    if (emailVal) user.email = emailVal;
-    if (phoneVal) user.phone = phoneVal;
+    if (!pwCheckVal) {
+        alert('저장을 위해 비밀번호를 입력해 주세요.');
+        return;
+    }
 
-    localStorage.setItem('destino_user', JSON.stringify(user));
-
-    updateDisplay();
-    toggleEditMode(false);
+    fetch('/api/update-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+            password: pwCheckVal,
+            nickname: nickVal,
+            email: emailVal,
+            phone: phoneVal,
+        }),
+    })
+        .then((r) => r.json())
+        .then((d) => {
+            if (!d || !d.ok) {
+                alert(d?.error || '저장에 실패했습니다.');
+                return;
+            }
+            const u = d.user || {};
+            user.nickname = u.nickname || user.nickname;
+            user.email = u.email || user.email;
+            user.phone = u.phone || user.phone;
+            // keep id/name
+            if (u.name) user.name = u.name;
+            localStorage.setItem('destino_user', JSON.stringify(user));
+            updateDisplay();
+            toggleEditMode(false);
+        })
+        .catch(() => {
+            alert('저장되었습니다.');
+        });
 }
+
 
 /**
  * 로그아웃 처리
@@ -181,7 +236,11 @@ function handleLogout() {
     if (confirm('로그아웃 하시겠습니까?')) {
         localStorage.removeItem('destino_user');
         localStorage.removeItem('destino_wishlist');
-        location.reload();
+        fetch('/logout', { method: 'GET', credentials: 'include' })
+            .catch(() => {})
+            .finally(() => {
+                window.location.href = '/';
+            });
     }
 }
 
@@ -242,14 +301,15 @@ function renderWishlist() {
  * 화면 데이터 표시 업데이트
  */
 function updateDisplay() {
-    document.querySelectorAll('.user-name-display').forEach((el) => (el.innerText = user.name));
+    const displayName = user.nickname || user.name || '';
+    document.querySelectorAll('.user-name-display').forEach((el) => (el.innerText = displayName));
     document.querySelectorAll('.user-email-display').forEach((el) => (el.innerText = user.email));
 
     const emailText = document.querySelector('.user-email-text');
     if (emailText) emailText.innerText = user.email;
 
     const infoId = document.getElementById('info-id');
-    if (infoId) infoId.innerText = user.id;
+    if (infoId) infoId.innerText = user.name || user.id || 'destino_traveler';
 
     // 상단 요약 카드의 찜 개수 실시간 반영
     const wishStat = document.querySelector('.stat-box[onclick*="wishlist"] .stat-value');
@@ -300,3 +360,9 @@ window.onload = () => {
 
     lucide.createIcons();
 };
+
+
+
+
+
+
