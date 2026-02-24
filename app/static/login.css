@@ -61,22 +61,10 @@ ul {
     color: #00aaff;
     font-size: 24px;
 }
-.header-search-bar input {
-    padding: 8px 15px;
-    border-radius: 20px;
-    border: 1px solid #ddd;
-    width: 300px;
-}
 .header-nav a {
     margin-left: 15px;
     font-size: 14px;
     color: #666;
-}
-
-@media (max-width: 768px) {
-    .header-search-bar {
-        display: none;
-    }
 }
 
 /* 로그인 섹션 */
