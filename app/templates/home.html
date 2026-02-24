@@ -11,9 +11,6 @@
         <header class="header">
             <div class="container header-inner">
                 <h1 class="logo"><a href="/">DESTINO</a></h1>
-                <div class="header-search-bar">
-                    <input type="text" placeholder="어디로 떠나시나요?" />
-                </div>
                 <nav class="header-nav">
                     {% if nickname %}
                     <a href="/mypage">
@@ -210,57 +207,58 @@
                     <div class="event-slider-window">
                         <div class="grid-33">
                             <div class="event-c yellow-card">
-                                <div class="event-content">
+                                <a class="event-content" href="#">
                                     <span class="event-sub">HAPPY FRIDAY</span>
                                     <h4 class="event-main-title">티켓 1+1</h4>
                                     <p class="event-desc">인기 투어 · 티켓 단독 특가</p>
-                                    <a href="#" class="btn-event-link">바로 보러가기</a>
-                                </div>
+                                    <div class="btn-event-link">바로 보러가기</div>
+                                </a>
                             </div>
 
                             <div class="event-c image-card">
-                                <div class="event-content light">
+                                <a class="event-content light" href="#">
                                     <span class="event-sub">DESTINO.com</span>
                                     <h4 class="event-main-title">대만 투어&티켓<br />최대 할인</h4>
-                                    <a href="#" class="btn-event-link">바로 보러가기</a>
-                                </div>
+                                    <div class="btn-event-link">바로 보러가기</div>
+                                </a>
                             </div>
 
                             <div class="event-c pink-card">
-                                <div class="event-content">
+                                <a class="event-content" href="#">
                                     <span class="event-sub">2026</span>
                                     <h4 class="event-main-title">상하이 예원 등회</h4>
                                     <p class="event-desc">1월 26일 그랜드 오픈</p>
-                                    <button class="btn-event-link">바로 확인하기 ></button>
-                                </div>
+                                    <div class="btn-event-link">바로 보러가기</div>
+                                </a>
                             </div>
 
                             <div class="event-c black-card">
-                                <div class="event-content">
+                                <a class="event-content" href="#">
                                     <span class="event-sub">Spring Edition</span>
                                     <h4 class="event-main-title">일본 벚꽃 개화 시기 확정!</h4>
-                                    <a href="#" class="btn-event-link">특가 확인하기</a>
-                                </div>
+                                    <p class="event-desc">벚꽃 명소 특가를 확인해보세요</p>
+                                    <div class="btn-event-link">바로 보러가기</div>
+                                </a>
                             </div>
                         
                             <div class="event-c green-card">
-                                <div class="event-content light">
+                                <a class="event-content light" href="#">
                                     <span class="event-sub">Global Pass</span>
                                     <h4 class="event-main-title">
                                         2026 유럽 배낭여행유레일패스 <br>
                                         최대 25% 선할인</h4>
-                                    <a href="#" class="btn-event-link">패스 구매하기</a>
-                                </div>
+                                    <div class="btn-event-link">바로 보러가기</div>
+                                </a>
                             </div>
                         
                             <div class="event-c blue-card">
-                                <div class="event-content">
+                                <a class="event-content" href="#">
                                     <span class="event-sub">Stay Focus</span>
                                     <h4 class="event-main-title">
                                         제주 감성 스테이 <br>
                                         독채 자쿠지 숙소 단독 예약 </h4>
-                                    <button class="btn-event-link">숙소 둘러보기 </button>
-                                </div>
+                                    <div class="btn-event-link">바로 보러가기</div>
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -275,14 +273,14 @@
             </section>
 
             <section class="section">
-                <h3 class="section-title">👋 실시간 공동구매 중인 핫딜 <span class="live-tag">LIVE</span></h3>
-                <div class="grid-3">
+                <h3 class="section-title">👋 실시간 진행 중인 핫딜</h3>
+                <div class="grid-4">
                     <div class="product-card">
                         <div class="img-box box1">이미지</div>
                         <div class="info-box">
                             <p class="p-title">[제주] 감성 숙소 + 렌터카 패키지</p>
                             <p class="p-price"><span>100,000원</span> 320,000원~</p>
-                            <button class="btn-buy">공구 참여하기</button>
+                            <button class="btn-buy">보러가기</button>
                         </div>
                     </div>
                     <div class="product-card">
@@ -290,7 +288,7 @@
                         <div class="info-box">
                             <p class="p-title">[보라카이] 해변 인근 4성급 리조트</p>
                             <p class="p-price"><span>850,000원</span> 450,000원~</p>
-                            <button class="btn-buy">공구 참여하기</button>
+                            <button class="btn-buy">보러가기</button>
                         </div>
                     </div>
                     <div class="product-card">
@@ -298,7 +296,15 @@
                         <div class="info-box">
                             <p class="p-title">[시드니] 오페라하우스 뷰 5성급 호텔 특가</p>
                             <p class="p-price"><span>2,450,000원</span> 1,490,000원~</p>
-                            <button class="btn-buy">공구 참여하기</button>
+                            <button class="btn-buy">보러가기</button>
+                        </div>
+                    </div>
+                    <div class="product-card">
+                        <div class="img-box box4">이미지</div>
+                        <div class="info-box">
+                            <p class="p-title">[시드니] 오페라하우스 뷰 5성급 호텔 특가</p>
+                            <p class="p-price"><span>2,450,000원</span> 1,490,000원~</p>
+                            <button class="btn-buy">보러가기</button>
                         </div>
                     </div>
                 </div>

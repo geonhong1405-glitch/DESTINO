@@ -24,7 +24,6 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 .header { height: var(--header-height); border-bottom: 1px solid #eee; position: fixed; top: 0; left: 0; width: 100%; background: #fff; z-index: 1000; }
 .header-inner { display: flex; justify-content: space-between; align-items: center; height: 100%; }
 .logo { color: #00aaff; font-size: 24px; font-weight: 800; }
-.header-search-bar input { padding: 8px 15px; border-radius: 20px; border: 1px solid #ddd; width: 300px; }
 .header-nav a { margin-left: 15px; font-size: 14px; color: #666; }
 
 main { padding-top: var(--header-height); max-width: var(--max-width); margin: 0 auto; }

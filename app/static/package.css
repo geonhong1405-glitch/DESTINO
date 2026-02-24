@@ -14,6 +14,8 @@
     padding: 0;
     box-sizing: border-box;
     font-family: "Pretendard", -apple-system, sans-serif;
+    color: inherit;
+    text-decoration: none;
 }
 
 body {
@@ -49,22 +51,10 @@ body {
     color: #00aaff;
     font-size: 24px;
 }
-.header-search-bar input {
-    padding: 8px 15px;
-    border-radius: 20px;
-    border: 1px solid #ddd;
-    width: 300px;
-}
 .header-nav a {
     margin-left: 15px;
     font-size: 14px;
     color: #666;
-}
-
-@media (max-width: 768px) {
-    .header-search-bar {
-        display: none;
-    }
 }
 
 /* --- Hero & Search --- */
@@ -151,7 +141,7 @@ body {
     font-size: 18px;
     font-weight: 700;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.2s;
 }
 
 .btn-search:hover { background: #0069d9; }
@@ -216,10 +206,24 @@ body {
 .section-title { font-size: 26px; font-weight: 800; margin-bottom: 30px; letter-spacing: -0.5px; }
 .section-title span { color: var(--primary-color); }
 
-.package-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+.package-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
 .package-card { background: var(--white); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-decoration: none; color: inherit; transition: transform 0.3s; }
 .package-card:hover { transform: translateY(-5px); }
-.package-image { height: 200px; background-size: cover; background-position: center; position: relative; }
+.package-image { height: 200px; position: relative; }
+
+.pImg1 {background: url('https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?q=80&w=600&auto=format&fit=crop') no-repeat center /auto 100% ;}
+.pImg2 {background: url('https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=600&auto=format&fit=crop') no-repeat center /auto 100% ;}
+.pImg3 {background: url('https://images.unsplash.com/photo-1533929736458-ca588d08c8be?q=80&w=600&auto=format&fit=crop') no-repeat center /auto 100% ;}
+.pImg4 {background: url('https://images.unsplash.com/photo-1540202404-a2f29036bb52?q=80&w=600&auto=format&fit=crop') no-repeat center /auto 100% ;}
+.pImg5 {background: url('https://media.istockphoto.com/id/951167452/ko/%EC%82%AC%EC%A7%84/%EB%82%B4-%EB%AA%BD%EA%B3%A0%EC%97%90%EB%8A%94-%ED%95%98.jpg?b=1&s=1024x1024&w=0&k=20&c=ZZK3qzRcuxtdjZqyQJxnRR_-N9iSXw8zPzMD3KBsMWU=') no-repeat center /auto 100% ;}
+.pImg6 {background: url('https://cdn.pixabay.com/photo/2020/09/24/17/59/aurora-borealis-5599375_1280.jpg') no-repeat center /auto 100% ;}
+.pImg7 {background: url('https://media.istockphoto.com/id/872787176/ko/%EC%82%AC%EC%A7%84/gilao-%EA%B0%95-algarve-%ED%8F%AC%EB%A5%B4%ED%88%AC%EA%B0%88%EC%97%90-%EC%9D%98%ED%95%B4-%EC%95%84%EB%A6%84-%EB%8B%A4%EC%9A%B4-%ED%83%80%EB%B9%84%EB%9D%BC.jpg?b=1&s=1024x1024&w=0&k=20&c=JaSuHnBdBeyajamTlg75znkoPm-K1osI1RAHXFd5Nas=') no-repeat center / 100% auto;}
+.pImg8 {background: url('https://cdn.pixabay.com/photo/2017/03/20/14/33/pyramids-2159286_1280.jpg') no-repeat center / auto 100% ;}
+.pImg9 {background: url('https://cdn.pixabay.com/photo/2021/07/24/15/47/venice-6489813_1280.jpg') no-repeat center / 100% auto;}
+.pImg10 {background: url('https://media.istockphoto.com/id/1303417572/ko/%EC%82%AC%EC%A7%84/%EB%A7%88%EB%93%9C%EB%A6%AC%EB%93%9C-%EC%8A%A4%ED%8E%98%EC%9D%B8-%EC%8B%9C%EB%B2%A8%EB%A0%88%EC%8A%A4-%EB%B6%84%EC%88%98-%ED%83%80%EC%9A%B4-%EC%8A%A4%ED%80%98%EC%96%B4%EC%9D%98-%EC%9D%BC%EC%B6%9C-%EB%8F%84%EC%8B%9C-%EC%8A%A4%EC%B9%B4%EC%9D%B4%EB%9D%BC%EC%9D%B8.jpg?b=1&s=1024x1024&w=0&k=20&c=HPy30kwHc3LloVrTF6CyP-3RkOQ8mfW1ORwZtWG7_mI=') no-repeat center /auto 100% ;}
+.pImg11 {background: url('https://cdn.pixabay.com/photo/2020/09/04/08/02/cityscape-5543223_1280.jpg') no-repeat center /auto 100% ;}
+.pImg12 {background: url('https://media.istockphoto.com/id/1192548910/ko/%EC%82%AC%EC%A7%84/%EC%99%80%EC%9D%B4%ED%82%A4%ED%82%A4-%EB%B9%84%EC%B9%98-%ED%98%B8%EB%86%80%EB%A3%B0%EB%A3%A8-%ED%95%98%EC%99%80%EC%9D%B4-%EC%8A%A4%EC%B9%B4%EC%9D%B4%EB%9D%BC%EC%9D%B8.jpg?b=1&s=1024x1024&w=0&k=20&c=pxrfK0mKxhT4xaMHEYy1vFhssW7Pn5GGIRt4G_cpYsE=') no-repeat center /auto 100% ;}
+
 .badge { position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.7); color: white; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; }
 .package-body { padding: 20px; }
 .package-loc { font-size: 12px; color: var(--primary-color); font-weight: 700; margin-bottom: 8px; }
@@ -234,21 +238,91 @@ body {
 .theme-icon { width: 50px; height: 50px; background: #f0f7ff; color: var(--primary-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; }
 .theme-name { font-weight: 700; font-size: 15px; }
 
-/* --- Review Section --- */
-.review-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-.review-card { background: var(--white); padding: 25px; border-radius: 16px; border: 1px solid var(--border-color); }
-.review-user { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
-.user-avatar { width: 40px; height: 40px; border-radius: 50%; background: #eee; background-size: cover; }
-.user-info { font-size: 13px; }
-.user-name { font-weight: 700; }
-.review-text { font-size: 14px; line-height: 1.6; color: var(--text-sub); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.review-rating { color: #ffc107; font-size: 12px; margin-top: 10px; }
-
 /* --- Footer --- */
-.footer { background: #f1f3f5; padding: 60px 0; border-top: 1px solid var(--border-color); margin-top: 60px; }
-.footer-grid { display: grid; grid-template-columns: 2fr repeat(3, 1fr); gap: 40px; }
-.footer-col h4 { margin-bottom: 20px; font-size: 15px; font-weight: 700; }
-.footer-col p, .footer-col li { font-size: 13px; color: var(--text-sub); list-style: none; margin-bottom: 8px; }
+.footer {
+    background-color: #f9f9f9;
+    padding: 60px 0 40px;
+    color: #666;
+    font-size: 14px;
+    border-top: 1px solid #eee;
+}
+.footer-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+.footer-top {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 30px;
+    margin-bottom: 40px;
+}
+.footer-column h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 20px;
+}
+.footer-column p {margin-bottom: 8px; line-height: 1.5;}
+.footer-column ul {list-style: none; padding: 0;}
+.footer-column ul li {margin-bottom: 10px;}
+.footer-column ul li a:hover {text-decoration: underline;}
+/* CS 버튼 스타일 */
+.cs-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+.btn-cs {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff;
+    border: 1px solid #ddd;
+    padding: 10px 15px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #333;
+    min-width: 140px;
+}
+.btn-cs .icon {font-size: 18px;}
+/* 구분선 */
+.footer-divider {
+    border: 0;
+    border-top: 1px solid #eee;
+    margin-bottom: 30px;
+}
+/* 하단 섹션 */
+.footer-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+.company-info p {
+    font-size: 13px;
+    color: #999;
+    margin-bottom: 5px;
+}
+.company-info .disclaimer {margin: 15px 0; max-width: 800px;}
+.footer-policy {
+    margin-top: 20px;
+    display: flex;
+    gap: 20px;
+}
+.footer-policy a {color: #333; text-decoration: none;}
+/* 소셜 아이콘 (텍스트로 대체, 이미지 사용 시 img 태그로 변경 가능) */
+.social-links {
+    display: flex;
+    gap: 15px;
+}
+.social-icon {
+    font-size: 12px;
+    color: #999;
+    text-transform: uppercase;
+}
 
 @media (max-width: 900px) {
     .search-form-grid { grid-template-columns: 1fr 1fr; }
@@ -259,4 +333,20 @@ body {
 @media (max-width: 600px) {
     .search-form-grid { grid-template-columns: 1fr; }
     .hero-title { font-size: 30px; }
+}
+
+/* 반응형 모바일 대응 */
+@media (max-width: 768px) {
+    .footer-top {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .footer-bottom {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .social-links {
+        order: -1; /* 모바일에서 소셜 링크를 위로 */
+        margin-bottom: 20px;
+    }
 }

@@ -39,12 +39,6 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     padding: 0 20px;
 }
 .logo { color: var(--primary-color); font-size: 24px; font-weight: 800; }
-.header-search-bar input {
-    padding: 8px 15px;
-    border-radius: 20px;
-    border: 1px solid #ddd;
-    width: 300px;
-}
 .header-nav a { margin-left: 15px; font-size: 14px; color: #666; font-weight: 500; }
 .header-nav .active-nav {
     color: var(--primary-color); 

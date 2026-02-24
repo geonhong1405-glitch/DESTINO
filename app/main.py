@@ -405,6 +405,10 @@ def planner(request: Request):
     nickname = get_nickname_from_request(request)
     return templates.TemplateResponse("planner.html", {"request": request, "nickname": nickname})
 
+@app.get("/travelGroup", response_class=HTMLResponse)
+def travelGroup(request: Request):
+    nickname = get_nickname_from_request(request)
+    return templates.TemplateResponse("travel-group.html", {"request": request, "nickname": nickname})
 
 @app.get("/package", response_class=HTMLResponse)
 def package_page(request: Request):

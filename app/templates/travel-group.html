@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DESTINO - 여행 공동예매</title>
+    <!-- Pretendard 폰트 -->
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+    <!-- Lucide 아이콘 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- CSS 연결 -->
+    <link rel="stylesheet" href="../static/travel-group.css">
+</head>
+<body>
+
+    <header class="header">
+        <div class="container header-inner">
+            <h1 class="logo"><a href="/">DESTINO</a></h1>
+            <nav class="header-nav">
+                {% if nickname %}
+                <a href="/mypage">
+                    <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                </a>
+                <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
+                {% else %}
+                <a href="/login">로그인</a>
+                {% endif %}
+                <a href="#">이용안내</a>
+                <a href="#">고객센터</a>
+                <a href="#">KOR</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <!-- 팝업 시 배경 어둡게 처리 -->
+        <div class="overlay" id="overlay"></div>
+
+        <section class="hero-section">
+            <h1 class="hero-title">함께라서 더 가벼운 여행의 시작</h1>
+            <p class="hero-sub">취향이 맞는 동행과 함께 공동예매로 혜택을 누리세요</p>
+
+            <div class="search-widget">
+                <div class="search-form">
+                    <!-- 나라 선택 -->
+                    <div class="input-group" id="countryInputGroup">
+                        <label><i data-lucide="map-pin" width="14"></i> 어디로 떠나시나요?</label>
+                        <div class="display-text" id="countryDisplay">나라 선택</div>
+                        <div class="popover-container" id="countryPopover">
+                            <div class="popover-search">
+                                <i data-lucide="search" width="14" color="#999"></i>
+                                <input type="text" id="countrySearch" placeholder="나라 이름 검색" onclick="event.stopPropagation()">
+                            </div>
+                            <div class="popover-list" id="countryList">
+                                <div class="popover-item" data-val="일본">일본</div>
+                                <div class="popover-item" data-val="베트남">베트남</div>
+                                <div class="popover-item" data-val="태국">태국</div>
+                                <div class="popover-item" data-val="프랑스">프랑스</div>
+                                <div class="popover-item" data-val="미국">미국</div>
+                                <div class="popover-item" data-val="이탈리아">이탈리아</div>
+                                <div class="popover-item" data-val="스페인">스페인</div>
+                                <div class="popover-item" data-val="영국">영국</div>
+                                <div class="popover-item" data-val="대만">대만</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 검색 시작월 -->
+                    <div class="input-group">
+                        <label><i data-lucide="calendar" width="14"></i> 검색 시작 월</label>
+                        <input type="month" id="startMonth">
+                    </div>
+
+                    <!-- 검색 종료월 -->
+                    <div class="input-group">
+                        <label><i data-lucide="calendar-check" width="14"></i> 검색 종료 월</label>
+                        <input type="month" id="endMonth">
+                    </div>
+
+                    <button class="btn-search" id="searchBtn">검색하기</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="container">
+            <div class="section-header">
+                <h2 class="section-title">공동예매 모집 중</h2>
+                <button class="btn-write">+ 모집 글쓰기</button>
+            </div>
+
+            <!-- 게시글 리스트 영역 -->
+            <div class="board-list" id="boardList"></div>
+
+            <!-- 페이지네이션 영역 -->
+            <div class="pagination" id="pagination"></div>
+
+            <!-- 서비스 비교 섹션 -->
+            <div class="comparison-section">
+                <h2 class="section-title">왜 DESTINO 공동예매인가요?</h2>
+                <div class="comp-grid">
+                    <div>
+                        <p style="color:#666; margin-bottom:20px;">타사 대비 압도적인 할인율과 안전한 매칭 시스템을 제공합니다.</p>
+                        <table class="comp-table">
+                            <thead>
+                                <tr>
+                                    <th>비교 항목</th>
+                                    <th>일반 여행사</th>
+                                    <th class="destino-col">DESTINO</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>평균 할인율</td>
+                                    <td>5~10%</td>
+                                    <td class="destino-col">최대 45%</td>
+                                </tr>
+                                <tr>
+                                    <td>동행 매칭</td>
+                                    <td>불가능</td>
+                                    <td class="destino-col">AI 추천 매칭</td>
+                                </tr>
+                                <tr>
+                                    <td>예약 취소</td>
+                                    <td>수수료 높음</td>
+                                    <td class="destino-col">24시간 전 무료</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="theme-box">
+                        <h3 style="margin-bottom:15px; font-weight:800;">💡 이번 달 추천 테마</h3>
+                        <p style="font-size:14px; color:#555; line-height:1.7;">
+                            지금 가장 핫한 테마는 '유럽 기차 패스 공동구매'입니다. <br>
+                            비슷한 시기에 유럽을 방문하는 여행자들과 그룹을 형성하여 유레일 패스 단체 할인을 받아보세요. 
+                            더불어 현지 가이드 투어도 공동예매 시 인당 비용이 크게 절감됩니다.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-top">
+                <div class="footer-column">
+                    <h3>고객센터</h3>
+                    <p>오전 9시 ~ 새벽 3시 운영</p>
+                    <p>채팅 상담 문의: 24시간 운영</p>
+                    <div class="cs-buttons">
+                        <a href="tel:1670-0000" class="btn-cs">
+                            <span class="icon">📞</span>
+                            <div class="text">
+                                <strong>1670-0000</strong>
+                            </div>
+                        </a>
+                        <a href="#" class="btn-cs">
+                            <span class="icon">💬</span>
+                            <div class="text">
+                                <strong>채팅 상담</strong>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <div class="footer-column">
+                    <h3>회사</h3>
+                    <ul>
+                        <li><a href="#">회사소개</a></li>
+                        <li><a href="#">채용정보</a></li>
+                        <li><a href="#">제휴문의</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>서비스</h3>
+                    <ul>
+                        <li><a href="#">공지사항</a></li>
+                        <li><a href="#">자주 묻는 질문</a></li>
+                        <li><a href="#">여행 매거진</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>혜택</h3>
+                    <ul>
+                        <li><a href="#">멤버십 안내</a></li>
+                        <li><a href="#">공동예매 가이드</a></li>
+                        <li><a href="#">포인트 정책</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>모든 여행</h3>
+                    <ul>
+                        <li><a href="#">국내 숙소</a></li>
+                        <li><a href="#">해외 숙소</a></li>
+                        <li><a href="#">항공권</a></li>
+                        <li><a href="#">렌터카</a></li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="footer-divider" />
+            <div class="footer-bottom">
+                <div class="company-info">
+                    <p>(주)데스티노 컴퍼니 | 대표이사: 김여행 | 사업자등록번호: 000-00-00000</p>
+                    <p>주소: 서울특별시 강남구 테헤란로 123 | 이메일: help@destino.com</p>
+                    <p class="disclaimer">
+                        데스티노는 통신판매중개자로서 통신판매의 당사자가 아니며, 상품의 예약, 이용 및 환불 등과
+                        관련한 의무와 책임은 각 판매자에게 있습니다.
+                    </p>
+                    <div class="footer-policy">
+                        <a href="#">이용약관</a>
+                        <a href="#"><strong>개인정보처리방침</strong></a>
+                        <a href="#">소비자 분쟁해결 기준</a>
+                    </div>
+                </div>
+                <div class="social-links">
+                    <a href="#" class="social-icon">YouTube</a>
+                    <a href="#" class="social-icon">Instagram</a>
+                    <a href="#" class="social-icon">Facebook</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JS 연결 -->
+    <script src="../static/travel-group.js"></script>
+</body>
+</html>

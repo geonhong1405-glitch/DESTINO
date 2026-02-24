@@ -19,9 +19,6 @@
     <header class="header">
             <div class="container header-inner">
                 <h1 class="logo"><a href="/">DESTINO</a></h1>
-                <div class="header-search-bar">
-                    <input type="text" placeholder="어디로 떠나시나요?" />
-                </div>
                 <nav class="header-nav">
                     {% if nickname %}
                     <a href="/mypage">
@@ -165,7 +162,7 @@
             <h2 class="section-title">지금 가장 인기있는 <span>특가 패키지</span></h2>
             <div class="package-grid">
                 <a href="#" class="package-card">
-                    <div class="package-image" style="background-image: url('https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?q=80&w=600&auto=format&fit=crop')">
+                    <div class="package-image pImg1">
                         <div class="badge">BEST</div>
                     </div>
                     <div class="package-body">
@@ -178,7 +175,7 @@
                     </div>
                 </a>
                 <a href="#" class="package-card">
-                    <div class="package-image" style="background-image: url('https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=600&auto=format&fit=crop')">
+                    <div class="package-image pImg2">
                         <div class="badge">오늘마감</div>
                     </div>
                     <div class="package-body">
@@ -191,7 +188,7 @@
                     </div>
                 </a>
                 <a href="#" class="package-card">
-                    <div class="package-image" style="background-image: url('https://images.unsplash.com/photo-1533929736458-ca588d08c8be?q=80&w=600&auto=format&fit=crop')">
+                    <div class="package-image pImg3">
                         <div class="badge">슈퍼프라이스</div>
                     </div>
                     <div class="package-body">
@@ -204,7 +201,7 @@
                     </div>
                 </a>
                 <a href="#" class="package-card">
-                    <div class="package-image" style="background-image: url('https://images.unsplash.com/photo-1540202404-a2f29036bb52?q=80&w=600&auto=format&fit=crop')">
+                    <div class="package-image pImg4">
                         <div class="badge">MD추천</div>
                     </div>
                     <div class="package-body">
@@ -216,49 +213,111 @@
                         </div>
                     </div>
                 </a>
-            </div>
-        </section>
-
-        <!-- Reviews Section -->
-        <section class="container section-padding" style="border-top: 1px solid var(--border-color);">
-            <h2 class="section-title">다녀오신 분들의 <span>생생한 후기</span></h2>
-            <div class="review-grid">
-                <!-- Review Card 1 -->
-                <div class="review-card">
-                    <div class="review-user">
-                        <div class="user-avatar" style="background-image: url('https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=100&auto=format&fit=crop')"></div>
-                        <div class="user-info">
-                            <div class="user-name">이지현 님</div>
-                            <div style="color:#999;">다낭 패키지 이용</div>
+                <!-- 추가 -->
+                <a href="#" class="package-card">
+                    <div class="package-image pImg5">
+                        <div class="badge">MD추천</div>
+                    </div>
+                    <div class="package-body">
+                        <p class="package-loc">몽골 · 테를지</p>
+                        <h3 class="package-name">은하수 아래 하룻밤 5일 #현대식게르 #푸르공투어 #승마체험</h3>
+                        <div class="package-price">
+                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span class="price-val">1,190,000원~</span>
                         </div>
                     </div>
-                    <p class="review-text">가이드님이 너무 친절하셔서 부모님 모시고 가기에 최고의 여행이었어요! 숙소 퀄리티도 대만족입니다.</p>
-                    <div class="review-rating">★★★★★</div>
-                </div>
-                <!-- Review Card 2 -->
-                <div class="review-card">
-                    <div class="review-user">
-                        <div class="user-avatar" style="background-image: url('https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=100&auto=format&fit=crop')"></div>
-                        <div class="user-info">
-                            <div class="user-name">박성민 님</div>
-                            <div style="color:#999;">교토 패키지 이용</div>
+                </a>
+                <a href="#" class="package-card">
+                    <div class="package-image pImg6">
+                        <div class="badge">BEST</div>
+                    </div>
+                    <div class="package-body">
+                        <p class="package-loc">아이슬란드 · 레이캬비크</p>
+                        <h3 class="package-name">얼음과 불의 땅 8일 #오로라헌팅 #블루라군온천 #링로드일주</h3>
+                        <div class="package-price">
+                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span class="price-val">4,590,000원~</span>
                         </div>
                     </div>
-                    <p class="review-text">자유시간이 적절히 섞여 있어서 부담스럽지 않았고, 가이세키 요리가 정말 맛있었습니다. 추천합니다!</p>
-                    <div class="review-rating">★★★★☆</div>
-                </div>
-                <!-- Review Card 3 -->
-                <div class="review-card">
-                    <div class="review-user">
-                        <div class="user-avatar" style="background-image: url('https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=100&auto=format&fit=crop')"></div>
-                        <div class="user-info">
-                            <div class="user-name">김나영 님</div>
-                            <div style="color:#999;">런던 패키지 이용</div>
+                </a>
+                <a href="#" class="package-card">
+                    <div class="package-image pImg7">
+                        <div class="badge">MD추천</div>
+                    </div>
+                    <div class="package-body">
+                        <p class="package-loc">포르투갈 · 리스본</p>
+                        <h3 class="package-name">리스본 골목 산책 7일 #노란트램 #에그타르트본점 #포르투야경</h3>
+                        <div class="package-price">
+                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span class="price-val">2,890,000원~</span>
                         </div>
                     </div>
-                    <p class="review-text">혼자 여행하기 막막해서 신청했는데 동행분들도 좋고 일정도 알찼어요. 덕분에 좋은 추억 만들었습니다.</p>
-                    <div class="review-rating">★★★★★</div>
-                </div>
+                </a>
+                <a href="#" class="package-card">
+                    <div class="package-image pImg8">
+                        <div class="badge">슈퍼프라이스</div>
+                    </div>
+                    <div class="package-body">
+                        <p class="package-loc">이집트 · 카이로</p>
+                        <h3 class="package-name">고대 문명 탐험 9일 #피라미드내부입장 #나일강크루즈</h3>
+                        <div class="package-price">
+                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span class="price-val">2,990,000원~</span>
+                        </div>
+                    </div>
+                </a>
+                <a href="#" class="package-card">
+                    <div class="package-image pImg9">
+                        <div class="badge">오늘마감</div>
+                    </div>
+                    <div class="package-body">
+                        <p class="package-loc">이탈리아 · 로마</p>
+                        <h3 class="package-name">이탈리아 완전 일주 9일 #베니스곤돌라 #남부포지타노</h3>
+                        <div class="package-price">
+                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span class="price-val">3,980,000원~</span>
+                        </div>
+                    </div>
+                </a>
+                <a href="#" class="package-card">
+                    <div class="package-image pImg10">
+                        <div class="badge">MD추천</div>
+                    </div>
+                    <div class="package-body">
+                        <p class="package-loc">스페인 · 바르셀로나</p>
+                        <h3 class="package-name">정열의 스페인 9일 #가우디투어 #플라멩코공연</h3>
+                        <div class="package-price">
+                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span class="price-val">3,750,000원~</span>
+                        </div>
+                    </div>
+                </a>
+                <a href="#" class="package-card">
+                    <div class="package-image pImg11" style="background-image: url('https://images.unsplash.com/photo-1540202404-a2f29036bb52?q=80&w=600&auto=format&fit=crop')">
+                        <div class="badge">슈퍼프라이스</div>
+                    </div>
+                    <div class="package-body">
+                        <p class="package-loc">대만 · 타이베이</p>
+                        <h3 class="package-name">타이베이 먹방 여행 4일 #지우펀홍등 #야시장투어</h3>
+                        <div class="package-price">
+                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span class="price-val">450,000원~</span>
+                        </div>
+                    </div>
+                </a>
+                <a href="#" class="package-card">
+                    <div class="package-image pImg12">
+                        <div class="badge">BEST</div>
+                    </div>
+                    <div class="package-body">
+                        <p class="package-loc">미국 · 하와이</p>
+                        <h3 class="package-name">하와이 오아후 6일 #와이키키해변 #렌터카포함자유여행</h3>
+                        <div class="package-price">
+                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span class="price-val">2,150,000원~</span>
+                        </div>
+                    </div>
+                </a>
             </div>
         </section>
     </main>
