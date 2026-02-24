@@ -1,115 +1,75 @@
 /**
- * DESTINO - 여행 공동예매 인터랙션 및 필터링 스크립트
+ * DESTINO - 여행 공동예매 스크립트
  */
 
-// 1. 게시글 예시 데이터
+// 초기 데이터
 const posts = [
     {
         id: 1,
         country: '일본',
         title: '오사카 3박 4일 벚꽃 투어 멤버 구함!',
-        start: '2025-03-20',
-        end: '2025-03-24',
+        start: '2025-03',
+        departure: '인천',
+        budget: '60만원',
         current: 2,
         max: 4,
         status: 'open',
+        desc: '벚꽃 시즌에 맞춰 오사카 주요 명소를 함께 둘러볼 분들을 찾습니다. 숙소 공동예약으로 경비를 절감해요!',
     },
     {
         id: 2,
         country: '베트남',
         title: '다낭 풀빌라 같이 예약하실 분? (여성만)',
-        start: '2025-04-10',
-        end: '2025-04-15',
+        start: '2025-04',
+        departure: '인천',
+        budget: '80만원',
         current: 3,
         max: 4,
         status: 'open',
+        desc: '럭셔리 풀빌라 4인실을 예약하려고 합니다. 현재 3명 확정이며 마지막 한 분 모셔요.',
     },
     {
         id: 3,
         country: '태국',
         title: '방콕 미식 탐방 5일차 조인하실 분',
-        start: '2025-03-15',
-        end: '2025-03-20',
+        start: '2025-03',
+        departure: '김해',
+        budget: '45만원',
         current: 4,
         max: 4,
         status: 'closed',
+        desc: '방콕의 맛집들을 도장깨기 할 동행자들을 모집했습니다. 모집이 마감되었습니다.',
     },
     {
         id: 4,
         country: '프랑스',
         title: '파리 에펠탑 뷰 숙소 공동예매해요',
-        start: '2025-05-01',
-        end: '2025-05-07',
+        start: '2025-05',
+        departure: '인천',
+        budget: '150만원',
         current: 1,
         max: 2,
         status: 'open',
+        desc: '에펠탑이 보이는 숙소를 혼자 예약하기 부담스러워 동행을 구합니다. 깔끔하신 분 환영합니다.',
     },
     {
         id: 5,
         country: '미국',
         title: '뉴욕 뮤지컬 데이 티켓 공동구매',
-        start: '2025-03-25',
-        end: '2025-03-30',
+        start: '2025-03',
+        departure: '뉴욕현지',
+        budget: '20만원',
         current: 2,
         max: 6,
         status: 'open',
-    },
-    {
-        id: 6,
-        country: '일본',
-        title: '후쿠오카 온천 여행 2박 3일',
-        start: '2025-03-10',
-        end: '2025-03-12',
-        current: 2,
-        max: 2,
-        status: 'closed',
-    },
-    {
-        id: 7,
-        country: '이탈리아',
-        title: '로마-피렌체 기차 패스 공구!',
-        start: '2025-04-05',
-        end: '2025-04-12',
-        current: 3,
-        max: 5,
-        status: 'open',
-    },
-    {
-        id: 8,
-        country: '스페인',
-        title: '바르셀로나 사그라다 파밀리아 가이드 투어',
-        start: '2025-04-20',
-        end: '2025-04-25',
-        current: 8,
-        max: 10,
-        status: 'open',
-    },
-    {
-        id: 9,
-        country: '영국',
-        title: '런던 해리포터 스튜디오 셔틀 공동예매',
-        start: '2025-06-15',
-        end: '2025-06-15',
-        current: 1,
-        max: 4,
-        status: 'open',
-    },
-    {
-        id: 10,
-        country: '대만',
-        title: '타이베이 근교 예스진지 택시 투어 같이가요',
-        start: '2025-02-28',
-        end: '2025-03-03',
-        current: 2,
-        max: 4,
-        status: 'open',
+        desc: '브로드웨이 뮤지컬 단체 할인을 위해 인원을 모으고 있습니다. 현지 합류도 가능합니다.',
     },
 ];
 
 let filteredPosts = [...posts];
 const itemsPerPage = 5;
 
-// DOM 로드 완료 시 초기화
+// DOM 로드 시 초기화
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
     initPage();
@@ -120,6 +80,9 @@ function initPage() {
     setupInteractions();
 }
 
+/**
+ * 인터랙션 이벤트 바인딩
+ */
 function setupInteractions() {
     const countryGroup = document.getElementById('countryInputGroup');
     const countryPopover = document.getElementById('countryPopover');
@@ -133,7 +96,7 @@ function setupInteractions() {
         overlay.classList.add('active');
     });
 
-    // 배경 클릭 시 팝오버 닫기
+    // 오버레이 클릭 시 닫기
     overlay.addEventListener('click', () => {
         countryPopover.classList.remove('active');
         overlay.classList.remove('active');
@@ -141,12 +104,10 @@ function setupInteractions() {
         filterCountryItems('');
     });
 
-    // 나라 이름 검색 필터
-    countrySearch.addEventListener('input', (e) => {
-        filterCountryItems(e.target.value);
-    });
+    // 팝오버 내부 검색
+    countrySearch.addEventListener('input', (e) => filterCountryItems(e.target.value));
 
-    // 나라 항목 선택
+    // 나라 아이템 선택
     document.querySelectorAll('.popover-item').forEach((item) => {
         item.addEventListener('click', (e) => {
             document.getElementById('countryDisplay').innerText = e.target.dataset.val;
@@ -156,66 +117,40 @@ function setupInteractions() {
         });
     });
 
-    // 검색 버튼 클릭 이벤트
-    searchBtn.addEventListener('click', () => {
-        filterPosts(1);
-    });
+    // 검색 실행
+    searchBtn.addEventListener('click', () => filterPosts(1));
 }
 
-// 팝오버 내부 나라 필터링
+/**
+ * 팝오버 내 국가 필터링
+ */
 function filterCountryItems(keyword) {
     const items = document.querySelectorAll('.popover-item');
     items.forEach((item) => {
-        if (item.dataset.val.includes(keyword)) {
-            item.classList.remove('hidden');
-        } else {
-            item.classList.add('hidden');
-        }
+        if (item.dataset.val.includes(keyword)) item.classList.remove('hidden');
+        else item.classList.add('hidden');
     });
 }
 
 /**
- * 게시글 필터링 로직 (연도-월 기반)
+ * 메인 보드 포스트 필터링
  */
 function filterPosts(page = 1) {
     const selectedCountry = document.getElementById('countryDisplay').innerText;
     const startMonthVal = document.getElementById('startMonth').value;
-    const endMonthVal = document.getElementById('endMonth').value;
 
     filteredPosts = posts.filter((post) => {
-        // 1. 나라 필터
         const matchCountry = selectedCountry === '나라 선택' || post.country === selectedCountry;
-
-        // 2. 날짜 필터 (연도/월 기반 교차 검증)
-        let matchDate = true;
-        if (startMonthVal || endMonthVal) {
-            // 검색 시작 범위: 선택한 월의 1일 00:00:00
-            const searchStart = startMonthVal ? new Date(startMonthVal + '-01T00:00:00') : new Date('1900-01-01');
-
-            // 검색 종료 범위: 선택한 월의 마지막 날 23:59:59
-            let searchEnd;
-            if (endMonthVal) {
-                const [year, month] = endMonthVal.split('-').map(Number);
-                searchEnd = new Date(year, month, 0, 23, 59, 59);
-            } else {
-                searchEnd = new Date('2100-12-31T23:59:59');
-            }
-
-            const postStart = new Date(post.start + 'T00:00:00');
-            const postEnd = new Date(post.end + 'T23:59:59');
-
-            // 게시글 기간과 검색 월 범위가 겹치는지 확인
-            matchDate = postStart <= searchEnd && postEnd >= searchStart;
-        }
-
+        const matchDate = !startMonthVal || post.start === startMonthVal;
         return matchCountry && matchDate;
     });
 
     renderPosts(page);
-    document.getElementById('boardList').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// 게시글 렌더링
+/**
+ * 포스트 리스트 렌더링
+ */
 function renderPosts(page) {
     const listContainer = document.getElementById('boardList');
     listContainer.innerHTML = '';
@@ -226,7 +161,7 @@ function renderPosts(page) {
 
     if (pageData.length === 0) {
         listContainer.innerHTML =
-            '<div style="text-align:center; padding:100px 0; color:#999;">조건에 맞는 공동예매 게시글이 없습니다.</div>';
+            '<div style="text-align:center; padding:100px 0; color:#999;">조건에 맞는 게시글이 없습니다.</div>';
         renderPagination(0, 0);
         return;
     }
@@ -234,16 +169,17 @@ function renderPosts(page) {
     pageData.forEach((post) => {
         const card = document.createElement('div');
         card.className = 'board-card';
+        card.onclick = () => showPostDetail(post.id);
         card.innerHTML = `
             <div class="board-country">${post.country}</div>
             <div class="board-info">
                 <div class="board-title">${post.title}</div>
                 <div class="board-date">
-                    <i data-lucide="calendar" width="14"></i> ${post.start} ~ ${post.end}
+                    <i data-lucide="calendar" width="14"></i> ${post.start} 출발 예정
                 </div>
             </div>
             <div class="board-participants">
-                참여 인원 <strong>${post.current}/${post.max}</strong>
+                모집 금액 <strong>${post.budget}</strong>
             </div>
             <div class="status-badge ${post.status === 'open' ? 'status-open' : 'status-closed'}">
                 ${post.status === 'open' ? '모집 중' : '모집 마감'}
@@ -253,43 +189,121 @@ function renderPosts(page) {
     });
 
     renderPagination(filteredPosts.length, page);
-    lucide.createIcons(); // 동적 생성 아이콘 반영
+    lucide.createIcons();
 }
 
-// 페이지네이션 렌더링
-function renderPagination(totalItems, currentPage) {
-    const paginationContainer = document.getElementById('pagination');
-    paginationContainer.innerHTML = '';
+/**
+ * 모달 제어
+ */
+function openModal(id) {
+    document.getElementById(id).style.display = 'flex';
+}
 
+function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+}
+
+/**
+ * 새 글 등록 처리
+ */
+function handleFormSubmit(e) {
+    e.preventDefault();
+
+    const newPost = {
+        id: Date.now(), // 고유 ID 생성
+        title: document.getElementById('formTitle').value,
+        start: document.getElementById('formMonth').value,
+        country: document.getElementById('formCountry').value,
+        departure: document.getElementById('formDeparture').value,
+        budget: document.getElementById('formBudget').value,
+        desc: document.getElementById('formDesc').value,
+        current: 1,
+        max: 4,
+        status: 'open',
+    };
+
+    posts.unshift(newPost); // 최신글을 가장 앞에 추가
+    filteredPosts = [...posts];
+
+    renderPosts(1);
+    closeModal('writeModal');
+    e.target.reset();
+}
+
+/**
+ * 상세 보기 렌더링 및 모달 노출
+ */
+function showPostDetail(postId) {
+    const post = posts.find((p) => p.id === postId);
+    if (!post) return;
+
+    const detailView = document.getElementById('detailView');
+    detailView.innerHTML = `
+        <div class="detail-header">
+            <div class="detail-title">${post.title}</div>
+            <div class="detail-meta">
+                <span>${post.country}</span>
+                <span>•</span>
+                <span>모집 상태: ${post.status === 'open' ? '모집 중' : '마감'}</span>
+            </div>
+        </div>
+        <div class="detail-info-grid">
+            <div class="info-item">
+                <label>여행 예정 월</label>
+                <span>${post.start}</span>
+            </div>
+            <div class="info-item">
+                <label>출발지</label>
+                <span>${post.departure}</span>
+            </div>
+            <div class="info-item">
+                <label>예상 금액</label>
+                <span>${post.budget}</span>
+            </div>
+            <div class="info-item">
+                <label>목적지</label>
+                <span>${post.country}</span>
+            </div>
+        </div>
+        <div class="form-group">
+            <label style="margin-top:20px;">상세 내용</label>
+            <div class="detail-description">${post.desc}</div>
+        </div>
+        <div class="modal-notice" style="margin-top: 20px;">
+            💡 참여 신청은 해당 작성자와의 일정을 꼭 확인하신 후 진행해주세요.
+        </div>
+    `;
+
+    openModal('detailModal');
+}
+
+/**
+ * 페이지네이션 렌더링
+ */
+function renderPagination(totalItems, currentPage) {
+    const container = document.getElementById('pagination');
+    container.innerHTML = '';
     const totalPages = Math.ceil(totalItems / itemsPerPage);
     if (totalPages <= 1) return;
 
-    // 이전 버튼
     const prev = document.createElement('div');
     prev.className = 'page-nav';
     prev.innerHTML = '<i data-lucide="chevron-left"></i>';
-    prev.onclick = () => {
-        if (currentPage > 1) renderPosts(currentPage - 1);
-    };
-    paginationContainer.appendChild(prev);
+    prev.onclick = () => currentPage > 1 && renderPosts(currentPage - 1);
+    container.appendChild(prev);
 
-    // 페이지 번호 버튼
     for (let i = 1; i <= totalPages; i++) {
         const btn = document.createElement('button');
         btn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
         btn.innerText = i;
         btn.onclick = () => renderPosts(i);
-        paginationContainer.appendChild(btn);
+        container.appendChild(btn);
     }
 
-    // 다음 버튼
     const next = document.createElement('div');
     next.className = 'page-nav';
     next.innerHTML = '<i data-lucide="chevron-right"></i>';
-    next.onclick = () => {
-        if (currentPage < totalPages) renderPosts(currentPage + 1);
-    };
-    paginationContainer.appendChild(next);
-
+    next.onclick = () => currentPage < totalPages && renderPosts(currentPage + 1);
+    container.appendChild(next);
     lucide.createIcons();
 }

@@ -66,6 +66,7 @@ ul {list-style: none;}
 
 /* Hero Section */
 .hero {
+    height: 600px;
     background: url(https://media.istockphoto.com/id/1371256107/ko/%EC%82%AC%EC%A7%84/%ED%95%B4%EC%95%88%EA%B3%BC-%ED%95%B4%EB%B3%80%EC%97%90%EC%84%9C-%EC%97%AC%EB%A6%84-%ED%95%B4%EB%B3%80%EC%9D%98-%EC%B2%AD%EB%A1%9D%EC%83%89-%ED%8C%8C%EB%8F%84-%EB%AC%BC-%EB%B0%B0%EA%B2%BD-%EC%97%AC%EB%A6%84-%ED%8C%A8%ED%84%B4-%EC%9D%B4%EB%AF%B8%EC%A7%80.jpg?b=1&s=1024x1024&w=0&k=20&c=bwFhN0dflXI0wr-ZdbOrepVQHAfD4lHPsECxRK8Si10=) no-repeat center/cover;
     color: #fff;
     padding: 80px 0;
@@ -80,12 +81,22 @@ ul {list-style: none;}
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.15);
     z-index: 1;
 }
 
-.container {position: relative; z-index: 200;}
+/* .container {position: relative; z-index: 200;} */
 
+.heroCont {
+    width: 100%; 
+    position: absolute; 
+    top: 50%; left: 50%; 
+    transform: translate(-50%, -50%); 
+    z-index: 200;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
 .hero-title {font-size: 32px; margin-bottom: 40px;}
 .search-card {
     background: #fff;
@@ -385,7 +396,6 @@ ul {list-style: none;}
     width: 32px; /* 아이콘 이미지 크기 조절 */
     height: 32px;
     object-fit: contain;
-    opacity: 0.6;
 }
 
 .icon-item a span {
@@ -395,15 +405,14 @@ ul {list-style: none;}
 }
 
 /* 이미지에 맞춰 각 아이콘 배경색 지정 (연한 파스텔톤) */
-/* .color-ai {background-color: #EEF2FF;}
+.color-ai {background-color: #EEF2FF;}
 .color-group {background-color: #FDF2F8;}
 .color-flight {background-color: #F0F9FF;}
 .color-overseas {background-color: #ECFDF5;}
-.color-domestic {background-color: #FFF7ED;}
 .color-package {background-color: #FAF5FF;}
 .color-tour {background-color: #FFFBEB;}
 .color-rentcar {background-color: #F0FDFA;}
- */
+
 /* 모바일 대응: 화면이 아주 작아지면 가로 스크롤 표시 */
 @media (max-width: 768px) {
     .quick-icons-container::-webkit-scrollbar {display: none; /* 스크롤바 숨김 */}
@@ -421,7 +430,6 @@ ul {list-style: none;}
 /* 1. 섹션 및 슬라이더 레이아웃 */
 .event-section {position: relative; padding: 60px 0;}
 
-/* [수정] 슬라이더 래퍼: 양옆에 50px씩 공간 확보 */
 /* [수정] 슬라이더 래퍼: 넘치는 내용 숨기기 및 버튼 공간 확보 */
 .event-slider-wrapper {
     position: relative;
@@ -651,6 +659,7 @@ ul {list-style: none;}
 
 /* Product Cards */
 .product-card {
+    display: block;
     border: 1px solid #eee;
     border-radius: 12px;
     overflow: hidden;
@@ -683,84 +692,198 @@ ul {list-style: none;}
 
 .box4 {
     font-size: 0;
-    background: url(https://media.istockphoto.com/id/1040918430/ko/%EC%82%AC%EC%A7%84/%EC%9D%80%ED%95%98%EC%88%98-%EC%9D%80%ED%95%98%EC%88%98.webp?b=1&s=612x612&w=0&k=20&c=hmLkfOQ2yTNC7P16XQ4r58p8_1f15cVhhnqqhJmAt8U=) no-repeat center / auto 100%;
+    background: url(https://media.istockphoto.com/id/475124388/ko/%EC%82%AC%EC%A7%84/%EC%9D%B8%EB%AA%85%EB%B3%84-%EA%B5%90%ED%9A%8C%EB%A5%BC-%EC%9D%B4%EC%95%84-%EB%A7%88%EC%9D%84-%EA%B7%B8%EB%A6%AC%EC%8A%A4-%EC%82%B0%ED%86%A0%EB%A6%AC%EB%8B%88-%EB%8F%84%EC%84%9C%EC%A7%80%EC%97%AD.webp?b=1&s=612x612&w=0&k=20&c=K_cKHfM0QMeqj3jySJ6HBGfD8XqjwN-dDfZtjvPIPtw=) no-repeat center / auto 100%;
 }
 
 .info-box {padding: 14px 20px 20px 20px;}
+.p-subtitle {
+    font-size: 0.75rem; 
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: #00aaff;
+}
 .p-title {
     font-weight: bold; 
-    margin-bottom: 4px; 
+    margin-bottom: 8px; 
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
+}
+.p-desc {
+    font-weight: 400;
+    font-size: 0.88rem;
+    color: #64748b;
+    line-height: 140%;
 }
 .p-price span {
     text-decoration: line-through;
     color: #999;
     font-size: 13px;
     margin-right: 5px;
+    font-weight: 600;
 }
 .p-price {
-    font-weight: bold;
-    color: #ff3366;
-    margin-bottom: 15px;
+    font-weight: 800;
+    color: #00aaff;
+    margin-top: 20px;
 }
-.btn-buy {
-    width: 100%;
-    padding: 12px;
-    background: #1a2a4a;
-    color: #fff;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-
-.btn-buy:hover {background-color: #008cd2;} 
 
 /* AI Section */
 .ai-section {
     display: flex;
-    gap: 30px;
-    background: #f9f9f9;
-    padding: 40px;
-    border-radius: 20px;
-    margin-bottom: 60px;
+    /* padding: 1.5rem; */
+    /* background-color: #fafafa; */
+    border-radius: 16px;
+    margin: 60px 0 120px 0;
 }
-.ai-sidebar {width: 250px;}
-.ai-sidebar h3 {font-size: 24px; margin-bottom: 20px;}
-.ai-sidebar ul li {
-    padding: 12px;
-    border-radius: 10px;
-    margin-bottom: 5px;
+
+@media (min-width: 768px) {
+    .ai-section {
+        flex-direction: row;
+        /* padding: 2.5rem; */
+        gap: 2rem;
+    }
+}
+
+/* --- 사이드바 스타일 --- */
+.ai-sidebar {width: 100%; padding: 20px; border-radius: 16px;}
+
+@media (min-width: 768px) {
+    .ai-sidebar {width: 25%;}
+}
+
+.sidebar-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.25;
+    margin-bottom: 2rem;
+    color: #111827;
+}
+
+.sidebar-title .highlight {
+    color: #00aaff;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+}
+
+.tab-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.tab-list li {
+    padding: 12px 16px;
+    border-radius: 8px;
     cursor: pointer;
-    background: #fff;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    background-color: #f6f6f6;
 }
-.ai-sidebar ul li.active {background: #00aaff; color: #fff;}
-.ai-content {flex: 1;}
+
+.tab-list li:hover {background-color: #eff6ff;}
+
+/* 활성화된 탭 */
+.tab-list li.active {
+    background-color: #00aaff;
+    color: white;
+    font-weight: 600;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* --- 콘텐츠 그리드 스타일 --- */
+.ai-content {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    width: 100%;
+}
+
+@media (min-width: 640px) {
+    .ai-content {grid-template-columns: repeat(2, 1fr);}
+}
+
+@media (min-width: 1024px) {
+    .ai-content {
+        grid-template-columns: repeat(3, 1fr);
+        width: 75%;
+    }
+}
+
+/* --- 카드 디자인 스타일 --- */
 .ai-card {
-    width: 100%; height: 200px;
-    overflow: hidden;
-    background: #ddd;
+    display: none; /* JS 제어 전 기본 숨김 */
+    background-color: white;
     border-radius: 12px;
-    height: 250px;
-    position: relative;
+    border: 1px solid #eee;
+    overflow: hidden;
+    transition: all 0.3s ease-in-out;
 }
 
-.ai-card img {
-    height: 100%;
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
+.ai-card:hover {box-shadow: 0 12px 30px rgba(0,0,0,0.1);}
+
+.ai-card.show {
+    display: flex;
+    flex-direction: column;
+    animation: fadeIn 0.5s forwards;
 }
 
-@media (max-width: 992px) {
-    .ai-section {flex-direction: column;}
-    .ai-sidebar {width: 100%;}
-    .ai-sidebar ul {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
+.card-image-wrap {height: 200px; overflow: hidden;}
+
+.card-image-wrap img {
+    height: 14rem;
+    width: 100%;
+    object-fit: cover;
+    transition: transform 0.5s;
+}
+
+.ai-card:hover .card-image-wrap img {transform: scale(1.05);}
+
+.card-body {
+    padding: 16px;
+    text-align: left;
+}
+
+.product-name {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #010101;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.product-desc {
+    font-size: 0.88rem;
+    color: #6b7280;
+    margin-top: 8px;
+    line-height: 140%;
+    font-weight: 400;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.price-wrap {
+    margin-top: 1.88rem;
+}
+
+.price {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #00aaff;
+}
+
+/* --- 애니메이션 --- */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 

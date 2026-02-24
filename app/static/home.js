@@ -241,3 +241,32 @@ document.addEventListener('DOMContentLoaded', () => {
     // 초기 실행
     updateSliderDimensions();
 });
+
+/*AI 핫플레이스 탭 메뉴 및 필터링 기능*/
+document.addEventListener('DOMContentLoaded', () => {
+    const tabs = document.querySelectorAll('#tab-menu li');
+    const cards = document.querySelectorAll('.ai-card');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            // 클릭된 탭의 카테고리 값 가져오기
+            const category = tab.getAttribute('data-category');
+
+            // 1. 모든 탭에서 'active' 클래스 제거 후 현재 탭에만 추가
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            // 2. 카드 필터링 처리
+            cards.forEach(card => {
+                const cardType = card.getAttribute('data-type');
+                
+                // 선택한 카테고리와 일치하는 카드만 클래스 'show' 부여
+                if (cardType === category) {
+                    card.classList.add('show');
+                } else {
+                    card.classList.remove('show');
+                }
+            });
+        });
+    })
+})
