@@ -210,7 +210,15 @@ function saveUserInfo() {
         .then((r) => r.json())
         .then((d) => {
             if (!d || !d.ok) {
-                alert(d?.error || '저장에 실패했습니다.');
+                const code = d?.error_code || '';
+                const msgMap = {
+                    NOT_LOGGED_IN: '로그인이 필요합니다.',
+                    USER_NOT_FOUND: '사용자를 찾을 수 없습니다.',
+                    PASSWORD_INVALID: '비밀번호가 올바르지 않습니다.',
+                    EMAIL_EXISTS: '이미 사용 중인 이메일입니다.',
+                    PHONE_EXISTS: '이미 사용 중인 전화번호입니다.',
+                };
+                alert(msgMap[code] || '저장에 실패했습니다.');
                 return;
             }
             const u = d.user || {};
@@ -360,7 +368,6 @@ window.onload = () => {
 
     lucide.createIcons();
 };
-
 
 
 

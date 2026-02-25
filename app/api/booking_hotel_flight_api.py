@@ -22,7 +22,7 @@ def rapid_headers():
         "x-rapidapi-host": BOOKING_RAPIDAPI_HOST,
     }
 
-def search_hotels(city, checkin_date, checkout_date, adults=2, currency_code="KRW"):
+def search_hotels(city, checkin_date, checkout_date, adults=2, currency_code="KRW", page_number=1, languagecode="ko"):
     # 1. 도시명으로 dest_id 조회
     dest_url = f"https://{BOOKING_RAPIDAPI_HOST}/api/v1/hotels/searchDestination"
     headers = {
@@ -33,6 +33,7 @@ def search_hotels(city, checkin_date, checkout_date, adults=2, currency_code="KR
     log_debug(f"searchDestination: url={dest_url}, headers={headers}, params={dest_params}")
     try:
         dest_resp = requests.get(dest_url, headers=headers, params=dest_params)
+        dest_resp.encoding = "utf-8"
         log_debug(f"searchDestination response: status={dest_resp.status_code}, text={dest_resp.text[:500]}")
         dest_json = dest_resp.json()
         dest_id = None
@@ -58,11 +59,14 @@ def search_hotels(city, checkin_date, checkout_date, adults=2, currency_code="KR
         "arrival_date": checkin_date,
         "departure_date": checkout_date,
         "adults": adults,
-        "currency_code": "KRW"
+        "currency_code": "KRW",
+        "page_number": page_number,
+        "languagecode": languagecode,
     }
     log_debug(f"search_hotels: url={url}, headers={headers}, params={params}")
     try:
         response = requests.get(url, headers=headers, params=params)
+        response.encoding = "utf-8"
         log_debug(f"search_hotels response: status={response.status_code}, text={response.text[:500]}")
         return response.json()
     except Exception as e:
@@ -122,6 +126,86 @@ def search_hotels_by_dest_id(
     response = requests.get(url, headers=rapid_headers(), params=params, timeout=20)
     response.raise_for_status()
     return response.json()
+
+
+def get_hotel_room_products(
+    hotel_id: str,
+    checkin_date: str,
+    checkout_date: str,
+    adults: int = 2,
+    room_qty: int = 1,
+    currency_code: str = "KRW",
+    languagecode: str = "ko",
+):
+    """
+    Best-effort wrapper for booking-com15 hotel detail / room-list style endpoints.
+    RapidAPI providers sometimes expose slightly different endpoints/params; this
+    function tries common variants and returns the first successful JSON payload.
+    """
+    endpoint_variants = [
+        "/api/v1/hotels/getRoomList",
+        "/api/v1/hotels/getHotelDetails",
+        "/api/v1/hotels/getDescriptionAndInfo",
+    ]
+    param_variants = [
+        {
+            "hotel_id": hotel_id,
+            "arrival_date": checkin_date,
+            "departure_date": checkout_date,
+            "adults": adults,
+            "room_qty": room_qty,
+            "currency_code": currency_code,
+            "languagecode": languagecode,
+        },
+        {
+            "hotel_id": hotel_id,
+            "checkin_date": checkin_date,
+            "checkout_date": checkout_date,
+            "adults": adults,
+            "room_qty": room_qty,
+            "currency_code": currency_code,
+            "languagecode": languagecode,
+        },
+        {
+            "hotel_id": hotel_id,
+            "arrival_date": checkin_date,
+            "departure_date": checkout_date,
+            "adults_number": adults,
+            "room_number": room_qty,
+            "currency_code": currency_code,
+            "languagecode": languagecode,
+        },
+    ]
+
+    last_error = None
+    for endpoint in endpoint_variants:
+        url = f"https://{BOOKING_RAPIDAPI_HOST}{endpoint}"
+        for params in param_variants:
+            try:
+                log_debug(f"get_hotel_room_products: url={url}, params={params}")
+                resp = requests.get(url, headers=rapid_headers(), params=params, timeout=20)
+                text_preview = (resp.text or "")[:400]
+                log_debug(f"get_hotel_room_products response: endpoint={endpoint}, status={resp.status_code}, text={text_preview}")
+                if resp.status_code >= 400:
+                    last_error = {"endpoint": endpoint, "status_code": resp.status_code, "details": text_preview}
+                    continue
+                data = resp.json()
+                # Treat explicit provider errors as unsuccessful and continue trying.
+                if isinstance(data, dict) and (data.get("error") or data.get("message") == "Not Found"):
+                    last_error = {"endpoint": endpoint, "status_code": resp.status_code, "details": str(data)[:400]}
+                    continue
+                return {
+                    "status": "ok",
+                    "endpoint": endpoint,
+                    "params": params,
+                    "data": data,
+                }
+            except Exception as e:
+                last_error = {"endpoint": endpoint, "error": str(e)}
+                log_debug(f"get_hotel_room_products exception: endpoint={endpoint}, err={e}")
+                continue
+
+    return {"status": "error", "error": "room_detail_request_failed", "last_error": last_error}
 
 
 def haversine_m(lat1, lon1, lat2, lon2) -> float:

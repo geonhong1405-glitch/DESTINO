@@ -1,0 +1,173 @@
+import datetime
+import os
+
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+from app.api.booking_api import search_car_rentals
+from app.api.rental_helper import (
+    calc_rental_days,
+    parse_rental_search_results,
+    search_rental_locations,
+)
+from app.db.db import SessionLocal
+from app.db.models import User
+from app.session import get_user_id_from_session
+
+
+router = APIRouter()
+
+_APP_DIR = os.path.dirname(os.path.dirname(__file__))
+templates = Jinja2Templates(directory=os.path.join(_APP_DIR, "templates"))
+
+
+def _get_nickname_from_request(request: Request) -> str | None:
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        return None
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        return user.nickname if user else None
+    finally:
+        db.close()
+
+
+def _parse_float_param(value: str | None) -> float | None:
+    try:
+        if value is None or str(value).strip() == "":
+            return None
+        return float(str(value).strip())
+    except Exception:
+        return None
+
+
+def _parse_int_param(value: str | int | None) -> int | None:
+    try:
+        if value is None:
+            return None
+        s = str(value).strip()
+        if not s:
+            return None
+        return int(s)
+    except Exception:
+        return None
+
+
+@router.get("/api/rental/location-search")
+def rental_location_search_api(
+    q: str = Query(""),
+    category: str = Query("all"),
+):
+    items = search_rental_locations(q, category=category, limit=12)
+    return {"items": items}
+
+
+@router.get("/rental", response_class=HTMLResponse)
+def rental_page(
+    request: Request,
+    pickup_name: str | None = Query(None),
+    pickup_lat: str | None = Query(None),
+    pickup_lon: str | None = Query(None),
+    dropoff_name: str | None = Query(None),
+    dropoff_lat: str | None = Query(None),
+    dropoff_lon: str | None = Query(None),
+    pickup_at: str | None = Query(None),
+    dropoff_at: str | None = Query(None),
+    sort: str | None = Query("price_asc"),
+    min_seats: str | None = Query(None),
+    transmission: str | None = Query(None),
+):
+    nickname = _get_nickname_from_request(request)
+    min_seats_value = _parse_int_param(min_seats)
+    rental_cars = []
+    rental_error = None
+    rental_days = calc_rental_days(pickup_at, dropoff_at)
+
+    p_lat = _parse_float_param(pickup_lat)
+    p_lon = _parse_float_param(pickup_lon)
+    d_lat = _parse_float_param(dropoff_lat) if dropoff_lat else p_lat
+    d_lon = _parse_float_param(dropoff_lon) if dropoff_lon else p_lon
+
+    if not pickup_at:
+        now = datetime.datetime.now().replace(minute=0, second=0, microsecond=0)
+        pickup_at = now.strftime("%Y-%m-%d %H:%M")
+    if not dropoff_at:
+        try:
+            dt = datetime.datetime.strptime(pickup_at, "%Y-%m-%d %H:%M") + datetime.timedelta(days=3)
+            dropoff_at = dt.strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            dropoff_at = pickup_at
+
+    if p_lat is not None and p_lon is not None and d_lat is not None and d_lon is not None and pickup_at and dropoff_at:
+        try:
+            pickup_api_time = pickup_at.replace(" ", "T") + ":00"
+            dropoff_api_time = dropoff_at.replace(" ", "T") + ":00"
+            rental_raw = search_car_rentals(
+                pick_up_lat=p_lat,
+                pick_up_lon=p_lon,
+                drop_off_lat=d_lat,
+                drop_off_lon=d_lon,
+                pick_up_time=pickup_api_time,
+                drop_off_time=dropoff_api_time,
+                driver_age=30,
+                currency_code="KRW",
+                location="KR",
+            )
+            rental_cars = parse_rental_search_results(rental_raw)
+            for car in rental_cars:
+                if not isinstance(car, dict):
+                    continue
+                car["rental_days"] = rental_days
+                if rental_days and car.get("price"):
+                    try:
+                        car["price_per_day"] = int(round(float(car["price"]) / rental_days))
+                    except Exception:
+                        car["price_per_day"] = None
+
+            if min_seats_value:
+                rental_cars = [c for c in rental_cars if not c.get("seats") or c.get("seats") >= min_seats_value]
+            if transmission and transmission not in {"", "all"}:
+                tneedle = str(transmission).lower()
+                rental_cars = [c for c in rental_cars if tneedle in str(c.get("transmission") or "").lower()]
+
+            sort = (sort or "price_asc").strip()
+            if sort == "price_desc":
+                rental_cars.sort(key=lambda x: x.get("price") or -1, reverse=True)
+            elif sort == "name":
+                rental_cars.sort(key=lambda x: str(x.get("name") or ""))
+            elif sort == "rating":
+                rental_cars.sort(key=lambda x: x.get("rating") or 0, reverse=True)
+            else:
+                rental_cars.sort(key=lambda x: x.get("price") or 10**12)
+
+            if isinstance(rental_raw, dict) and rental_raw.get("error"):
+                rental_error = str(rental_raw.get("error"))
+            elif not rental_cars:
+                rental_error = "렌터카 검색 결과를 찾지 못했습니다. 다른 지역/시간으로 다시 시도해 주세요."
+        except Exception as e:
+            rental_error = f"렌터카 검색 실패: {e}"
+
+    return templates.TemplateResponse(
+        "rental.html",
+        {
+            "request": request,
+            "nickname": nickname,
+            "rental_cars": rental_cars,
+            "rental_error": rental_error,
+            "pickup_name": pickup_name or "",
+            "dropoff_name": dropoff_name or (pickup_name or ""),
+            "pickup_lat": pickup_lat or "",
+            "pickup_lon": pickup_lon or "",
+            "dropoff_lat": dropoff_lat or (pickup_lat or ""),
+            "dropoff_lon": dropoff_lon or (pickup_lon or ""),
+            "pickup_at": pickup_at or "",
+            "dropoff_at": dropoff_at or "",
+            "rental_days": rental_days,
+            "sort": sort or "price_asc",
+            "min_seats": min_seats_value,
+            "transmission": transmission or "all",
+        },
+    )

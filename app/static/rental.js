@@ -1,148 +1,275 @@
-// Lucide 아이콘 초기화
 document.addEventListener('DOMContentLoaded', () => {
-    lucide.createIcons();
-    initApp();
+  if (window.lucide) lucide.createIcons();
+  initRentalApp();
 });
 
-function initApp() {
-    // 기본 날짜 설정
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const threeDaysLater = new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0];
+function initRentalApp() {
+  const initial = window.__RENTAL_INITIAL__ || {};
+  const els = {
+    overlay: document.getElementById('overlay'),
+    form: document.getElementById('rentalSearchForm'),
+    pickupGroup: document.getElementById('pickupLocInputGroup'),
+    dropoffGroup: document.getElementById('dropoffLocInputGroup'),
+    pickupPopover: document.getElementById('pickupLocPopover'),
+    dropoffPopover: document.getElementById('dropoffLocPopover'),
+    startGroup: document.getElementById('startInputGroup'),
+    endGroup: document.getElementById('endInputGroup'),
+    startPopover: document.getElementById('startDtPopover'),
+    endPopover: document.getElementById('endDtPopover'),
 
-    const startDateInput = document.getElementById('startDate');
-    const endDateInput = document.getElementById('endDate');
+    pickupDisplay: document.getElementById('pickupLocDisplay'),
+    dropoffDisplay: document.getElementById('dropoffLocDisplay'),
+    pickupSearchInput: document.getElementById('pickupLocSearchInput'),
+    dropoffSearchInput: document.getElementById('dropoffLocSearchInput'),
+    pickupLocationList: document.getElementById('pickupLocationList'),
+    dropoffLocationList: document.getElementById('dropoffLocationList'),
 
-    startDateInput.value = today;
-    endDateInput.value = threeDaysLater;
+    pickupNameHidden: document.getElementById('pickupNameHidden'),
+    pickupLatHidden: document.getElementById('pickupLatHidden'),
+    pickupLonHidden: document.getElementById('pickupLonHidden'),
+    dropoffNameHidden: document.getElementById('dropoffNameHidden'),
+    dropoffLatHidden: document.getElementById('dropoffLatHidden'),
+    dropoffLonHidden: document.getElementById('dropoffLonHidden'),
 
-    // 최소 선택 가능 날짜 제한
-    startDateInput.min = today;
-    endDateInput.min = today;
+    startDate: document.getElementById('startDate'),
+    startTime: document.getElementById('startTime'),
+    endDate: document.getElementById('endDate'),
+    endTime: document.getElementById('endTime'),
+    startDtDisplay: document.getElementById('startDtDisplay'),
+    endDtDisplay: document.getElementById('endDtDisplay'),
+    dtError: document.getElementById('dtError'),
+    pickupAtHidden: document.getElementById('pickupAtHidden'),
+    dropoffAtHidden: document.getElementById('dropoffAtHidden'),
+  };
 
-    updateDtDisplay('start');
-    updateDtDisplay('end');
+  const state = {
+    pickup: { category: 'all', items: [], timer: null },
+    dropoff: { category: 'all', items: [], timer: null },
+  };
 
-    // 이벤트 리스너 등록
-    setupEventListeners();
+  initDates(els, initial);
+  bindPopoverToggles(els);
+  bindDateHandlers(els);
+  bindLocationSearch(els, state, 'pickup');
+  bindLocationSearch(els, state, 'dropoff');
+  bindFormSubmit(els);
+
+  if (initial.pickupName) {
+    els.pickupDisplay.textContent = initial.pickupName;
+    els.pickupSearchInput.value = initial.pickupName;
+  }
+  if (initial.dropoffName) {
+    els.dropoffDisplay.textContent = initial.dropoffName;
+    els.dropoffSearchInput.value = initial.dropoffName;
+  }
+  renderLocationList(els, 'pickup', []);
+  renderLocationList(els, 'dropoff', []);
 }
 
-function setupEventListeners() {
-    const overlay = document.getElementById('overlay');
-
-    // 오버레이 클릭 시 모든 팝오버 닫기
-    overlay.addEventListener('click', closeAllPopovers);
-
-    // 입력 그룹 클릭 시 팝오버 토글
-    document.getElementById('locInputGroup').addEventListener('click', () => handleTogglePopover('locPopover'));
-    document.getElementById('startInputGroup').addEventListener('click', () => handleTogglePopover('startDtPopover'));
-    document.getElementById('endInputGroup').addEventListener('click', () => handleTogglePopover('endDtPopover'));
-
-    // 팝오버 내부 클릭 시 닫힘 방지
-    document.querySelectorAll('.popover-container').forEach((p) => {
-        p.addEventListener('click', (e) => e.stopPropagation());
-    });
-
-    // 장소 검색 및 필터
-    const locSearchInput = document.getElementById('locSearchInput');
-    locSearchInput.addEventListener('keyup', (e) => searchLoc(e.target.value));
-
-    const sidebarBtns = document.querySelectorAll('.sidebar-btn');
-    sidebarBtns.forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-            filterCategory(e.target.dataset.category, e.target);
-        });
-    });
-
-    // 장소 아이템 선택
-    const locItems = document.querySelectorAll('.location-item');
-    locItems.forEach((item) => {
-        item.addEventListener('click', () => selectLoc(item.dataset.name));
-    });
-
-    // 날짜 변경 감지
-    ['startDate', 'startTime', 'endDate', 'endTime'].forEach((id) => {
-        document.getElementById(id).addEventListener('change', () => {
-            validateDates(id.startsWith('start') ? 'start' : 'end');
-        });
-    });
-
-    // 확인 버튼들
-    document.querySelectorAll('.btn-confirm').forEach((btn) => {
-        btn.addEventListener('click', closeAllPopovers);
-    });
+function initDates(els, initial) {
+  const now = new Date();
+  const startDefault = new Date(now.getTime() + 3600 * 1000);
+  const endDefault = new Date(startDefault.getTime() + 3 * 86400 * 1000);
+  const s = parseLocalDateTime(initial.pickupAt) || startDefault;
+  const e = parseLocalDateTime(initial.dropoffAt) || endDefault;
+  const minDate = formatDate(now);
+  els.startDate.min = minDate;
+  els.endDate.min = minDate;
+  els.startDate.value = formatDate(s);
+  els.startTime.value = formatTime(s);
+  els.endDate.value = formatDate(e);
+  els.endTime.value = formatTime(e);
+  syncDateDisplays(els);
 }
 
-function handleTogglePopover(id) {
-    const popover = document.getElementById(id);
-    const overlay = document.getElementById('overlay');
-    const isActive = popover.classList.contains('active');
-
-    closeAllPopovers();
-    if (!isActive) {
-        popover.classList.add('active');
-        overlay.classList.add('active');
-    }
-}
-
-function closeAllPopovers() {
+function bindPopoverToggles(els) {
+  const pairs = [
+    [els.pickupGroup, els.pickupPopover],
+    [els.dropoffGroup, els.dropoffPopover],
+    [els.startGroup, els.startPopover],
+    [els.endGroup, els.endPopover],
+  ];
+  function closeAll() {
     document.querySelectorAll('.popover-container').forEach((p) => p.classList.remove('active'));
-    document.getElementById('overlay').classList.remove('active');
-}
-
-function selectLoc(name) {
-    document.getElementById('locDisplay').innerText = name;
-    closeAllPopovers();
-}
-
-function filterCategory(cat, btn) {
-    document.querySelectorAll('.sidebar-btn').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-
-    const items = document.querySelectorAll('.location-item');
-    items.forEach((item) => {
-        if (cat === 'all' || item.dataset.cat === cat) item.style.display = 'flex';
-        else item.style.display = 'none';
+    els.overlay.classList.remove('active');
+  }
+  els.overlay.addEventListener('click', closeAll);
+  document.querySelectorAll('.popover-container').forEach((p) => p.addEventListener('click', (e) => e.stopPropagation()));
+  document.querySelectorAll('.btn-confirm').forEach((b) => b.addEventListener('click', closeAll));
+  pairs.forEach(([group, pop]) => {
+    if (!group || !pop) return;
+    group.addEventListener('click', () => {
+      const active = pop.classList.contains('active');
+      closeAll();
+      if (!active) {
+        pop.classList.add('active');
+        els.overlay.classList.add('active');
+      }
     });
+  });
+  window.__rentalClosePopovers = closeAll;
 }
 
-function searchLoc(val) {
-    const items = document.querySelectorAll('.location-item');
-    items.forEach((item) => {
-        const name = item.dataset.name;
-        if (name.includes(val)) item.style.display = 'flex';
-        else item.style.display = 'none';
+function bindDateHandlers(els) {
+  ['startDate', 'startTime', 'endDate', 'endTime'].forEach((id) => {
+    els[id].addEventListener('change', () => {
+      validateDates(els);
+      syncDateDisplays(els);
     });
+  });
 }
 
-function validateDates(type) {
-    const startD = document.getElementById('startDate').value;
-    const startT = document.getElementById('startTime').value;
-    const endD = document.getElementById('endDate').value;
-    const endT = document.getElementById('endTime').value;
-    const errorMsg = document.getElementById('dtError');
+function bindLocationSearch(els, state, target) {
+  const searchInput = target === 'pickup' ? els.pickupSearchInput : els.dropoffSearchInput;
+  const popover = target === 'pickup' ? els.pickupPopover : els.dropoffPopover;
+  const categoryButtons = Array.from(popover.querySelectorAll('.sidebar-btn'));
+  categoryButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      categoryButtons.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      state[target].category = btn.dataset.category || 'all';
+      triggerLocationSearch(els, state, target, searchInput.value.trim());
+    });
+  });
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim();
+    clearTimeout(state[target].timer);
+    state[target].timer = setTimeout(() => triggerLocationSearch(els, state, target, q), 220);
+  });
+}
 
-    const startFull = new Date(`${startD}T${startT}`);
-    const endFull = new Date(`${endD}T${endT}`);
+async function triggerLocationSearch(els, state, target, q) {
+  renderLocationList(els, target, []);
+  if (!q) return;
+  try {
+    const category = state[target].category || 'all';
+    const url = `/api/rental/location-search?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`;
+    const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+    const data = await resp.json();
+    const items = Array.isArray(data.items) ? data.items : [];
+    state[target].items = items;
+    renderLocationList(els, target, items);
+  } catch (e) {
+    renderLocationList(els, target, [], '지역 검색 중 오류가 발생했습니다.');
+  }
+}
 
-    if (endFull <= startFull) {
-        errorMsg.style.display = 'block';
-        if (type === 'end') {
-            // 반납 일시가 대여 일시보다 빠를 경우 대여 일시로 맞춤
-            document.getElementById('endDate').value = startD;
-        }
-    } else {
-        errorMsg.style.display = 'none';
+function renderLocationList(els, target, items, errorMsg) {
+  const listEl = target === 'pickup' ? els.pickupLocationList : els.dropoffLocationList;
+  if (errorMsg) {
+    listEl.innerHTML = `<div class="location-empty">${escapeHtml(errorMsg)}</div>`;
+    return;
+  }
+  if (!items.length) {
+    listEl.innerHTML = '<div class="location-empty">도시/공항/역을 검색하세요.</div>';
+    return;
+  }
+  const iconByCategory = { airport: 'plane', station: 'train', city: 'map-pin', all: 'map-pin' };
+  listEl.innerHTML = items.map((item, idx) => `
+    <button type="button" class="location-item" data-idx="${idx}">
+      <i data-lucide="${iconByCategory[item.category] || 'map-pin'}" width="16"></i>
+      <div class="loc-info">
+        <span class="loc-name">${escapeHtml(item.name || '')}</span>
+        <span class="loc-sub">${escapeHtml(item.sub || '')}</span>
+      </div>
+    </button>
+  `).join('');
+  if (window.lucide) lucide.createIcons();
+  listEl.querySelectorAll('.location-item').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.idx);
+      selectLocation(els, target, items[idx]);
+    });
+  });
+}
+
+function selectLocation(els, target, item) {
+  if (!item) return;
+  const isPickup = target === 'pickup';
+  const display = isPickup ? els.pickupDisplay : els.dropoffDisplay;
+  const nameHidden = isPickup ? els.pickupNameHidden : els.dropoffNameHidden;
+  const latHidden = isPickup ? els.pickupLatHidden : els.dropoffLatHidden;
+  const lonHidden = isPickup ? els.pickupLonHidden : els.dropoffLonHidden;
+  display.textContent = item.name || '장소 선택';
+  nameHidden.value = item.name || '';
+  latHidden.value = item.lat ?? '';
+  lonHidden.value = item.lon ?? '';
+
+  // First pickup selection seeds dropoff if dropoff is empty.
+  if (isPickup && !els.dropoffNameHidden.value) {
+    els.dropoffDisplay.textContent = item.name || '장소 선택';
+    els.dropoffNameHidden.value = item.name || '';
+    els.dropoffLatHidden.value = item.lat ?? '';
+    els.dropoffLonHidden.value = item.lon ?? '';
+  }
+  if (typeof window.__rentalClosePopovers === 'function') window.__rentalClosePopovers();
+}
+
+function bindFormSubmit(els) {
+  els.form.addEventListener('submit', (e) => {
+    syncDateDisplays(els);
+    if (!validateDates(els)) {
+      e.preventDefault();
+      return;
     }
-
-    updateDtDisplay('start');
-    updateDtDisplay('end');
-}
-
-function updateDtDisplay(type) {
-    const date = document.getElementById(type + 'Date').value;
-    const time = document.getElementById(type + 'Time').value;
-    if (date) {
-        document.getElementById(type + 'DtDisplay').innerText = `${date} ${time}`;
+    if (!els.pickupLatHidden.value || !els.pickupLonHidden.value) {
+      e.preventDefault();
+      alert('대여 장소를 검색 후 선택해 주세요.');
+      return;
     }
+    if (!els.dropoffLatHidden.value || !els.dropoffLonHidden.value) {
+      // fallback to pickup
+      els.dropoffNameHidden.value = els.pickupNameHidden.value;
+      els.dropoffLatHidden.value = els.pickupLatHidden.value;
+      els.dropoffLonHidden.value = els.pickupLonHidden.value;
+    }
+  });
 }
+
+function syncDateDisplays(els) {
+  const startVal = `${els.startDate.value || ''} ${els.startTime.value || ''}`.trim();
+  const endVal = `${els.endDate.value || ''} ${els.endTime.value || ''}`.trim();
+  els.startDtDisplay.textContent = startVal || '날짜와 시간을 선택';
+  els.endDtDisplay.textContent = endVal || '날짜와 시간을 선택';
+  els.pickupAtHidden.value = startVal;
+  els.dropoffAtHidden.value = endVal;
+}
+
+function validateDates(els) {
+  const s = parseLocalDateTime(`${els.startDate.value} ${els.startTime.value}`);
+  const e = parseLocalDateTime(`${els.endDate.value} ${els.endTime.value}`);
+  if (!s || !e) return true;
+  if (e <= s) {
+    els.dtError.style.display = 'block';
+    return false;
+  }
+  els.dtError.style.display = 'none';
+  return true;
+}
+
+function parseLocalDateTime(text) {
+  if (!text) return null;
+  const d = new Date(String(text).trim().replace(' ', 'T'));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatTime(d) {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
