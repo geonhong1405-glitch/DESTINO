@@ -177,7 +177,7 @@ ul {list-style: none;}
 }
 
 .btn-event-link:hover {
-    background: rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.7);
     color: #333;
     font-weight: 600;
 }
@@ -694,13 +694,12 @@ ul {list-style: none;}
 
 /* Dark Section */
 .hot-dest-dark {
-    background: #f6f6f6;
-    /* background: #0f172a; */
-    padding: 120px 0;
+    background: #0f172a;
+    padding: 100px 0;
     color: #fff;
 }
 
-.section-title.light {color: #000;}
+.section-title.light {color: #fff;}
 
 .dest-card {
     height: 350px;
@@ -759,7 +758,6 @@ ul {list-style: none;}
 .dcCont .combuy {
     width: 100%;
     padding: 10px;
-    /* background: rgba(255, 255, 255, 0.9); */
     background: rgba(0, 0, 0, 0.9);
     border-radius: 10px;
     z-index: 2;

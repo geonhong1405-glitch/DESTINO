@@ -4,40 +4,40 @@
 
 const sliderData = [
     {
-        sub: '공동구매',
-        title: '항공+숙소 공동구매 OPEN',
-        desc: '지금 이 순간에도 인원이 차고 있어요.<br>마지막 티켓의 주인공은?',
-        img: 'https://cdn.pixabay.com/photo/2023/10/11/13/41/ship-8308680_1280.jpg',
+    sub: "공동구매",
+    title: "항공+숙소 공동구매 OPEN",
+    desc: "지금 이 순간에도 인원이 차고 있어요.<br>마지막 티켓의 주인공은?",
+    img: "https://cdn.pixabay.com/photo/2023/10/11/13/41/ship-8308680_1280.jpg",
     },
     {
-        sub: 'Tour',
-        title: '대만 투어&티켓 할인 혜택',
-        desc: '타이베이 101부터 지우펀 홍등까지,<br>가장 똑똑하게 예약하는 방법',
-        img: 'https://media.istockphoto.com/id/479711387/ko/%EC%82%AC%EC%A7%84/taipei-taiwan.jpg?b=1&s=1024x1024&w=0&k=20&c=xsLCTGo6uqq_lGoReEoVyleyoIj-bOFE5LPlE94hKcc=',
+    sub: "Tour",
+    title: "대만 투어&티켓 할인 혜택",
+    desc: "타이베이 101부터 지우펀 홍등까지,<br>가장 똑똑하게 예약하는 방법",
+    img: "https://media.istockphoto.com/id/479711387/ko/%EC%82%AC%EC%A7%84/taipei-taiwan.jpg?b=1&s=1024x1024&w=0&k=20&c=xsLCTGo6uqq_lGoReEoVyleyoIj-bOFE5LPlE94hKcc=",
     },
     {
-        sub: '2026 EVENT',
-        title: '상하이 예원 등불 축제',
-        desc: '1월 26일 그랜드 오픈!<br>붉은 등불 아래 인생샷을 남겨보세요.',
-        img: 'https://cdn.pixabay.com/photo/2020/09/04/08/02/cityscape-5543224_1280.jpg',
+    sub: "2026 EVENT",
+    title: "상하이 예원 등불 축제",
+    desc: "1월 26일 그랜드 오픈!<br>붉은 등불 아래 인생샷을 남겨보세요.",
+    img: "https://cdn.pixabay.com/photo/2020/09/04/08/02/cityscape-5543224_1280.jpg",
     },
     {
-        sub: 'SPRING EDITION',
-        title: '일본 벚꽃 개화 시기 확정!',
-        desc: '핑크빛 꽃길이 열리는 순간,<br>가장 가까운 곳에서 봄을 맞이하세요.',
-        img: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=1600&q=80',
+    sub: "SPRING EDITION",
+    title: "일본 벚꽃 개화 시기 확정!",
+    desc: "핑크빛 꽃길이 열리는 순간,<br>가장 가까운 곳에서 봄을 맞이하세요.",
+    img: "https://images.pexels.com/photos/1440476/pexels-photo-1440476.jpeg?auto=compress&cs=tinysrgb&w=1200",
     },
     {
-        sub: 'GLOBAL PASS',
-        title: '유레일패스 25% OFF',
-        desc: '낭만 가득한 유럽 배낭여행,<br>교통비 고민은 미리 해결하고 떠나세요.',
-        img: 'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=1600&q=80',
+    sub: "GLOBAL PASS",
+    title: "유레일패스 25% OFF",
+    desc: "낭만 가득한 유럽 배낭여행,<br>교통비 고민은 미리 해결하고 떠나세요.",
+    img: "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=1600&q=80",
     },
     {
-        sub: 'STAY FOCUS',
-        title: '제주 독채 자쿠지 단독 예약',
-        desc: '돌담 너머 파도 소리와 풍경까지,<br>여유를 즐기는 프라이빗한 휴식의 정석.',
-        img: 'https://cdn.pixabay.com/photo/2020/03/23/02/52/pension-4959272_1280.jpg',
+    sub: "STAY FOCUS",
+    title: "제주 독채 자쿠지 단독 예약",
+    desc: "돌담 너머 파도 소리와 풍경까지,<br>여유를 즐기는 프라이빗한 휴식의 정석.",
+    img: "https://cdn.pixabay.com/photo/2020/03/23/02/52/pension-4959272_1280.jpg",
     },
 ];
 
@@ -265,24 +265,24 @@ function renderBookings() {
 renderBookings();
 
 /*AI 핫플레이스 탭 메뉴 및 필터링 기능*/
-document.addEventListener('DOMContentLoaded', () => {
+function initAiTabs() {
     const tabs = document.querySelectorAll('#tab-menu li');
     const cards = document.querySelectorAll('.ai-card');
 
+    // 탭 메뉴가 실제로 존재하는지 확인
+    if (tabs.length === 0) return;
+
     tabs.forEach((tab) => {
         tab.addEventListener('click', () => {
-            // 클릭된 탭의 카테고리 값 가져오기
             const category = tab.getAttribute('data-category');
 
-            // 1. 모든 탭에서 'active' 클래스 제거 후 현재 탭에만 추가
+            // 1. 활성 탭 교체
             tabs.forEach((t) => t.classList.remove('active'));
             tab.classList.add('active');
 
-            // 2. 카드 필터링 처리
+            // 2. 카드 필터링
             cards.forEach((card) => {
                 const cardType = card.getAttribute('data-type');
-
-                // 선택한 카테고리와 일치하는 카드만 클래스 'show' 부여
                 if (cardType === category) {
                     card.classList.add('show');
                 } else {
@@ -291,4 +291,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     });
+}
+
+// 모든 초기화 로직을 하나로 합치기
+document.addEventListener('DOMContentLoaded', () => {
+    initSlider();     // 슬라이더 초기화
+    renderBookings(); // 공동구매 리스트 초기화
+    initAiTabs();     // AI 탭 초기화 (추가)
 });
