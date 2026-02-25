@@ -17,9 +17,9 @@
     <nav class="nav-container">
         <div class="nav-content">
             <div class="nav-left">
-                <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
+                <!-- <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
                     <i data-lucide="menu" id="menu-icon"></i>
-                </button>
+                </button> -->
                 <h1 class="logo"><a href="/">DESTINO</a></h1>
             </div>
             <div class="nav-right">
@@ -50,6 +50,10 @@
             <button onclick="switchTab('wishlist')" id="tab-btn-wishlist" class="sidebar-item">
                 <i data-lucide="heart" size="20"></i>
                 <span class="font-medium">찜한 여행지</span>
+            </button>
+            <button onclick="switchTab('post')" id="tab-btn-post" class="sidebar-item">
+                <i data-lucide="sticky-note" size="20"></i>
+                <span class="font-medium">내 게시물</span>
             </button>
             
             <div class="sidebar-divider">
@@ -182,6 +186,22 @@
                             <button class="wish-remove-btn"><i data-lucide="heart" class="fill-current text-red-500" size="18"></i></button>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- TAB: GroupBuy -->
+            <div id="content-post" class="tab-content">
+                <div class="card-container min-h-card">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h4 class="card-title mb-1">내가 만든 공동구매</h4>
+                            <p class="text-sm text-gray-400">직접 등록하여 동행을 모집 중인 여행 목록입니다.</p>
+                        </div>
+                        <a href="travel-group.html" class="px-4 py-2 bg-[#00AEEF]/10 text-[#00AEEF] rounded-xl text-xs font-bold hover:bg-[#00AEEF] hover:text-white transition-all">
+                            + 새 모집글 쓰기
+                        </a>
+                    </div>
+                    <div id="my-trip-posts-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
                 </div>
             </div>
 

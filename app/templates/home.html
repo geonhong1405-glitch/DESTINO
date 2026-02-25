@@ -27,100 +27,36 @@
             </div>
         </header>
 
-        <section class="hero">
-            <div class="heroCont">
-                <h2 class="hero-title">당신의 여행 운명, DESTINO</h2>
-                <div class="search-card">
-                    <div class="search-tabs">
-                        <button class="active" type="button" onclick="window.location.href='/airport'">항공</button>
-                        <button type="button" onclick="window.location.href='/gloval-hotel'">해외숙소</button>
-                        <button type="button" onclick="window.location.href='/gloval-hotel'">국내숙소</button>
-                        <button type="button" onclick="window.location.href='/package'">패키지</button>
+        <!-- mainvisual -->
+        <section class="main-visual-container">
+            <div class="slider-window">
+                <div class="slider-wrapper" id="sliderWrapper">
+                    <!-- 슬라이드 아이템들이 자바스크립트에 의해 동적으로 생성됩니다 -->
+                </div>
+            </div>
+            <!-- 슬라이더 컨트롤러 -->
+            <div class="slider-controls">
+                <div class="pagination-text">
+                    <span class="current" id="currentIdx">01</span>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
                     </div>
+                    <span id="totalIdx">06</span>
+                </div>
 
-                    <!-- SEARCH BOX -->
-                    <div class="search-widget" id="searchWidget">
-
-                        <!-- Destination -->
-                        <div class="search-item dest-item" onclick="openPopover('destPopover')">
-                            <label class="search-label">목적지</label>
-                            <input type="text" id="destInput" placeholder="도시 또는 공항 검색" class="search-input" readonly>
-
-                            <!-- Dest Popover -->
-                            <div id="destPopover" class="popover">
-                                <div class="dest-sidebar" id="regionTabs"></div>
-                                <div class="dest-content">
-                                    <div class="search-box-inner">
-                                        <div class="relative">
-                                            <i data-lucide="search" class="search-icon-inner"></i>
-                                            <input type="text" id="citySearchInput" placeholder="도시명을 입력하세요 (예: 도쿄)" class="city-search-field" onkeyup="filterCities()">
-                                        </div>
-                                    </div>
-                                    <div class="city-grid" id="cityGrid"></div>
-                                </div>
-                            </div>
-                        </div>
-                    
-                        <!-- Start Date -->
-                        <div class="search-item date-item" onclick="focusInput('startDate')">
-                            <label class="search-label">가는 날</label>
-                            <input type="date" id="startDate" class="search-input" onclick="event.stopPropagation()">
-                        </div>
-                    
-                        <!-- End Date -->
-                        <div class="search-item date-item" onclick="focusInput('endDate')">
-                            <label class="search-label">오는 날</label>
-                            <input type="date" id="endDate" class="search-input" onclick="event.stopPropagation()">
-                        </div>
-                    
-                        <!-- Guests -->
-                        <div class="search-item guest-item" onclick="openPopover('guestPopover')">
-                            <label class="search-label">인원 및 객실</label>
-                            <input type="text" id="guestInput" value="성인 2, 아동 0, 객실 1" class="search-input" readonly>
-                        
-                            <!-- Guest Popover -->
-                            <div id="guestPopover" class="popover">
-                                <div class="space-y-6">
-                                    <div class="guest-row">
-                                        <div><p class="guest-title">성인</p><p class="guest-subtitle">만 18세 이상</p></div>
-                                        <div class="counter-group">
-                                            <button class="cnt-btn" id="minus-adult" onclick="updateCount('adult', -1)">-</button>
-                                            <span class="cnt-value" id="val-adult">2</span>
-                                            <button class="cnt-btn" onclick="updateCount('adult', 1)">+</button>
-                                        </div>
-                                    </div>
-                                    <div class="guest-row">
-                                        <div><p class="guest-title">아동</p><p class="guest-subtitle">만 17세 이하</p></div>
-                                        <div class="counter-group">
-                                            <button class="cnt-btn" id="minus-child" onclick="updateCount('child', -1)">-</button>
-                                            <span class="cnt-value" id="val-child">0</span>
-                                            <button class="cnt-btn" onclick="updateCount('child', 1)">+</button>
-                                        </div>
-                                    </div>
-                                    <div class="guest-row">
-                                        <div><p class="guest-title">객실</p></div>
-                                        <div class="counter-group">
-                                            <button class="cnt-btn" id="minus-room" onclick="updateCount('room', -1)">-</button>
-                                            <span class="cnt-value" id="val-room">1</span>
-                                            <button class="cnt-btn" onclick="updateCount('room', 1)">+</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    
-                        <!-- Search Button -->
-                        <div class="p-3">
-                            <button class="search-submit-btn">
-                                검색
-                            </button>
-                        </div>
-                    </div>
+                <div class="nav-btns">
+                    <button class="nav-btn" id="prevBtn" aria-label="이전 슬라이드">
+                        <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmMWYxZjEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1jaGV2cm9uLWxlZnQtaWNvbiBsdWNpZGUtY2hldnJvbi1sZWZ0Ij48cGF0aCBkPSJtMTUgMTgtNi02IDYtNiIvPjwvc3ZnPg==" alt="이전버튼">
+                    </button>
+                    <button class="nav-btn" id="nextBtn" aria-label="다음 슬라이드">
+                        <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmMWYxZjEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1jaGV2cm9uLXJpZ2h0LWljb24gbHVjaWRlLWNoZXZyb24tcmlnaHQiPjxwYXRoIGQ9Im05IDE4IDYtNi02LTYiLz48L3N2Zz4=" alt="다음버튼">
+                    </button>
                 </div>
             </div>
         </section>
 
         <main class="container">
+
             <section class="quick-icons-container container">
                 <div class="quick-icons-wrapper">
                     <div class="icon-item">
@@ -183,84 +119,18 @@
                 </div>
             </section>
 
-            <section class="section event-section container">
-                <div class="section-header">
-                    <h3 class="section-title">진행 중인 이벤트</h3>
-                </div>
-
-                <div class="event-slider-wrapper">
-                    <button class="slider-btn prev">
-                        <img
-                            src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1jaGV2cm9uLWRvd24taWNvbiBsdWNpZGUtY2hldnJvbi1kb3duIj48cGF0aCBkPSJtNiA5IDYgNiA2LTYiLz48L3N2Zz4="
-                            alt="이전"
-                        />
-                    </button>
-
-                    <div class="event-slider-window">
-                        <div class="grid-33">
-                            <div class="event-c yellow-card">
-                                <a class="event-content" href="#">
-                                    <span class="event-sub">HAPPY FRIDAY</span>
-                                    <h4 class="event-main-title">티켓 1+1</h4>
-                                    <p class="event-desc">인기 투어 · 티켓 단독 특가</p>
-                                    <div class="btn-event-link">바로 보러가기</div>
-                                </a>
-                            </div>
-
-                            <div class="event-c image-card">
-                                <a class="event-content light" href="#">
-                                    <span class="event-sub">DESTINO.com</span>
-                                    <h4 class="event-main-title">대만 투어&티켓<br />최대 할인</h4>
-                                    <div class="btn-event-link">바로 보러가기</div>
-                                </a>
-                            </div>
-
-                            <div class="event-c pink-card">
-                                <a class="event-content" href="#">
-                                    <span class="event-sub">2026</span>
-                                    <h4 class="event-main-title">상하이 예원 등회</h4>
-                                    <p class="event-desc">1월 26일 그랜드 오픈</p>
-                                    <div class="btn-event-link">바로 보러가기</div>
-                                </a>
-                            </div>
-
-                            <div class="event-c black-card">
-                                <a class="event-content" href="#">
-                                    <span class="event-sub">Spring Edition</span>
-                                    <h4 class="event-main-title">일본 벚꽃 개화 시기 확정!</h4>
-                                    <p class="event-desc">벚꽃 명소 특가를 확인해보세요</p>
-                                    <div class="btn-event-link">바로 보러가기</div>
-                                </a>
-                            </div>
-                        
-                            <div class="event-c green-card">
-                                <a class="event-content light" href="#">
-                                    <span class="event-sub">Global Pass</span>
-                                    <h4 class="event-main-title">
-                                        2026 유럽 배낭여행유레일패스 <br>
-                                        최대 25% 선할인</h4>
-                                    <div class="btn-event-link">바로 보러가기</div>
-                                </a>
-                            </div>
-                        
-                            <div class="event-c blue-card">
-                                <a class="event-content" href="#">
-                                    <span class="event-sub">Stay Focus</span>
-                                    <h4 class="event-main-title">
-                                        제주 감성 스테이 <br>
-                                        독채 자쿠지 숙소 단독 예약 </h4>
-                                    <div class="btn-event-link">바로 보러가기</div>
-                                </a>
-                            </div>
+            <section class="group-cont">
+                <div class="booking-card">
+                    <div class="group-wrap">
+                        <div class="group-title">
+                            <span class="emoji">🔥</span>
+                            <h2>실시간 공동예매</h2>
                         </div>
+                        <a class="view-all" href="/travelGroup">
+                            전체보기 <i data-lucide="chevron-right"></i>
+                        </a>
                     </div>
-
-                    <button class="slider-btn next">
-                        <img
-                            src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1jaGV2cm9uLWRvd24taWNvbiBsdWNpZGUtY2hldnJvbi1kb3duIj48cGF0aCBkPSJtMTggMTUgLTYgLTYgLTYgNiIvPjwvc3ZnPg=="
-                            alt="다음"
-                        />
-                    </button>
+                    <div id="booking-list" class="booking-list"></div>
                 </div>
             </section>
 
