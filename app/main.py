@@ -815,7 +815,7 @@ def parse_booking_hotels(booking_result: dict) -> list[dict]:
 
     def _split_label_lines(label: str) -> list[str]:
         if not label:
-            return _local_match()
+            return []
         out = []
         for line in label.replace("\r", "\n").split("\n"):
             line = re.sub(r"\s+", " ", line).strip()
@@ -1185,7 +1185,7 @@ def dedupe_hotels(hotels: list[dict]) -> list[dict]:
             continue
         seen.add(key)
         out.append(h)
-    return out or _local_match()
+    return out
 
 
 # DB table bootstrap

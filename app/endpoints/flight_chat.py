@@ -198,6 +198,32 @@ class NeedMoreInfoError(Exception):
     pass
 
 
+def _country_currency_hint(country_code: Optional[str]) -> str:
+    cc = (country_code or "").upper().strip()
+    mapping = {
+        "JP": "\uc5d4\ud654(JPY)",
+        "US": "\ub2ec\ub7ec(USD)",
+        "GB": "\ud30c\uc6b4\ub4dc(GBP)",
+        "FR": "\uc720\ub85c(EUR)",
+        "DE": "\uc720\ub85c(EUR)",
+        "IT": "\uc720\ub85c(EUR)",
+        "ES": "\uc720\ub85c(EUR)",
+        "PT": "\uc720\ub85c(EUR)",
+        "NL": "\uc720\ub85c(EUR)",
+        "BE": "\uc720\ub85c(EUR)",
+        "AT": "\uc720\ub85c(EUR)",
+        "IE": "\uc720\ub85c(EUR)",
+        "TH": "\ubc14\ud2b8(THB)",
+        "VN": "\ub3d9(VND)",
+        "SG": "\uc2f1\uac00\ud3ec\ub974 \ub2ec\ub7ec(SGD)",
+        "MY": "\ub9c1\uae43(MYR)",
+        "PH": "\ud398\uc18c(PHP)",
+        "AU": "\ud638\uc8fc \ub2ec\ub7ec(AUD)",
+        "IN": "\ub8e8\ud53c(INR)",
+        "KR": "\uc6d0\ud654(KRW)",
+    }
+    return mapping.get(cc, "\ud604\uc9c0\ud1b5\ud654")
+
 def _to_float(v: Any) -> Optional[float]:
     try:
         return float(v)
@@ -246,18 +272,24 @@ def _parse_rel_date(text: str):
     m = re.search(r"(\d+)\uc77c\ud6c4", t)
     if m:
         return (now + timedelta(days=int(m.group(1)))).date()
-    m = re.search(r"(\d+)\uc77c(\ud68c:\ub4a4|\ud6c4)", t)
+    m = re.search(r"(\\d+)\\uc77c(?:\\ub4a4|\\ud6c4)", t)
     if m:
         return (now + timedelta(days=int(m.group(1)))).date()
-    m = re.search(r"(\d+)\uc8fc\uc77c\ud68c(\ud68c:\ub4a4|\ud6c4)", t)
+    m = re.search(r"(\\d+)\\uc8fc\\uc77c?(?:\\ub4a4|\\ud6c4)", t)
     if m:
         return (now + timedelta(days=int(m.group(1)) * 7)).date()
     return None
 
 def _has_date_signal(text: str) -> bool:
-    if re.search(r"\b20\d{2}-\d{2}-\d{2}\b", text or ""):
+    t = text or ""
+    if re.search(r"\b20\d{2}-\d{2}-\d{2}\b", t):
         return True
-    return _contains(text or "", ["\uc624\ub298", "\ub0b4\uc77c", "\ubaa8\ub808", "\uae00\ud53c", "\ub2e4\uc74c\uc8fc", "\ub2e4\ub2e4\uc74c\uc8fc", "\uc774\ubc88\uc8fc", "\uc8fc\ub9d0", "\uc77c\uc8fc\uc77c \ub4a4", "\uc77c\uc8fc\uc77c \ud6c4"])
+    # compact/spacing variants like "2일뒤", "3일 후", "2주뒤", "1주 후"
+    if re.search(r"\d+\s*\uc77c\s*(?:\ub4a4|\ud6c4)", t):
+        return True
+    if re.search(r"\d+\s*\uc8fc(?:\uc77c)?\s*(?:\ub4a4|\ud6c4)", t):
+        return True
+    return _contains(t, ["\uc624\ub298", "\ub0b4\uc77c", "\ubaa8\ub808", "\uae00\ud53c", "\ub2e4\uc74c\uc8fc", "\ub2e4\ub2e4\uc74c\uc8fc", "\uc774\ubc88\uc8fc", "\uc8fc\ub9d0", "\uc77c\uc8fc\uc77c \ub4a4", "\uc77c\uc8fc\uc77c \ud6c4"])
 
 
 def _is_date_correction_message(text: str) -> bool:
@@ -503,6 +535,12 @@ def _parse_flight_slots(message: str, context: str) -> dict[str, Any]:
         parsed["trip_type"] = "oneway"
     else:
         parsed["trip_type"] = None
+
+    # Server-side relative date parser is more reliable for compact Korean forms
+    # like "2일뒤", "3일후". Apply it early from the current utterance first.
+    d_inline = _parse_rel_date(message)
+    if d_inline:
+        parsed["departure_date"] = d_inline.strftime("%Y-%m-%d")
 
     # LLM extracts date expressions, server resolves/calculates/validates.
     date_context = "" if _is_date_correction_message(message) else context
@@ -802,10 +840,10 @@ def _should_ask_intent_clarification(message: str, prev_state: Optional[dict[str
 
 def _is_route_guidance_query(message: str) -> bool:
     m = (message or "").lower()
-    route_phrases = ["?? ??", "???", "??? ?", "?? ??", "????", "???", "how to get", "how do i get"]
-    flight_phrases = ["??", "???", "???", "???", "??", "??", "??", "flight", "airfare"]
+    route_phrases = ["\uac00\ub294 \ubc29\ubc95", "\uac00\ub294\ubc95", "\uc5b4\ub5bb\uac8c \uac00", "\uc774\ub3d9 \ubc29\ubc95", "\uc774\ub3d9\ubc29\ubc95", "\uad50\ud1b5\ud3b8", "how to get", "how do i get"]
+    flight_phrases = ["\ud56d\uacf5", "\ud56d\uacf5\ud3b8", "\ud56d\uacf5\uad8c", "\ube44\ud589\uae30", "\uc9c1\ud56d", "\uc655\ubcf5", "\ud3b8\ub3c4", "flight", "airfare"]
     has_route_phrase = _contains(m, route_phrases)
-    has_place_connector = ("??" in m and ("?" in m or "??" in m)) or (" from " in m and " to " in m)
+    has_place_connector = ("\uc5d0\uc11c" in m and ("\uac00" in m or "\uae4c\uc9c0" in m)) or (" from " in m and " to " in m)
     return has_route_phrase and has_place_connector and not _contains(m, flight_phrases)
 
 def _should_keep_knowledge_followup(message: str, prev_state: Optional[dict[str, Any]] = None) -> bool:
@@ -1707,10 +1745,10 @@ def _rewrite_sports_travel_fallback(message: str, context: str) -> Optional[str]
 
 def _is_budget_destination_recommendation_query(message: str) -> bool:
     m = (message or "").lower()
-    budget = ["???", "??", "??", "? ??", "??", "??", "budget", "cheap", "affordable"]
-    rec = ["??", "???", "???", "??", "??", "???", "trip", "destination"]
-    region = ["???", "??", "??", "??", "southeast asia", "asia"]
-    return (_contains(m, budget) and _contains(m, rec)) or (_contains(m, ["???"]) and _contains(m, rec)) or (_contains(m, region) and _contains(m, ["???", "??"]))
+    budget = ["\uac00\uc131\ube44", "\uc608\uc0b0", "\ub9cc\uc6d0", "\uc6d0 \uc774\ud558", "\uc800\ub834", "\uc2f8\uac8c", "budget", "cheap", "affordable"]
+    rec = ["\ucd94\ucc9c", "\ucd94\ucc9c\uc9c0", "\uc5ec\ud589\uc9c0", "\uc5b4\ub514", "\uac08\ub9cc", "\uac00고\uc2f6", "trip", "destination"]
+    region = ["\ub3d9\ub0a8\uc544", "\uc77c\ubcf8", "\uc720\ub7fd", "\ud574\uc678", "southeast asia", "asia"]
+    return (_contains(m, budget) and _contains(m, rec)) or (_contains(m, ["\ub3d9\ub0a8\uc544"]) and _contains(m, rec)) or (_contains(m, region) and _contains(m, ["\uac00\uc131\ube44", "\ucd94\ucc9c"]))
 
 
 def _rewrite_budget_destination_fallback(message: str, context: str) -> Optional[str]:
@@ -1721,15 +1759,15 @@ def _rewrite_budget_destination_fallback(message: str, context: str) -> Optional
                 {
                     "role": "system",
                     "content": (
-                        "?? ?? ?? ?? ????. RAG ??? ???? ???? ?? ?? ???? ????? ???. "
-                        "??? ??? ???? ??, ?? ??? ??? ? ??? ?? ?? ? ???? 3~5? ????. "
-                        "??? ???, ?? ???? ?? ??? ??/?? ???? ????. "
-                        "? ???? ? ???? ???(??/??/??/??/???) ? ?? ??, ???? ?? ?? ? 2~3?? ???."
+                        "\ub108\ub294 \uc5ec\ud589 \uc608\uc0b0 \uc0c1\ub2f4 \ub3c4\uc6b0\ubbf8\ub2e4. RAG \uadfc\uac70\uac00 \ubd80\uc871\ud574\ub3c4 \uc77c\ubc18\uc801\uc778 \uc5ec\ud589 \uc0c1\uc2dd \ubc94\uc704\uc5d0\uc11c \uc2e4\uc6a9\uc801\uc73c\ub85c \ub2f5\ud558\ub77c. "
+                        "\uc2e4\uc2dc\uac04 \uac00\uaca9\uc744 \ub2e8\uc815\ud558\uc9c0 \ub9d0\uace0, \uc608\uc0b0 \uae30\uc900\uc774 \ub2ec\ub77c\uc9c8 \uc218 \uc788\uc74c\uc744 \uc9e7\uac8c \ubc1d\ud78c \ub4a4 \ud6c4\ubcf4\uc9c0\ub97c 3~5\uac1c \ucd94\ucc9c\ud558\ub77c. "
+                        "\ub2f5\ubcc0\uc740 \ud55c\uad6d\uc5b4\ub85c, \uacfc\ud55c \ub9c8\ud06c\ub2e4\uc6b4(###, ** \ub4f1) \uc5c6\uc774 \uae54\ub054\ud55c \ubb38\uc7a5/\ubc88\ud638 \ubaa9\ub85d\uc73c\ub85c \uc791\uc131\ud558\ub77c. "
+                        "\uac01 \ud6c4\ubcf4\ub9c8\ub2e4 \uc65c \uac00\uc131\ube44\uac00 \uc88b\uc740\uc9c0(\ud56d\uacf5/\uc219\uc18c/\ubb3c\uac00/\uc774\ub3d9/\uc2dc\uc98c\uc131)\ub97c \ud55c \uc904\uc529 \uc801\uace0, \ub9c8\uc9c0\ub9c9\uc5d0 \ube44\uc6a9 \uc808\uc57d \ud301 2~3\uac1c\ub97c \ubd99\uc5ec\ub77c."
                     ),
                 },
                 {
                     "role": "user",
-                    "content": f"?? ??:\n{context}\n\n??: {message}",
+                    "content": f"\ucd5c\uadfc \ub300\ud654:\n{context}\n\n\uc9c8\ubb38: {message}",
                 },
             ],
             temperature=0.4,
@@ -1737,7 +1775,6 @@ def _rewrite_budget_destination_fallback(message: str, context: str) -> Optional
         return (r.choices[0].message.content or "").strip() or None
     except Exception:
         return None
-
 
 def _answer_knowledge(message: str, context: str, prev_state: Optional[dict[str, Any]] = None):
     msg = message or ""
@@ -1845,16 +1882,16 @@ def _answer_knowledge(message: str, context: str, prev_state: Optional[dict[str,
             and any(
                 x in content
                 for x in [
-                    "?? ??? ?? ?????",
-                    "???",
-                    "??? ? ????",
-                    "?????",
-                    "?? ??",
+                    "\uad00\ub828 \ubb38\uc11c\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
+                    "\uc81c\uacf5\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4",
+                    "\ubb38\ub9e5\uc5d0",
+                    "\uc8c4\uc1a1\ud558\uc9c0\ub9cc",
+                    "\ud655\uc778 \ud544\uc694",
                 ]
             )
         ):
             broad_query = _build_knowledge_retrieval_query(
-                message=f"{message} ?? ?? ???? ?? ?? ???? ?? ????",
+                message=f"{message} \uc548\uc804 \uce58\uc548 \uc8fc\uc758\uc0ac\ud56d \ubc94\uc8c4 \uacbd\ucc30 \uae34\uae09\ubc88\ud638",
                 country_code=country_code,
                 city_name=None,
                 topic=None,

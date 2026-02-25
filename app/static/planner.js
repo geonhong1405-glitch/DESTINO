@@ -175,11 +175,11 @@
     function parseFlightTableCards(rawHtml) {
         const html = String(rawHtml || "");
         if (!html.includes("<table") || !/API/.test(html)) return [];
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html;
         const metaText = (wrap.textContent || "").replace(/\s+/g, " ");
         const hasReturnDateField = metaText.includes("\uBCF5\uADC0\uC77C:");
         const isRoundTrip = hasReturnDateField && !metaText.includes("\uBCF5\uADC0\uC77C: -");
-        const wrap = document.createElement("div");
-        wrap.innerHTML = html;
         const table = wrap.querySelector("table");
         if (!table) return [];
         const cards = [];
@@ -288,7 +288,7 @@
                                 <span class="ai-flight-card__duration-label">${escapeHtml(durationLabel)}</span>
                             </div>
                             <div class="ai-flight-card__line"></div>
-                            <div class="ai-flight-card__routeinfo">${escapeHtml(routeInfoText)}</div>
+                            <div class="ai-flight-card__routeinfo">${escapeHtml(routeInfo)}</div>
                         </div>
                         <div class="ai-flight-card__point">
                             <div class="ai-flight-card__time">${escapeHtml(arrTime)}</div>
