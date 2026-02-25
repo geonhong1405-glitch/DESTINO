@@ -3,11 +3,31 @@ document.addEventListener('DOMContentLoaded', () => {
   initRentalApp();
 });
 
+const DESTINATION_REGIONS = [
+  { key: 'jp', label: '일본', countryCode: 'JP', cities: ['도쿄', '오사카', '후쿠오카', '삿포로', '오키나와', '나고야', '교토', '고베'] },
+  { key: 'sea', label: '동남아', countryCode: 'TH', cities: ['방콕', '푸켓', '치앙마이', '파타야', '다낭', '하노이', '호치민', '싱가포르'] },
+  { key: 'cn', label: '홍콩/마카오/중국', countryCode: 'TW', cities: ['타이베이', '타이중', '가오슝', '홍콩', '마카오', '상하이'] },
+  { key: 'pac', label: '남태평양', countryCode: 'US', cities: ['하와이', '괌', '사이판'] },
+  { key: 'us', label: '미주', countryCode: 'US', cities: ['뉴욕', '로스앤젤레스', '라스베이거스', '샌프란시스코'] },
+  { key: 'eu', label: '유럽', countryCode: 'FR', cities: ['파리', '로마', '런던', '바르셀로나'] },
+  { key: 'mea', label: '중동/아프리카', countryCode: 'AE', cities: ['두바이', '아부다비', '도하'] },
+];
+
 function initRentalApp() {
   const initial = window.__RENTAL_INITIAL__ || {};
   const els = {
     overlay: document.getElementById('overlay'),
     form: document.getElementById('rentalSearchForm'),
+
+    destinationGroup: document.getElementById('destinationInputGroup'),
+    destinationPopover: document.getElementById('destinationPopover'),
+    destinationDisplay: document.getElementById('destinationDisplay'),
+    destinationRegionList: document.getElementById('destinationRegionList'),
+    destinationCityGrid: document.getElementById('destinationCityGrid'),
+    destinationPanelTitle: document.getElementById('destinationPanelTitle'),
+    countryCodeHidden: document.getElementById('countryCodeHidden'),
+    cityHintHidden: document.getElementById('cityHintHidden'),
+
     pickupGroup: document.getElementById('pickupLocInputGroup'),
     dropoffGroup: document.getElementById('dropoffLocInputGroup'),
     pickupPopover: document.getElementById('pickupLocPopover'),
@@ -45,8 +65,10 @@ function initRentalApp() {
   const state = {
     pickup: { category: 'all', items: [], timer: null },
     dropoff: { category: 'all', items: [], timer: null },
+    destinationRegionKey: 'jp',
   };
 
+  initDestinationPicker(els, state, initial);
   initDates(els, initial);
   bindPopoverToggles(els);
   bindDateHandlers(els);
@@ -64,6 +86,88 @@ function initRentalApp() {
   }
   renderLocationList(els, 'pickup', []);
   renderLocationList(els, 'dropoff', []);
+}
+
+function initDestinationPicker(els, state, initial) {
+  const cityHint = (initial.cityHint || '').trim();
+  const countryCode = String(initial.countryCode || els.countryCodeHidden?.value || 'JP').toUpperCase();
+  const region = DESTINATION_REGIONS.find((r) => r.countryCode === countryCode) || DESTINATION_REGIONS[0];
+  state.destinationRegionKey = region.key;
+
+  if (els.countryCodeHidden) els.countryCodeHidden.value = countryCode;
+  if (els.cityHintHidden && cityHint) els.cityHintHidden.value = cityHint;
+  if (els.destinationDisplay) {
+    els.destinationDisplay.textContent = cityHint || region.label;
+  }
+
+  renderDestinationRegions(els, state);
+  renderDestinationCities(els, state);
+
+  if (els.destinationGroup) {
+    els.destinationGroup.addEventListener('click', () => {
+      if (els.destinationPopover?.classList.contains('active')) return;
+      closeAllPopovers(els);
+      els.destinationPopover?.classList.add('active');
+      els.overlay?.classList.add('active');
+    });
+  }
+}
+
+function renderDestinationRegions(els, state) {
+  if (!els.destinationRegionList) return;
+  els.destinationRegionList.innerHTML = DESTINATION_REGIONS.map((r) => `
+    <button type="button" class="destination-region-btn ${state.destinationRegionKey === r.key ? 'active' : ''}" data-region="${r.key}">
+      ${escapeHtml(r.label)}
+    </button>
+  `).join('');
+
+  els.destinationRegionList.querySelectorAll('.destination-region-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.destinationRegionKey = btn.dataset.region || state.destinationRegionKey;
+      renderDestinationRegions(els, state);
+      renderDestinationCities(els, state);
+    });
+  });
+}
+
+function renderDestinationCities(els, state) {
+  const region = DESTINATION_REGIONS.find((r) => r.key === state.destinationRegionKey) || DESTINATION_REGIONS[0];
+  if (els.destinationPanelTitle) {
+    els.destinationPanelTitle.textContent = `${region.label} 주요 도시`;
+  }
+  if (!els.destinationCityGrid) return;
+  els.destinationCityGrid.innerHTML = region.cities.map((city) => `
+    <button type="button" class="destination-city-btn" data-country="${region.countryCode}" data-city="${escapeHtml(city)}">${escapeHtml(city)}</button>
+  `).join('');
+
+  els.destinationCityGrid.querySelectorAll('.destination-city-btn').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const countryCode = btn.dataset.country || 'JP';
+      const city = btn.dataset.city || '';
+      if (els.countryCodeHidden) els.countryCodeHidden.value = countryCode;
+      if (els.cityHintHidden) els.cityHintHidden.value = city;
+      if (els.destinationDisplay) els.destinationDisplay.textContent = city || region.label;
+
+      resetSelectedLocations(els);
+      if (els.pickupSearchInput) els.pickupSearchInput.value = city;
+      if (els.dropoffSearchInput) els.dropoffSearchInput.value = city;
+      closeAllPopovers(els);
+
+      // Auto-open pickup place selection results for chosen city.
+      await triggerLocationSearch(els, state, 'pickup', city);
+      if (els.pickupPopover) {
+        els.pickupPopover.classList.add('active');
+        els.overlay?.classList.add('active');
+      }
+    });
+  });
+}
+
+function closeAllPopovers(els) {
+  document.querySelectorAll('.popover-container').forEach((p) => p.classList.remove('active'));
+  els.overlay?.classList.remove('active');
 }
 
 function initDates(els, initial) {
@@ -89,25 +193,22 @@ function bindPopoverToggles(els) {
     [els.startGroup, els.startPopover],
     [els.endGroup, els.endPopover],
   ];
-  function closeAll() {
-    document.querySelectorAll('.popover-container').forEach((p) => p.classList.remove('active'));
-    els.overlay.classList.remove('active');
-  }
-  els.overlay.addEventListener('click', closeAll);
+
+  els.overlay?.addEventListener('click', () => closeAllPopovers(els));
   document.querySelectorAll('.popover-container').forEach((p) => p.addEventListener('click', (e) => e.stopPropagation()));
-  document.querySelectorAll('.btn-confirm').forEach((b) => b.addEventListener('click', closeAll));
+  document.querySelectorAll('.btn-confirm').forEach((b) => b.addEventListener('click', () => closeAllPopovers(els)));
+
   pairs.forEach(([group, pop]) => {
     if (!group || !pop) return;
     group.addEventListener('click', () => {
       const active = pop.classList.contains('active');
-      closeAll();
+      closeAllPopovers(els);
       if (!active) {
         pop.classList.add('active');
-        els.overlay.classList.add('active');
+        els.overlay?.classList.add('active');
       }
     });
   });
-  window.__rentalClosePopovers = closeAll;
 }
 
 function bindDateHandlers(els) {
@@ -123,6 +224,7 @@ function bindLocationSearch(els, state, target) {
   const searchInput = target === 'pickup' ? els.pickupSearchInput : els.dropoffSearchInput;
   const popover = target === 'pickup' ? els.pickupPopover : els.dropoffPopover;
   const categoryButtons = Array.from(popover.querySelectorAll('.sidebar-btn'));
+
   categoryButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       categoryButtons.forEach((b) => b.classList.remove('active'));
@@ -131,10 +233,23 @@ function bindLocationSearch(els, state, target) {
       triggerLocationSearch(els, state, target, searchInput.value.trim());
     });
   });
+
   searchInput.addEventListener('input', () => {
     const q = searchInput.value.trim();
     clearTimeout(state[target].timer);
     state[target].timer = setTimeout(() => triggerLocationSearch(els, state, target, q), 220);
+  });
+
+  const group = target === 'pickup' ? els.pickupGroup : els.dropoffGroup;
+  group.addEventListener('click', () => {
+    const fallbackQ = searchInput.value.trim()
+      || (target === 'dropoff' ? (els.pickupNameHidden.value || '') : '')
+      || (els.cityHintHidden?.value || '')
+      || (els.destinationDisplay?.textContent || '');
+    if (fallbackQ) {
+      searchInput.value = fallbackQ;
+      triggerLocationSearch(els, state, target, fallbackQ);
+    }
   });
 }
 
@@ -143,27 +258,31 @@ async function triggerLocationSearch(els, state, target, q) {
   if (!q) return;
   try {
     const category = state[target].category || 'all';
-    const url = `/api/rental/location-search?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`;
+    const countryCode = els.countryCodeHidden?.value || 'JP';
+    const url = `/api/rental/location-search?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}&country_code=${encodeURIComponent(countryCode)}`;
     const resp = await fetch(url, { headers: { Accept: 'application/json' } });
     const data = await resp.json();
     const items = Array.isArray(data.items) ? data.items : [];
     state[target].items = items;
     renderLocationList(els, target, items);
-  } catch (e) {
+  } catch (_e) {
     renderLocationList(els, target, [], '지역 검색 중 오류가 발생했습니다.');
   }
 }
 
 function renderLocationList(els, target, items, errorMsg) {
   const listEl = target === 'pickup' ? els.pickupLocationList : els.dropoffLocationList;
+  if (!listEl) return;
   if (errorMsg) {
     listEl.innerHTML = `<div class="location-empty">${escapeHtml(errorMsg)}</div>`;
     return;
   }
   if (!items.length) {
-    listEl.innerHTML = '<div class="location-empty">도시/공항/역을 검색하세요.</div>';
+    const hint = els.cityHintHidden?.value || '도시/공항/역';
+    listEl.innerHTML = `<div class="location-empty">검색 결과가 없습니다. 예: ${escapeHtml(hint)}</div>`;
     return;
   }
+
   const iconByCategory = { airport: 'plane', station: 'train', city: 'map-pin', all: 'map-pin' };
   listEl.innerHTML = items.map((item, idx) => `
     <button type="button" class="location-item" data-idx="${idx}">
@@ -190,19 +309,30 @@ function selectLocation(els, target, item) {
   const nameHidden = isPickup ? els.pickupNameHidden : els.dropoffNameHidden;
   const latHidden = isPickup ? els.pickupLatHidden : els.dropoffLatHidden;
   const lonHidden = isPickup ? els.pickupLonHidden : els.dropoffLonHidden;
+
   display.textContent = item.name || '장소 선택';
   nameHidden.value = item.name || '';
   latHidden.value = item.lat ?? '';
   lonHidden.value = item.lon ?? '';
 
-  // First pickup selection seeds dropoff if dropoff is empty.
   if (isPickup && !els.dropoffNameHidden.value) {
     els.dropoffDisplay.textContent = item.name || '장소 선택';
     els.dropoffNameHidden.value = item.name || '';
     els.dropoffLatHidden.value = item.lat ?? '';
     els.dropoffLonHidden.value = item.lon ?? '';
   }
-  if (typeof window.__rentalClosePopovers === 'function') window.__rentalClosePopovers();
+  closeAllPopovers(els);
+}
+
+function resetSelectedLocations(els) {
+  els.pickupDisplay.textContent = '대여 장소를 선택하세요';
+  els.dropoffDisplay.textContent = '반납 장소를 선택하세요 (기본: 대여 장소)';
+  els.pickupNameHidden.value = '';
+  els.pickupLatHidden.value = '';
+  els.pickupLonHidden.value = '';
+  els.dropoffNameHidden.value = '';
+  els.dropoffLatHidden.value = '';
+  els.dropoffLonHidden.value = '';
 }
 
 function bindFormSubmit(els) {
@@ -218,7 +348,6 @@ function bindFormSubmit(els) {
       return;
     }
     if (!els.dropoffLatHidden.value || !els.dropoffLonHidden.value) {
-      // fallback to pickup
       els.dropoffNameHidden.value = els.pickupNameHidden.value;
       els.dropoffLatHidden.value = els.pickupLatHidden.value;
       els.dropoffLonHidden.value = els.pickupLonHidden.value;
@@ -272,4 +401,3 @@ function escapeHtml(s) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
-

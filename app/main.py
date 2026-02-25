@@ -1185,7 +1185,7 @@ def dedupe_hotels(hotels: list[dict]) -> list[dict]:
             continue
         seen.add(key)
         out.append(h)
-    return out or _local_match()
+    return out
 
 
 # DB table bootstrap
@@ -1821,7 +1821,8 @@ def gloval_hotel_detail(
 @app.get("/gloval", response_class=HTMLResponse)
 def gloval_alias(request: Request):
     # Legacy route alias
-    return templates.TemplateResponse("gloval-hotel.html", {"request": request})
+    nickname = get_nickname_from_request(request)
+    return templates.TemplateResponse("gloval-hotel.html", {"request": request, "nickname": nickname})
 
 
 @app.get("/users")
@@ -1862,8 +1863,6 @@ def create_user(
     db.commit()
     db.refresh(user)
     return RedirectResponse(url="/login", status_code=302)
-
-
 
 
 
