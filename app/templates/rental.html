@@ -4,101 +4,91 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DESTINO - 렌터카 예약</title>
-    <!-- Pretendard 폰트 -->
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
-    <!-- 외부 스타일시트 연결 -->
     <link rel="stylesheet" href="../static/rental.css">
-    <!-- Lucide 아이콘 -->
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-
-    <!-- Header -->
-        <header class="header">
-            <div class="container header-inner">
-                <h1 class="logo"><a href="/">DESTINO</a></h1>
-                <nav class="header-nav">
-                    {% if nickname %}
-                    <a href="/mypage">
-                        <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
-                    </a>
-                    <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
-                    {% else %}
-                    <a href="/login">로그인</a>
-                    {% endif %}
-                    <a href="#">이용안내</a>
-                    <a href="#">고객센터</a>
-                    <a href="#">KOR</a>
-                </nav>
-            </div>
-        </header>
+    <header class="header">
+        <div class="container header-inner">
+            <h1 class="logo"><a href="/">DESTINO</a></h1>
+            <nav class="header-nav">
+                {% if nickname %}
+                <a href="/mypage"><span style="font-weight:700; color:#00aaff">{{ nickname }}</span></a>
+                <a href="/logout" style="margin-left:15px; color:#ff5555; font-weight:700">로그아웃</a>
+                {% else %}
+                <a href="/login">로그인</a>
+                {% endif %}
+                <a href="#">이용안내</a>
+                <a href="#">고객센터</a>
+                <a href="#">KOR</a>
+            </nav>
+        </div>
+    </header>
 
     <main>
         <div class="overlay" id="overlay"></div>
 
         <section class="hero-section">
             <h1 class="hero-title">가장 편안한 여행의 시작, 렌터카 예약</h1>
-
             <div class="search-widget">
-                <div class="search-form">
-                    <!-- 대여 장소 -->
-                    <div class="input-group" id="locInputGroup">
-                        <label><i data-lucide="map-pin" width="14"></i> 대여 및 반납 장소</label>
-                        <div class="display-text" id="locDisplay">장소를 선택하세요</div>
-                        
-                        <div class="popover-container" id="locPopover">
+                <form class="search-form rental-grid" id="rentalSearchForm" method="get" action="/rental">
+                    <div class="input-group" id="pickupLocInputGroup">
+                        <label><i data-lucide="map-pin" width="14"></i> 대여 장소</label>
+                        <div class="display-text" id="pickupLocDisplay">{{ pickup_name or '대여 장소를 선택하세요' }}</div>
+                        <input type="hidden" name="pickup_name" id="pickupNameHidden" value="{{ pickup_name or '' }}">
+                        <input type="hidden" name="pickup_lat" id="pickupLatHidden" value="{{ pickup_lat or '' }}">
+                        <input type="hidden" name="pickup_lon" id="pickupLonHidden" value="{{ pickup_lon or '' }}">
+                        <div class="popover-container" id="pickupLocPopover">
                             <div class="popover-sidebar">
-                                <button class="sidebar-btn active" data-category="all">전체</button>
-                                <button class="sidebar-btn" data-category="airport">항공</button>
-                                <button class="sidebar-btn" data-category="station">역</button>
-                                <button class="sidebar-btn" data-category="city">도시</button>
+                                <button type="button" class="sidebar-btn active" data-target="pickup" data-category="all">전체</button>
+                                <button type="button" class="sidebar-btn" data-target="pickup" data-category="airport">공항</button>
+                                <button type="button" class="sidebar-btn" data-target="pickup" data-category="station">역</button>
+                                <button type="button" class="sidebar-btn" data-target="pickup" data-category="city">도시</button>
                             </div>
                             <div class="popover-main">
-                                <input type="text" id="locSearchInput" class="popover-search-input" placeholder="도시, 공항, 역 검색">
-                                <div class="location-list" id="locationList">
-                                    <div class="location-item" data-cat="airport" data-name="제주국제공항 (CJU)">
-                                        <i data-lucide="plane" width="16"></i>
-                                        <div class="loc-info"><span class="loc-name">제주국제공항</span><span class="loc-sub">제주특별자치도</span></div>
-                                    </div>
-                                    <div class="location-item" data-cat="station" data-name="서울역">
-                                        <i data-lucide="train" width="16"></i>
-                                        <div class="loc-info"><span class="loc-name">서울역</span><span class="loc-sub">서울특별시</span></div>
-                                    </div>
-                                    <div class="location-item" data-cat="airport" data-name="김포국제공항 (GMP)">
-                                        <i data-lucide="plane" width="16"></i>
-                                        <div class="loc-info"><span class="loc-name">김포국제공항</span><span class="loc-sub">서울특별시</span></div>
-                                    </div>
-                                    <div class="location-item" data-cat="city" data-name="강남역 인근">
-                                        <i data-lucide="map-pin" width="16"></i>
-                                        <div class="loc-info"><span class="loc-name">강남역 인근</span><span class="loc-sub">서울특별시</span></div>
-                                    </div>
-                                    <div class="location-item" data-cat="station" data-name="부산역">
-                                        <i data-lucide="train" width="16"></i>
-                                        <div class="loc-info"><span class="loc-name">부산역</span><span class="loc-sub">부산광역시</span></div>
-                                    </div>
-                                </div>
+                                <input type="text" id="pickupLocSearchInput" class="popover-search-input" placeholder="도시, 공항, 역 검색">
+                                <div class="location-list" id="pickupLocationList"></div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- 대여 일시 -->
+                    <div class="input-group" id="dropoffLocInputGroup">
+                        <label><i data-lucide="corner-down-left" width="14"></i> 반납 장소</label>
+                        <div class="display-text" id="dropoffLocDisplay">{{ dropoff_name or '반납 장소를 선택하세요 (기본: 대여 장소)' }}</div>
+                        <input type="hidden" name="dropoff_name" id="dropoffNameHidden" value="{{ dropoff_name or '' }}">
+                        <input type="hidden" name="dropoff_lat" id="dropoffLatHidden" value="{{ dropoff_lat or '' }}">
+                        <input type="hidden" name="dropoff_lon" id="dropoffLonHidden" value="{{ dropoff_lon or '' }}">
+                        <div class="popover-container" id="dropoffLocPopover">
+                            <div class="popover-sidebar">
+                                <button type="button" class="sidebar-btn active" data-target="dropoff" data-category="all">전체</button>
+                                <button type="button" class="sidebar-btn" data-target="dropoff" data-category="airport">공항</button>
+                                <button type="button" class="sidebar-btn" data-target="dropoff" data-category="station">역</button>
+                                <button type="button" class="sidebar-btn" data-target="dropoff" data-category="city">도시</button>
+                            </div>
+                            <div class="popover-main">
+                                <input type="text" id="dropoffLocSearchInput" class="popover-search-input" placeholder="도시, 공항, 역 검색">
+                                <div class="location-list" id="dropoffLocationList"></div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="input-group" id="startInputGroup">
                         <label><i data-lucide="calendar" width="14"></i> 대여 일시</label>
-                        <div class="display-text" id="startDtDisplay">날짜와 시간 선택</div>
+                        <div class="display-text" id="startDtDisplay">날짜와 시간을 선택</div>
                         <div class="popover-container datetime-popover" id="startDtPopover">
                             <div class="dt-section-title">대여 날짜 및 시간</div>
                             <div class="dt-grid">
                                 <input type="date" class="dt-input" id="startDate">
                                 <input type="time" class="dt-input" id="startTime" value="10:00">
                             </div>
-                            <button class="btn-confirm btn-search">확인</button>
+                            <button type="button" class="btn-confirm btn-search">확인</button>
                         </div>
                     </div>
 
-                    <!-- 반납 일시 -->
                     <div class="input-group" id="endInputGroup">
                         <label><i data-lucide="calendar-check" width="14"></i> 반납 일시</label>
-                        <div class="display-text" id="endDtDisplay">날짜와 시간 선택</div>
+                        <div class="display-text" id="endDtDisplay">날짜와 시간을 선택</div>
                         <div class="popover-container datetime-popover" id="endDtPopover">
                             <div class="dt-section-title">반납 날짜 및 시간</div>
                             <div class="dt-grid">
@@ -106,130 +96,137 @@
                                 <input type="time" class="dt-input" id="endTime" value="10:00">
                             </div>
                             <div class="dt-error-msg" id="dtError">반납 일시는 대여 일시보다 빠를 수 없습니다.</div>
-                            <button class="btn-confirm btn-search">확인</button>
+                            <button type="button" class="btn-confirm btn-search">확인</button>
                         </div>
                     </div>
 
-                    <button class="btn-search">차량 검색</button>
-                </div>
+                    <input type="hidden" name="pickup_at" id="pickupAtHidden" value="{{ pickup_at or '' }}">
+                    <input type="hidden" name="dropoff_at" id="dropoffAtHidden" value="{{ dropoff_at or '' }}">
+                    <input type="hidden" name="sort" id="sortHidden" value="{{ sort or 'price_asc' }}">
+                    <input type="hidden" name="min_seats" id="minSeatsHidden" value="{{ min_seats or '' }}">
+                    <input type="hidden" name="transmission" id="transmissionHidden" value="{{ transmission or 'all' }}">
+                    <button class="btn-search rental-search-btn" id="rentalSearchBtn" type="submit">차량 검색</button>
+                </form>
             </div>
         </section>
 
         <section class="container">
             <h2 class="section-title">DESTINO만의 렌터카 혜택</h2>
             <div class="benefit-grid">
-                <div class="benefit-card">
-                    <span class="benefit-icon">🛡️</span>
-                    <h3>완전 자차 100% 보장</h3>
-                    <p>현장에서 추가 결제 없는 완전 자차 보험이 포함된 가격입니다.</p>
-                </div>
-                <div class="benefit-card">
-                    <span class="benefit-icon">⚡</span>
-                    <h3>대기 없는 빠른 인수</h3>
-                    <p>모바일 체크인으로 서류 작성 없이 바로 차량을 인수하세요.</p>
-                </div>
-                <div class="benefit-card">
-                    <span class="benefit-icon">🧼</span>
-                    <h3>청결 우선 안심 차량</h3>
-                    <p>모든 차량은 대여 전 살균 소독 및 세차를 거쳐 제공됩니다.</p>
-                </div>
+                <div class="benefit-card"><span class="benefit-icon">🛡️</span><h3>안전 보장</h3><p>기본 보장 조건을 포함한 렌터카 상품을 빠르게 비교합니다.</p></div>
+                <div class="benefit-card"><span class="benefit-icon">⚡</span><h3>빠른 비교</h3><p>대여/반납 장소와 시간을 기준으로 실시간 옵션을 조회합니다.</p></div>
+                <div class="benefit-card"><span class="benefit-icon">📍</span><h3>지역 검색 지원</h3><p>도시, 공항, 역 단위로 대여/반납 장소를 각각 검색할 수 있습니다.</p></div>
             </div>
 
-            <h2 class="section-title">지금 예약 가능한 차량</h2>
+            <div class="rental-result-bar">
+                <h2 class="section-title" style="margin:0;">지금 예약 가능한 차량</h2>
+                <form method="get" action="/rental" class="rental-filters">
+                    <input type="hidden" name="pickup_name" value="{{ pickup_name or '' }}">
+                    <input type="hidden" name="pickup_lat" value="{{ pickup_lat or '' }}">
+                    <input type="hidden" name="pickup_lon" value="{{ pickup_lon or '' }}">
+                    <input type="hidden" name="dropoff_name" value="{{ dropoff_name or '' }}">
+                    <input type="hidden" name="dropoff_lat" value="{{ dropoff_lat or '' }}">
+                    <input type="hidden" name="dropoff_lon" value="{{ dropoff_lon or '' }}">
+                    <input type="hidden" name="pickup_at" value="{{ pickup_at or '' }}">
+                    <input type="hidden" name="dropoff_at" value="{{ dropoff_at or '' }}">
+                    <label class="filter-field">
+                        <span>정렬</span>
+                        <select name="sort">
+                            <option value="price_asc" {% if (sort or 'price_asc') == 'price_asc' %}selected{% endif %}>가격 낮은순</option>
+                            <option value="price_desc" {% if sort == 'price_desc' %}selected{% endif %}>가격 높은순</option>
+                            <option value="rating" {% if sort == 'rating' %}selected{% endif %}>평점순</option>
+                            <option value="name" {% if sort == 'name' %}selected{% endif %}>이름순</option>
+                        </select>
+                    </label>
+                    <label class="filter-field">
+                        <span>최소 좌석</span>
+                        <select name="min_seats">
+                            <option value="" {% if not min_seats %}selected{% endif %}>전체</option>
+                            <option value="4" {% if min_seats == 4 %}selected{% endif %}>4인승+</option>
+                            <option value="5" {% if min_seats == 5 %}selected{% endif %}>5인승+</option>
+                            <option value="7" {% if min_seats == 7 %}selected{% endif %}>7인승+</option>
+                        </select>
+                    </label>
+                    <label class="filter-field">
+                        <span>변속기</span>
+                        <select name="transmission">
+                            <option value="all" {% if (transmission or 'all') == 'all' %}selected{% endif %}>전체</option>
+                            <option value="auto" {% if transmission == 'auto' %}selected{% endif %}>오토</option>
+                            <option value="manual" {% if transmission == 'manual' %}selected{% endif %}>수동</option>
+                        </select>
+                    </label>
+                    <button type="submit" class="btn-filter-apply">적용</button>
+                </form>
+            </div>
+
+            {% if rental_error %}
+            <div style="background:#fff; border:1px solid #fecaca; color:#991b1b; border-radius:12px; padding:14px 16px; margin:18px 0;">
+                {{ rental_error }}
+            </div>
+            {% endif %}
+
+            {% if rental_cars %}
+            <div class="rental-summary-line">
+                {% if pickup_name %}<span>{{ pickup_name }}</span>{% endif %}
+                {% if dropoff_name and dropoff_name != pickup_name %}<span>→ {{ dropoff_name }}</span>{% endif %}
+                {% if rental_days %}<span>· 총 {{ rental_days }}일</span>{% endif %}
+                <span>· 차량 {{ rental_cars|length }}개</span>
+            </div>
             <div class="car-grid">
+                {% for car in rental_cars %}
                 <div class="car-card">
-                    <div class="car-img-box"><img src="https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?q=80&w=400&auto=format&fit=crop" class="car-img" alt="Avante"></div>
+                    <div class="car-img-box">
+                        <img src="{{ car.image if car.image else 'https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?q=80&w=400&auto=format&fit=crop' }}" class="car-img" alt="{{ car.name }}">
+                    </div>
                     <div class="car-info">
-                        <h3 class="car-name">현대 아반떼 CN7</h3>
-                        <div class="car-specs"><span>5인승</span>|<span>휘발유</span>|<span>금연</span></div>
-                        <div class="car-price-row"><div class="car-price">32,900<span>원/일</span></div></div>
+                        <h3 class="car-name">{{ car.name }}</h3>
+                        <div class="car-specs">
+                            <span>{{ car.supplier or 'Rental Partner' }}</span>
+                            {% for s in car.specs[:3] %}|<span>{{ s }}</span>{% endfor %}
+                        </div>
+                        {% if car.rating %}
+                        <div class="rental-rating">평점 {{ '%.1f'|format(car.rating) }}</div>
+                        {% endif %}
+                        <div class="car-price-row">
+                            <div class="car-price">
+                                {% if car.price %}{{ '{:,}'.format(car.price|int) }}{% else %}-{% endif %}
+                                <span>{{ car.currency or 'KRW' }} / 총액 추정</span>
+                            </div>
+                        </div>
+                        {% if car.price_per_day %}
+                        <div class="rental-price-sub">1일당 약 {{ '{:,}'.format(car.price_per_day|int) }} {{ car.currency or 'KRW' }}</div>
+                        {% endif %}
                     </div>
                 </div>
-                <!-- ... 추가 차량 카드 ... -->
+                {% endfor %}
             </div>
+            {% else %}
+            <div class="car-grid">
+                <div class="car-card">
+                    <div class="car-img-box"><img src="https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?q=80&w=400&auto=format&fit=crop" class="car-img" alt="sample car"></div>
+                    <div class="car-info">
+                        <h3 class="car-name">대여/반납 장소와 시간을 선택하면 실시간 차량을 조회합니다</h3>
+                        <div class="car-specs"><span>도시/공항/역 검색</span>|<span>필터/정렬 지원</span></div>
+                        <div class="car-price-row"><div class="car-price">실시간 조회<span>Booking API</span></div></div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </section>
     </main>
 
-    <footer class="footer">
-        <div class="footer-container">
-            <div class="footer-top">
-                <div class="footer-column">
-                    <h3>고객센터</h3>
-                    <p>오전 9시 ~ 새벽 3시 운영</p>
-                    <p>채팅 상담 문의: 24시간 운영</p>
-                    <div class="cs-buttons">
-                        <a href="tel:1670-0000" class="btn-cs">
-                            <span class="icon">📞</span>
-                            <div class="text">
-                                <strong>1670-0000</strong>
-                            </div>
-                        </a>
-                        <a href="#" class="btn-cs">
-                            <span class="icon">💬</span>
-                            <div class="text">
-                                <strong>채팅 상담</strong>
-                            </div>
-                        </a>
-                    </div>
-                </div>
-                <div class="footer-column">
-                    <h3>회사</h3>
-                    <ul>
-                        <li><a href="#">회사소개</a></li>
-                        <li><a href="#">채용정보</a></li>
-                        <li><a href="#">제휴문의</a></li>
-                    </ul>
-                </div>
-                <div class="footer-column">
-                    <h3>서비스</h3>
-                    <ul>
-                        <li><a href="#">공지사항</a></li>
-                        <li><a href="#">자주 묻는 질문</a></li>
-                        <li><a href="#">여행 매거진</a></li>
-                    </ul>
-                </div>
-                <div class="footer-column">
-                    <h3>혜택</h3>
-                    <ul>
-                        <li><a href="#">멤버십 안내</a></li>
-                        <li><a href="#">공동예매 가이드</a></li>
-                        <li><a href="#">포인트 정책</a></li>
-                    </ul>
-                </div>
-                <div class="footer-column">
-                    <h3>모든 여행</h3>
-                    <ul>
-                        <li><a href="#">국내 숙소</a></li>
-                        <li><a href="#">해외 숙소</a></li>
-                        <li><a href="#">항공권</a></li>
-                        <li><a href="#">렌터카</a></li>
-                    </ul>
-                </div>
-            </div>
-            <hr class="footer-divider" />
-            <div class="footer-bottom">
-                <div class="company-info">
-                    <p>(주)데스티노 컴퍼니 | 대표이사: 김여행 | 사업자등록번호: 000-00-00000</p>
-                    <p>주소: 서울특별시 강남구 테헤란로 123 | 이메일: help@destino.com</p>
-                    <p class="disclaimer">
-                        데스티노는 통신판매중개자로서 통신판매의 당사자가 아니며, 상품의 예약, 이용 및 환불 등과
-                        관련한 의무와 책임은 각 판매자에게 있습니다.
-                    </p>
-                    <div class="footer-policy">
-                        <a href="#">이용약관</a>
-                        <a href="#"><strong>개인정보처리방침</strong></a>
-                        <a href="#">소비자 분쟁해결 기준</a>
-                    </div>
-                </div>
-                <div class="social-links">
-                    <a href="#" class="social-icon">YouTube</a>
-                    <a href="#" class="social-icon">Instagram</a>
-                    <a href="#" class="social-icon">Facebook</a>
-                </div>
-            </div>
-        </div>
-    </footer>
-    <!-- 외부 스크립트 연결 -->
+    <script>
+        window.__RENTAL_INITIAL__ = {
+            pickupName: {{ (pickup_name or '')|tojson }},
+            pickupLat: {{ (pickup_lat or '')|tojson }},
+            pickupLon: {{ (pickup_lon or '')|tojson }},
+            dropoffName: {{ (dropoff_name or '')|tojson }},
+            dropoffLat: {{ (dropoff_lat or '')|tojson }},
+            dropoffLon: {{ (dropoff_lon or '')|tojson }},
+            pickupAt: {{ (pickup_at or '')|tojson }},
+            dropoffAt: {{ (dropoff_at or '')|tojson }}
+        };
+    </script>
     <script src="../static/rental.js"></script>
 </body>
 </html>

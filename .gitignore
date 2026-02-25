@@ -55,6 +55,10 @@ cover/
 *.mo
 *.pot
 
+# App logs / caches
+app/hotel_debug.log
+app/translate_cache.json
+
 # Django stuff:
 *.log
 local_settings.py

@@ -56,15 +56,33 @@
         }
     }
 
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
     const checkinInput = document.getElementById('checkinDate');
     const checkoutInput = document.getElementById('checkoutDate');
+    const params = new URLSearchParams(window.location.search);
+    const queryCity = (params.get('city') || '').trim();
+    const queryCountry = (params.get('country') || '').trim();
+    const queryCheckin = (params.get('checkin') || '').trim();
+    const queryCheckout = (params.get('checkout') || '').trim();
+
+    if (destInput && (queryCity || queryCountry)) {
+        destInput.value = queryCountry ? `${queryCity}, ${queryCountry}` : queryCity;
+    }
+
     if (checkinInput && checkoutInput) {
-        checkinInput.valueAsDate = today;
-        checkoutInput.valueAsDate = tomorrow;
+        if (queryCheckin) {
+            checkinInput.value = queryCheckin;
+        } else {
+            const today = new Date();
+            checkinInput.valueAsDate = today;
+        }
+
+        if (queryCheckout) {
+            checkoutInput.value = queryCheckout;
+        } else {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            checkoutInput.valueAsDate = tomorrow;
+        }
     }
 
     let guests = { adult: 2, child: 0, room: 1 };
@@ -125,6 +143,14 @@
 
             const checkin = document.getElementById('checkinDate')?.value;
             const checkout = document.getElementById('checkoutDate')?.value;
+            if (checkin && checkout) {
+                const inDate = new Date(checkin);
+                const outDate = new Date(checkout);
+                if (!Number.isNaN(inDate.getTime()) && !Number.isNaN(outDate.getTime()) && outDate < inDate) {
+                    alert('체크아웃 날짜는 체크인 이후여야 합니다.');
+                    return;
+                }
+            }
             const params = new URLSearchParams();
             if (city) params.append('city', city);
             if (country) params.append('country', country);
