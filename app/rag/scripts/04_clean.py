@@ -32,26 +32,58 @@ def normalize_ws(text: str) -> str:
 def html_to_text(html_bytes: bytes) -> str:
     html = html_bytes.decode("utf-8", errors="ignore")
 
-    # 1) readability 본문 추출
+    def strip_noise(soup: BeautifulSoup):
+        for tag in soup(["script", "style", "noscript"]):
+            tag.decompose()
+        # 흔한 레이아웃 제거(있으면)
+        for tag in soup.find_all(["header", "footer", "nav", "aside"]):
+            tag.decompose()
+        return soup
+
+    def collect_blocks(soup: BeautifulSoup) -> str:
+        parts = []
+        # 구조화 페이지는 div/section 안에 p/li가 많음
+        for el in soup.find_all(["h1", "h2", "h3", "h4", "p", "li"]):
+            t = el.get_text(" ", strip=True)
+            if not t:
+                continue
+            if len(t) < 2:
+                continue
+            parts.append(t)
+        return "\n".join(parts).strip()
+
+    # 1) readability 시도
+    text1 = ""
     try:
         doc = Document(html)
         main_html = doc.summary(html_partial=True)
-        soup = BeautifulSoup(main_html, "lxml")
+        soup1 = BeautifulSoup(main_html, "lxml")
+        soup1 = strip_noise(soup1)
+        text1 = collect_blocks(soup1)
+        text1 = normalize_ws(text1)
     except Exception:
-        soup = BeautifulSoup(html, "lxml")
+        text1 = ""
 
-    for tag in soup(["script", "style", "noscript", "header", "footer", "nav", "aside"]):
-        tag.decompose()
+    # readability가 너무 짧으면 fallback
+    if len(text1) >= 600:
+        return text1
 
-    parts = []
-    for el in soup.find_all(["h1", "h2", "h3", "h4", "p", "li"]):
-        t = el.get_text(" ", strip=True)
-        if not t or len(t) < 2:
-            continue
-        parts.append(t)
+    # 2) 전체 HTML에서 p/li 중심으로 다시 추출
+    soup2 = BeautifulSoup(html, "lxml")
+    soup2 = strip_noise(soup2)
+    text2 = collect_blocks(soup2)
+    text2 = normalize_ws(text2)
+    if len(text2) >= 600:
+        return text2
 
-    return normalize_ws("\n".join(parts))
+    # 3) 최후: body 전체 텍스트 덤프(그래도 너무 짧으면 그대로 반환)
+    body = soup2.body
+    if body:
+        text3 = body.get_text("\n", strip=True)
+        text3 = normalize_ws(text3)
+        return text3
 
+    return normalize_ws(text2 or text1 or "")
 
 def pdf_to_text(pdf_path: Path) -> str:
     reader = PdfReader(str(pdf_path))

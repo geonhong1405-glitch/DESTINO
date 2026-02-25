@@ -45,7 +45,7 @@ def main():
         oai,
         query="Tokyo public transport and how to get around",
         namespace="city",
-        flt={"country_code": {"$eq": "JP"}, "topic": {"$eq": "transport"}},
+        flt={"country_code": {"$eq": "US"}, "topic": {"$eq": "transport"}},
         top_k=5,
     )
 
@@ -54,7 +54,7 @@ def main():
         oai,
         query="Is tipping expected in Japan restaurants?",
         namespace="country",
-        flt={"country_code": {"$eq": "JP"}, "topic": {"$eq": "culture"}},
+        flt={"country_code": {"$eq": "US"}, "topic": {"$eq": "culture"}},
         top_k=5,
     )
 
@@ -63,7 +63,7 @@ def main():
         oai,
         query="Japan emergency numbers and what to do in an emergency",
         namespace="country",
-        flt={"country_code": {"$eq": "JP"}, "topic": {"$in": ["emergency", "safety", "health"]}},
+        flt={"country_code": {"$eq": "US"}, "topic": {"$in": ["emergency", "safety", "health"]}},
         top_k=5,
     )
 
