@@ -83,7 +83,7 @@ function switchTab(tabId) {
 /**
  * 모바일 사이드바 토글
  */
-function toggleMobileMenu() {
+/* function toggleMobileMenu() {
     const sidebar = document.getElementById('sidebar');
     const menuIcon = document.getElementById('menu-icon');
     if (!sidebar) return;
@@ -100,7 +100,7 @@ function toggleMobileMenu() {
         if (menuIcon) menuIcon.setAttribute('data-lucide', 'menu');
     }
     lucide.createIcons();
-}
+} */
 
 /**
  * 회원정보 수정 모드 전환
@@ -350,13 +350,75 @@ function renderBookings() {
     lucide.createIcons();
 }
 
-/**
- * 페이지 로드 시 실행
- */
+/* 내가 쓴 공동구매 게시글 렌더링 (추가) */
+function renderMyTripPosts() {
+    const container = document.getElementById('my-trip-posts-list');
+    if (!container) return;
+
+    const myPosts = JSON.parse(localStorage.getItem('myTripPosts')) || [];
+
+    if (myPosts.length === 0) {
+        container.innerHTML = `
+            <div class="col-span-full flex flex-col items-center justify-center py-16 bg-gray-50 rounded-3xl border border-dashed border-gray-200">
+                <i data-lucide="file-text" class="text-gray-300 mb-4" size="48"></i>
+                <p class="text-gray-500 font-medium">아직 작성한 게시물이 없습니다.</p>
+                <p class="text-gray-400 text-xs mt-1">공동구매 게시판에서 첫 모집글을 올려보세요!</p>
+            </div>
+        `;
+        lucide.createIcons();
+        return;
+    }
+
+    container.innerHTML = myPosts
+        .map(
+            (post) => `
+        <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all relative border-l-4 border-l-[#00AEEF]">
+            <div class="flex justify-between items-start mb-3">
+                <span class="px-2 py-1 bg-blue-50 text-[#00AEEF] text-[10px] font-bold rounded-lg uppercase">${post.country}</span>
+                <button onclick="deleteMyPost(${post.id})" class="text-gray-300 hover:text-red-500 transition-colors">
+                    <i data-lucide="trash-2" size="16"></i>
+                </button>
+            </div>
+            <h5 class="font-bold text-gray-800 mb-2 truncate">${post.title}</h5>
+            <div class="space-y-1">
+                <div class="flex items-center gap-2 text-xs text-gray-500">
+                    <i data-lucide="calendar" size="12"></i>
+                    <span>${post.start} 출발</span>
+                </div>
+                <div class="flex items-center gap-2 text-xs text-gray-500">
+                    <i data-lucide="wallet" size="12"></i>
+                    <span class="font-semibold text-gray-700">${post.budget}</span>
+                </div>
+            </div>
+            <div class="mt-4 pt-3 border-t border-gray-50 flex justify-between items-center">
+                <span class="text-[10px] text-gray-400">작성일: ${new Date(post.id).toLocaleDateString()}</span>
+                <span class="text-xs font-bold text-[#00AEEF]">모집 중</span>
+            </div>
+        </div>
+    `
+        )
+        .join('');
+
+    lucide.createIcons();
+}
+
+/*내가 쓴 글 삭제 기능 (추가 선택사항)*/
+function deleteMyPost(postId) {
+    if (!confirm('게시글을 삭제하시겠습니까?')) return;
+    
+    let myPosts = JSON.parse(localStorage.getItem('myTripPosts')) || [];
+    myPosts = myPosts.filter(p => p.id !== postId);
+    localStorage.setItem('myTripPosts', JSON.stringify(myPosts));
+    
+    renderMyTripPosts(); // 새로고침 없이 화면 갱신
+}
+
+/*페이지 로드 시 실행*/
 window.onload = () => {
     updateDisplay();
     renderBookings();
     renderWishlist();
+    renderMyTripPosts();
 
     const logoutBtn = document.querySelector('.logout-btn');
     if (logoutBtn) {

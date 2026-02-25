@@ -10,3 +10,62 @@ jp_country_money_jnto_currency,country,JP,Japan,,money,operator,2,quarterly,http
 jp_tokyo_connectivity_jnto,city,JP,Japan,Tokyo,connectivity,operator,2,quarterly,https://www.japan.travel/en/plan/wifi-and-connectivity/,en,"와이파이/유심 등 연결성"
 jp_tokyo_transport_navitime,city,JP,Japan,Tokyo,transport,other,3,monthly,https://japantravel.navitime.com/en/area/jp/guide/NTJtrv0100-en/,en,"도쿄 포함 일본 대중교통 안내(상용이지만 여행자용 정리 좋음)"
 jp_tokyo_transport_wikivoyage,city,JP,Japan,Tokyo,transport,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Tokyo#Get_around,en,"도쿄 시내 이동(지하철/버스/패스) 요약, CC 라이선스"
+jp_country_safety_fcdo,country,JP,Japan,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/japan,en,"FCDO Japan"
+jp_country_safety_usdos,country,JP,Japan,,safety,government,1,monthly,https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/japan-travel-advisory.html,en,"US DOS Japan"
+jp_country_general_wikivoyage,country,JP,Japan,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Japan,en,"Wiki Japan"
+
+th_country_safety_fcdo,country,TH,Thailand,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/thailand,en,"FCDO Thailand"
+th_country_safety_usdos,country,TH,Thailand,,safety,government,1,monthly,https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/thailand-travel-advisory.html,en,"US DOS Thailand"
+th_country_general_wikivoyage,country,TH,Thailand,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Thailand,en,"Wiki Thailand"
+
+vn_country_safety_fcdo,country,VN,Vietnam,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/vietnam,en,"FCDO Vietnam"
+vn_country_safety_usdos,country,VN,Vietnam,,safety,government,1,monthly,https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/vietnam-travel-advisory.html,en,"US DOS Vietnam"
+vn_country_general_wikivoyage,country,VN,Vietnam,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Vietnam,en,"Wiki Vietnam"
+
+sg_country_safety_fcdo,country,SG,Singapore,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/singapore,en,"FCDO Singapore"
+sg_country_safety_usdos,country,SG,Singapore,,safety,government,1,monthly,https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/singapore-travel-advisory.html,en,"US DOS Singapore"
+sg_country_general_wikivoyage,country,SG,Singapore,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Singapore,en,"Wiki Singapore"
+
+fr_country_safety_fcdo,country,FR,France,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/france,en,"FCDO France"
+fr_country_safety_usdos,country,FR,France,,safety,government,1,monthly,https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/france-travel-advisory.html,en,"US DOS France"
+fr_country_general_wikivoyage,country,FR,France,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/France,en,"Wiki France"
+
+us_country_safety_fcdo,country,US,United States,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/usa,en,"FCDO USA"
+us_country_safety_travelgc,country,US,United States,,safety,government,1,monthly,https://travel.gc.ca/destinations/united-states,en,"Canada travel advice for USA"
+us_country_general_wikivoyage,country,US,United States,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/United_States_of_America,en,"Wiki USA"
+
+gb_country_safety_usdos,country,GB,United Kingdom,,safety,government,1,monthly,https://travel.state.gov/en/international-travel/travel-advisories/united-kingdom.html,en,"US DOS UK destination page"
+gb_country_safety_usdos,country,GB,United Kingdom,,safety,government,1,monthly,https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/united-kingdom-travel-advisory.html,en,"US DOS UK"
+gb_country_general_wikivoyage,country,GB,United Kingdom,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/United_Kingdom,en,"Wiki UK"
+
+it_country_safety_fcdo,country,IT,Italy,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/italy,en,"FCDO Italy"
+it_country_safety_usdos,country,IT,Italy,,safety,government,1,monthly,https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/italy-travel-advisory.html,en,"US DOS Italy"
+it_country_general_wikivoyage,country,IT,Italy,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Italy,en,"Wiki Italy"
+
+es_country_safety_fcdo,country,ES,Spain,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/spain,en,"FCDO Spain"
+es_country_safety_usdos,country,ES,Spain,,safety,government,1,monthly,https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/spain-travel-advisory.html,en,"US DOS Spain"
+es_country_general_wikivoyage,country,ES,Spain,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Spain,en,"Wiki Spain"
+
+de_country_safety_fcdo,country,DE,Germany,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/germany,en,"FCDO Germany"
+de_country_safety_usdos,country,DE,Germany,,safety,government,1,monthly,https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/germany-travel-advisory.html,en,"US DOS Germany"
+de_country_general_wikivoyage,country,DE,Germany,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Germany,en,"Wiki Germany"
+
+au_country_safety_fcdo,country,AU,Australia,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/australia,en,"FCDO Australia"
+au_country_safety_usdos,country,AU,Australia,,safety,government,1,monthly,https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/australia-travel-advisory.html,en,"US DOS Australia"
+au_country_general_wikivoyage,country,AU,Australia,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Australia,en,"Wiki Australia"
+
+ca_country_safety_fcdo,country,CA,Canada,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/canada,en,"FCDO Canada"
+ca_country_safety_usdos,country,CA,Canada,,safety,government,1,monthly,https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/canada-travel-advisory.html,en,"US DOS Canada"
+ca_country_general_wikivoyage,country,CA,Canada,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Canada,en,"Wiki Canada"
+
+tw_country_safety_fcdo,country,TW,Taiwan,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/taiwan,en,"FCDO Taiwan"
+tw_country_safety_usdos,country,TW,Taiwan,,safety,government,1,monthly,https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/taiwan-travel-advisory.html,en,"US DOS Taiwan"
+tw_country_general_wikivoyage,country,TW,Taiwan,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Taiwan,en,"Wiki Taiwan"
+
+hk_country_safety_fcdo,country,HK,Hong Kong,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/hong-kong,en,"FCDO HK"
+hk_country_safety_usdos,country,HK,Hong Kong,,safety,government,1,monthly,https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/hong-kong-travel-advisory.html,en,"US DOS HK"
+hk_country_general_wikivoyage,country,HK,Hong Kong,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Hong_Kong,en,"Wiki HK"
+
+my_country_safety_fcdo,country,MY,Malaysia,,safety,government,1,monthly,https://www.gov.uk/foreign-travel-advice/malaysia,en,"FCDO MY"
+my_country_safety_usdos,country,MY,Malaysia,,safety,government,1,monthly,https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/malaysia-travel-advisory.html,en,"US DOS MY"
+my_country_general_wikivoyage,country,MY,Malaysia,,culture,wiki,3,quarterly,https://en.wikivoyage.org/wiki/Malaysia,en,"Wiki MY"

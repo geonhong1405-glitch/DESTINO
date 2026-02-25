@@ -1,265 +1,287 @@
-﻿
-window.onload = () => {
-    // Lucide Icons
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-
-    // Initialize Destination Data
-    initDest();
-
-    // Set Default Dates
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 3);
-    
-    const startInput = document.getElementById('startDate');
-    const endInput = document.getElementById('endDate');
-    
-    if(startInput) startInput.valueAsDate = today;
-    if(endInput) endInput.valueAsDate = tomorrow;
-};
-
-/* ================= Data ================= */
-const regionsData = {
-    '일본': ['도쿄', '오사카', '후쿠오카', '삿포로', '오키나와', '나고야', '교토', '고베'],
-    '동남아': ['방콕', '다낭', '나트랑', '세부', '발리', '싱가포르', '푸껫', '코타키나발루', '마닐라'],
-    '중국/홍콩': ['홍콩', '마카오', '상하이', '베이징', '칭다오', '광저우'],
-    '유럽': ['파리', '런던', '로마', '바르셀로나', '프라하', '인터라켄', '베네치아', '피렌체'],
-    '미주': ['하와이', '뉴욕', '로스앤젤레스', '라스베이거스', '샌프란시스코', '밴쿠버']
-};
-
-let currentRegion = '일본';
-let guests = { adult: 2, child: 0, room: 1 };
-
-/* ================= Tab Switching ================= */
-function switchTab(el, type) {
-    document.querySelectorAll('.search-tab').forEach(t => t.classList.remove('active'));
-    el.classList.add('active');
-    const input = document.getElementById('destInput');
-    if(!input) return;
-
-    if(type === 'flight') {
-        input.placeholder = "도시 또는 공항 검색";
-    } else {
-        input.placeholder = "어느 숙소를 찾으시나요?";
-    }
-}
-
-/* ================= Date Picker Fix ================= */
-/**
- * Focuses on the input element. 
- * Prevents SecurityError from automated showPicker() in iframes.
+﻿/**
+ * 여행사 메인 비주얼 슬라이더 스크립트
  */
-function focusInput(id) {
-    const el = document.getElementById(id);
-    if (el) {
-        el.focus();
-    }
-}
 
-/* ================= Destination Popover ================= */
-function initDest() {
-    const tabs = document.getElementById('regionTabs');
-    if(!tabs) return;
-    tabs.innerHTML = '';
-    
-    Object.keys(regionsData).forEach(region => {
-        const btn = document.createElement('button');
-        btn.className = `dest-tab ${region === currentRegion ? 'active' : ''}`;
-        btn.textContent = region;
-        btn.onclick = (e) => {
-            e.stopPropagation();
-            currentRegion = region;
-            initDest();
-            renderCities(regionsData[region]);
-        };
-        tabs.appendChild(btn);
+const sliderData = [
+    {
+        sub: '공동구매',
+        title: '항공+숙소 공동구매 OPEN',
+        desc: '지금 이 순간에도 인원이 차고 있어요.<br>마지막 티켓의 주인공은?',
+        img: 'https://cdn.pixabay.com/photo/2023/10/11/13/41/ship-8308680_1280.jpg',
+    },
+    {
+        sub: 'Tour',
+        title: '대만 투어&티켓 할인 혜택',
+        desc: '타이베이 101부터 지우펀 홍등까지,<br>가장 똑똑하게 예약하는 방법',
+        img: 'https://media.istockphoto.com/id/479711387/ko/%EC%82%AC%EC%A7%84/taipei-taiwan.jpg?b=1&s=1024x1024&w=0&k=20&c=xsLCTGo6uqq_lGoReEoVyleyoIj-bOFE5LPlE94hKcc=',
+    },
+    {
+        sub: '2026 EVENT',
+        title: '상하이 예원 등불 축제',
+        desc: '1월 26일 그랜드 오픈!<br>붉은 등불 아래 인생샷을 남겨보세요.',
+        img: 'https://cdn.pixabay.com/photo/2020/09/04/08/02/cityscape-5543224_1280.jpg',
+    },
+    {
+        sub: 'SPRING EDITION',
+        title: '일본 벚꽃 개화 시기 확정!',
+        desc: '핑크빛 꽃길이 열리는 순간,<br>가장 가까운 곳에서 봄을 맞이하세요.',
+        img: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=1600&q=80',
+    },
+    {
+        sub: 'GLOBAL PASS',
+        title: '유레일패스 25% OFF',
+        desc: '낭만 가득한 유럽 배낭여행,<br>교통비 고민은 미리 해결하고 떠나세요.',
+        img: 'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=1600&q=80',
+    },
+    {
+        sub: 'STAY FOCUS',
+        title: '제주 독채 자쿠지 단독 예약',
+        desc: '돌담 너머 파도 소리와 풍경까지,<br>여유를 즐기는 프라이빗한 휴식의 정석.',
+        img: 'https://cdn.pixabay.com/photo/2020/03/23/02/52/pension-4959272_1280.jpg',
+    },
+];
+
+const wrapper = document.getElementById('sliderWrapper');
+const currentTxt = document.getElementById('currentIdx');
+const totalTxt = document.getElementById('totalIdx');
+const progressFill = document.getElementById('progressFill');
+
+let currentIndex = 1; // 무한루프용 클론 때문에 1부터 시작
+let isTransitioning = false;
+const slideCount = sliderData.length;
+const slideDuration = 5000; // 5초 자동 전환
+
+/**
+ * 슬라이더 초기화 및 클론 생성
+ */
+function initSlider() {
+    const firstClone = sliderData[0];
+    const lastClone = sliderData[slideCount - 1];
+    const extendedData = [lastClone, ...sliderData, firstClone];
+
+    extendedData.forEach((data) => {
+        const slide = document.createElement('div');
+        slide.className = 'slide-item';
+        slide.style.backgroundImage = `url('${data.img}')`;
+        slide.innerHTML = `
+            <div class="slide-content">
+                <span class="slide-sub">${data.sub}</span>
+                <h2 class="slide-title">${data.title}</h2>
+                <p class="slide-desc">${data.desc}</p>
+                <a href="#" class="btn-event-link">자세히 보기</a>
+            </div>
+        `;
+        wrapper.appendChild(slide);
     });
-    renderCities(regionsData[currentRegion]);
+
+    totalTxt.innerText = slideCount.toString().padStart(2, '0');
+    updateSlider(false);
 }
 
-function renderCities(cities) {
-    const grid = document.getElementById('cityGrid');
-    if(!grid) return;
-    grid.innerHTML = '';
-    
-    cities.forEach(city => {
-        const btn = document.createElement('button');
-        btn.className = 'city-btn';
-        btn.textContent = city;
-        btn.onclick = (e) => {
-            e.stopPropagation();
-            const destInput = document.getElementById('destInput');
-            if(destInput) destInput.value = city;
-            closeAllPopovers();
-        };
-        grid.appendChild(btn);
-    });
-}
-
-function filterCities() {
-    const termInput = document.getElementById('citySearchInput');
-    if(!termInput) return;
-    
-    const term = termInput.value.toLowerCase();
-    const allCities = Object.values(regionsData).flat();
-    const filtered = allCities.filter(c => c.includes(term));
-    
-    if(term === '') {
-        renderCities(regionsData[currentRegion]);
+/**
+ * 슬라이더 위치 및 상태 업데이트
+ */
+function updateSlider(withTransition = true) {
+    if (withTransition) {
+        wrapper.style.transition = 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
     } else {
-        renderCities(filtered);
+        wrapper.style.transition = 'none';
     }
+
+    wrapper.style.transform = `translateX(-${currentIndex * 100}%)`;
+
+    // 액티브 클래스 관리 (애니메이션 트리거)
+    const allSlides = document.querySelectorAll('.slide-item');
+    allSlides.forEach((s) => s.classList.remove('active-slide'));
+
+    // UI상 표시될 인덱스 계산
+    let displayIdx = currentIndex;
+    if (currentIndex === 0) displayIdx = slideCount;
+    else if (currentIndex > slideCount) displayIdx = 1;
+
+    allSlides[currentIndex].classList.add('active-slide');
+    currentTxt.innerText = displayIdx.toString().padStart(2, '0');
+
+    resetProgressBar();
 }
 
-/* ================= Guest Counter ================= */
-function updateCount(type, delta) {
-    // Stop propagation if event exists
-    if(typeof event !== 'undefined') event.stopPropagation();
-    
-    let val = guests[type] + delta;
-    
-    // Limits
-    if(type === 'adult' && val < 1) val = 1;
-    if(type === 'child' && val < 0) val = 0;
-    if(type === 'room' && val < 1) val = 1;
-    
-    guests[type] = val;
-    
-    // UI Update
-    const valDisplay = document.getElementById(`val-${type}`);
-    const minusBtn = document.getElementById(`minus-${type}`);
-    if(valDisplay) valDisplay.textContent = val;
-    
-    if(minusBtn) {
-        minusBtn.disabled = (type === 'child' ? val <= 0 : val <= 1);
+/**
+ * 무한 루프 처리를 위한 트랜지션 엔드 리스너
+ */
+wrapper.addEventListener('transitionend', () => {
+    isTransitioning = false;
+    if (currentIndex === 0) {
+        currentIndex = slideCount;
+        updateSlider(false);
+    } else if (currentIndex === slideCount + 1) {
+        currentIndex = 1;
+        updateSlider(false);
     }
-    
-    const guestInput = document.getElementById('guestInput');
-    if(guestInput) {
-        guestInput.value = `성인 ${guests.adult}, 아동 ${guests.child}, 객실 ${guests.room}`;
-    }
-}
-
-/* ================= Common UI Logic ================= */
-function openPopover(id) {
-    closeAllPopovers();
-    const pop = document.getElementById(id);
-    const overlay = document.getElementById('uiOverlay');
-    if(pop) pop.classList.add('active');
-    if(overlay) overlay.classList.add('active');
-}
-
-function closeAllPopovers() {
-    document.querySelectorAll('.popover').forEach(p => p.classList.remove('active'));
-    const overlay = document.getElementById('uiOverlay');
-    if(overlay) overlay.classList.remove('active');
-}
-
-
-
-document.addEventListener('DOMContentLoaded', () => {
-    const sliderWrapper = document.querySelector('.event-slider-wrapper');
-    const sliderTrack = document.querySelector('.grid-33'); // 슬라이드 트랙 역할
-    const slides = document.querySelectorAll('.event-c');
-    const prevBtn = document.querySelector('.slider-btn.prev');
-    const nextBtn = document.querySelector('.slider-btn.next');
-
-    let currentIndex = 0;
-    let slideWidth = 0;
-    let gap = 20; // CSS의 gap과 동일하게 설정
-    let visibleItems = 3; // 기본 3개 보임
-
-    // 초기화 및 반응형 처리
-    function updateSliderDimensions() {
-        const containerWidth = sliderWrapper.clientWidth;
-        
-        // 화면 크기에 따른 보이는 아이템 개수 설정 (CSS 미디어 쿼리와 일치)
-        if (window.innerWidth <= 600) {
-            visibleItems = 1;
-        } else if (window.innerWidth <= 992) {
-            visibleItems = 2;
-        } else {
-            visibleItems = 3;
-        }
-
-        // 슬라이드 하나의 너비 계산: (전체폭 - (갭 * (보이는개수-1))) / 보이는개수
-        // *버튼 영역 확보를 위해 CSS에서 wrapper에 padding이 있다고 가정하거나, 계산에 보정치를 둡니다.
-        // 여기서는 grid-3가 wrapper 꽉 차게 있다고 가정합니다.
-        
-        // grid-3의 너비 기준으로 계산
-        const trackWidth = sliderTrack.clientWidth;
-        slideWidth = (trackWidth - (gap * (visibleItems - 1))) / visibleItems;
-
-        // 슬라이드들에게 너비 강제 적용 (flex-basis)
-        slides.forEach(slide => {
-            slide.style.flex = `0 0 ${slideWidth}px`;
-            slide.style.maxWidth = `${slideWidth}px`; // 더 커지지 않게 고정
-        });
-
-        // 위치 재조정
-        updateSlidePosition();
-    }
-
-    function updateSlidePosition() {
-        // 이동 거리 = 인덱스 * (슬라이드너비 + 갭)
-        const moveAmount = currentIndex * (slideWidth + gap);
-        sliderTrack.style.transform = `translateX(-${moveAmount}px)`;
-        
-        // 버튼 활성화/비활성화 상태 관리
-        prevBtn.style.opacity = currentIndex === 0 ? '0.5' : '1';
-        prevBtn.style.pointerEvents = currentIndex === 0 ? 'none' : 'auto';
-
-        const maxIndex = slides.length - visibleItems;
-        nextBtn.style.opacity = currentIndex >= maxIndex ? '0.5' : '1';
-        nextBtn.style.pointerEvents = currentIndex >= maxIndex ? 'none' : 'auto';
-    }
-
-    // 다음 버튼 클릭
-    nextBtn.addEventListener('click', () => {
-        const maxIndex = slides.length - visibleItems;
-        if (currentIndex < maxIndex) {
-            currentIndex++;
-            updateSlidePosition();
-        }
-    });
-
-    // 이전 버튼 클릭
-    prevBtn.addEventListener('click', () => {
-        if (currentIndex > 0) {
-            currentIndex--;
-            updateSlidePosition();
-        }
-    });
-
-    // 창 크기 변경 시 사이즈 재계산
-    window.addEventListener('resize', () => {
-        updateSliderDimensions();
-    });
-
-    // 초기 실행
-    updateSliderDimensions();
 });
+
+function moveNext() {
+    if (isTransitioning) return;
+    isTransitioning = true;
+    currentIndex++;
+    updateSlider();
+}
+
+function movePrev() {
+    if (isTransitioning) return;
+    isTransitioning = true;
+    currentIndex--;
+    updateSlider();
+}
+
+/**
+ * 하단 프로그레스 바 및 자동 넘김 제어
+ */
+let progressInterval;
+function resetProgressBar() {
+    clearInterval(progressInterval);
+    let width = 0;
+    progressFill.style.width = '0%';
+
+    const step = 100 / (slideDuration / 100);
+    progressInterval = setInterval(() => {
+        width += step;
+        progressFill.style.width = width + '%';
+        if (width >= 100) {
+            clearInterval(progressInterval);
+            moveNext();
+        }
+    }, 100);
+}
+
+// 버튼 클릭 이벤트 리스너
+document.getElementById('nextBtn').addEventListener('click', moveNext);
+document.getElementById('prevBtn').addEventListener('click', movePrev);
+
+// 초기 실행
+document.addEventListener('DOMContentLoaded', initSlider);
+
+/* 공동구매 */
+// 가상의 공동구매 데이터
+const bookings = [
+    {
+        id: 1,
+        status: 'recruiting',
+        category: 'flight_hotel',
+        destination: '오사카',
+        title: '3박 4일 벚꽃투어 항공+호텔 특가 모여라!',
+        startDate: '2026-03-25',
+        endDate: '2026-03-28',
+        currentPax: 5,
+        maxPax: '명 참여 중',
+    },
+    {
+        id: 2,
+        status: 'imminent',
+        category: 'flight',
+        destination: '다낭',
+        title: '왕복 특가 항공권 4인 이상 모이면 반값!',
+        startDate: '2026-04-10',
+        endDate: '2026-04-14',
+        currentPax: 3,
+        maxPax: '명 참여 중',
+    },
+    {
+        id: 3,
+        status: 'closed',
+        category: 'hotel',
+        destination: '서귀포',
+        title: '5성급 오션뷰 호텔 풀빌라 쉐어하실 분',
+        startDate: '2026-05-01',
+        endDate: '2026-05-03',
+        currentPax: 6,
+        maxPax: '명 참여 중',
+    },
+    {
+        id: 4,
+        status: 'recruiting',
+        category: 'hotel',
+        destination: '방콕',
+        title: '시내 중심가 레지던스 장기 투숙 모집',
+        startDate: '2026-06-15',
+        endDate: '2026-06-20',
+        currentPax: 1,
+        maxPax: '명 참여 중',
+    },
+];
+
+// 설정 도우미 함수들
+const getCategoryLabel = (cat) => ({ flight: '항공', hotel: '호텔', flight_hotel: '항공+호텔' }[cat] || '기타');
+
+const getStatusConfig = (status) => {
+    const configs = {
+        recruiting: { label: '모집중', className: 'status-recruiting' },
+        imminent: { label: '마감임박', className: 'status-imminent' },
+        closed: { label: '모집완료', className: 'status-closed' }
+    };
+    return configs[status] || { label: '미상', className: 'status-closed' };
+};
+
+const formatDate = (dateString) => dateString.substring(5).replace('-', '.');
+
+// 렌더링 함수
+function renderBookings() {
+    const listContainer = document.getElementById('booking-list');
+    
+    listContainer.innerHTML = bookings.map(booking => {
+        const categoryLabel = getCategoryLabel(booking.category);
+        const stat = getStatusConfig(booking.status);
+        const isClosed = booking.status === 'closed';
+
+        return `
+            <div class="booking-item ${isClosed ? 'closed' : 'active'}">
+                <div class="content-area">
+                    <div class="badge-row">
+                        <span class="status-badge ${stat.className}">${stat.label}</span>
+                        <span class="divider"></span>
+                        <span class="category-label">${categoryLabel}</span>
+                    </div>
+                    <h3 class="booking-title">
+                        <span class="dest">[${booking.destination}]</span>${booking.title}
+                    </h3>
+                    <div class="date-info">
+                        ${formatDate(booking.startDate)} — ${formatDate(booking.endDate)}
+                    </div>
+                </div>
+                <div class="pax-area">
+                    <div class="pax-count">
+                        <span class="pax-current ${isClosed ? 'is-closed' : ''}">${booking.currentPax}</span>
+                        <span class="pax-max"> ${booking.maxPax}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Lucide 아이콘 초기화 (동적 생성 후 실행 필요)
+    lucide.createIcons();
+}
+
+// 초기 실행
+renderBookings();
 
 /*AI 핫플레이스 탭 메뉴 및 필터링 기능*/
 document.addEventListener('DOMContentLoaded', () => {
     const tabs = document.querySelectorAll('#tab-menu li');
     const cards = document.querySelectorAll('.ai-card');
 
-    tabs.forEach(tab => {
+    tabs.forEach((tab) => {
         tab.addEventListener('click', () => {
             // 클릭된 탭의 카테고리 값 가져오기
             const category = tab.getAttribute('data-category');
 
             // 1. 모든 탭에서 'active' 클래스 제거 후 현재 탭에만 추가
-            tabs.forEach(t => t.classList.remove('active'));
+            tabs.forEach((t) => t.classList.remove('active'));
             tab.classList.add('active');
 
             // 2. 카드 필터링 처리
-            cards.forEach(card => {
+            cards.forEach((card) => {
                 const cardType = card.getAttribute('data-type');
-                
+
                 // 선택한 카테고리와 일치하는 카드만 클래스 'show' 부여
                 if (cardType === category) {
                     card.classList.add('show');
@@ -268,5 +290,5 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
-    })
-})
+    });
+});
