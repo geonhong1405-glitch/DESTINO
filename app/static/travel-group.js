@@ -151,6 +151,7 @@ function filterPosts(page = 1) {
 /**
  * 포스트 리스트 렌더링
  */
+
 function renderPosts(page) {
     const listContainer = document.getElementById('boardList');
     listContainer.innerHTML = '';
@@ -160,29 +161,47 @@ function renderPosts(page) {
     const pageData = filteredPosts.slice(startIndex, endIndex);
 
     if (pageData.length === 0) {
-        listContainer.innerHTML =
-            '<div style="text-align:center; padding:100px 0; color:#999;">조건에 맞는 게시글이 없습니다.</div>';
+        listContainer.innerHTML = '<div style="text-align:center; padding:100px 0; color:#999;">조건에 맞는 게시글이 없습니다.</div>';
         renderPagination(0, 0);
         return;
     }
 
     pageData.forEach((post) => {
+        const progress = (post.current / post.max) * 100;
+        const isImminent = post.status === 'open' && (post.max - post.current <= 1);
+        
         const card = document.createElement('div');
         card.className = 'board-card';
         card.onclick = () => showPostDetail(post.id);
+        
         card.innerHTML = `
-            <div class="board-country">${post.country}</div>
-            <div class="board-info">
+            <div class="card-left">
+                <div class="card-meta">
+                    <span class="badge-country">${post.country}</span>
+                </div>
                 <div class="board-title">${post.title}</div>
                 <div class="board-date">
-                    <i data-lucide="calendar" width="14"></i> ${post.start} 출발 예정
+                    <i data-lucide="calendar" width="14"></i> ${post.start} 출발 예정 · ${post.departure} 출발
                 </div>
             </div>
-            <div class="board-participants">
-                모집 금액 <strong>${post.budget}</strong>
-            </div>
-            <div class="status-badge ${post.status === 'open' ? 'status-open' : 'status-closed'}">
-                ${post.status === 'open' ? '모집 중' : '모집 마감'}
+            
+            <div class="card-right">
+                <div class="progress-container">
+                    <div class="progress-label">
+                        <span><i data-lucide="users" width="14" style="vertical-align:middle"></i> 인원 현황</span>
+                        <span class="pax-text">
+                            <span class="current-pax">${post.current}</span>
+                            <span class="max-pax"> / ${post.max}명</span>
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="card-footer">
+                    <div class="budget-text">${post.budget}</div>
+                    <div class="status-badge ${post.status === 'closed' ? 'status-closed' : (isImminent ? 'status-imminent' : 'status-open')}">
+                        ${post.status === 'closed' ? '모집 마감' : (isImminent ? '마감 임박' : '모집 중')}
+                    </div>
+                </div>
             </div>
         `;
         listContainer.appendChild(card);
@@ -220,15 +239,21 @@ function handleFormSubmit(e) {
         current: 1,
         max: 4,
         status: 'open',
+        isMine: true, // <--- 내가 쓴 글임을 표시하는 속성 추가
     };
 
     posts.unshift(newPost); // 최신글을 가장 앞에 추가
     filteredPosts = [...posts];
 
+    // [추가] 로컬 스토리지에 저장하는 함수 호출
+    saveToLocalStorage(newPost);
+
     renderPosts(1);
     closeModal('writeModal');
     e.target.reset();
 }
+
+
 
 /**
  * 상세 보기 렌더링 및 모달 노출
@@ -306,4 +331,21 @@ function renderPagination(totalItems, currentPage) {
     next.onclick = () => currentPage < totalPages && renderPosts(currentPage + 1);
     container.appendChild(next);
     lucide.createIcons();
+}
+
+// [누락된 함수 추가] 로컬 스토리지 저장 로직
+function saveToLocalStorage(post) {
+    try {
+        // 기존에 저장된 '내 글' 목록을 가져옴 (없으면 빈 배열)
+        const myPosts = JSON.parse(localStorage.getItem('myTripPosts')) || [];
+        // 새 글 추가
+        myPosts.unshift(post);
+        // 다시 저장
+        localStorage.setItem('myTripPosts', JSON.stringify(myPosts));
+        
+        // 피드백을 위해 알림창 하나 띄워주면 좋습니다.
+        alert('성공적으로 등록되었습니다!');
+    } catch (e) {
+        console.error("로컬스토리지 저장 중 오류 발생:", e);
+    }
 }
