@@ -35,14 +35,15 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 
 .search-widget {
     background: var(--white); border-radius: var(--radius-lg);
-    width: 100%; max-width: 1100px;
+    width: 100%; max-width: 1260px;
     box-shadow: 0 15px 40px rgba(0,0,0,0.2);
     padding: 30px; position: relative;
 }
 
 .search-form { display: grid; grid-template-columns: 1.5fr 1fr 1fr auto; gap: 12px; align-items: flex-end; }
-.search-form.rental-grid { grid-template-columns: 1.2fr 1.2fr 1fr 1fr auto; }
-.rental-search-btn { min-width: 150px; }
+.search-form.rental-grid { grid-template-columns: 1.2fr 1.15fr 1.15fr 0.95fr 0.95fr 150px; }
+.search-form.rental-grid > * { min-width: 0; }
+.rental-search-btn { min-width: 0; width: 100%; }
 
 .input-group {
     position: relative; padding: 12px 16px;
@@ -52,6 +53,54 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 .input-group:hover { border-color: var(--primary-color); }
 .input-group label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-sub); margin-bottom: 6px; font-weight: 600; }
 .input-group .display-text { font-size: 16px; font-weight: 700; color: var(--text-main); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.destination-popover {
+    width: 640px;
+    min-height: 320px;
+    display: none;
+}
+.destination-popover.active { display: flex; }
+.destination-sidebar {
+    width: 180px;
+    border-right: 1px solid var(--border-color);
+    background: #f8fafc;
+    padding: 8px 0;
+    display: flex;
+    flex-direction: column;
+}
+.destination-region-btn {
+    text-align: left;
+    padding: 14px 16px;
+    font-weight: 700;
+    color: #334155;
+    border-left: 3px solid transparent;
+}
+.destination-region-btn:hover { background: #f1f5f9; }
+.destination-region-btn.active {
+    background: #fff;
+    color: #2563eb;
+    border-left-color: #2563eb;
+}
+.destination-main { flex: 1; padding: 20px; }
+.destination-panel-title { font-size: 18px; font-weight: 800; margin-bottom: 14px; color: #0f172a; }
+.destination-city-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+.destination-city-btn {
+    border: 1px solid #d7dee7;
+    background: #fff;
+    border-radius: 10px;
+    padding: 12px 10px;
+    font-weight: 700;
+    color: #334155;
+    text-align: center;
+}
+.destination-city-btn:hover {
+    border-color: #93c5fd;
+    background: #f0f7ff;
+    color: #0f172a;
+}
 
 .btn-search {
     background: var(--primary-color); color: var(--white);
@@ -239,11 +288,13 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 /* --- Responsive --- */
 @media (max-width: 1024px) {
     .search-form { grid-template-columns: 1fr 1fr; }
-    .search-form.rental-grid { grid-template-columns: 1fr 1fr; }
+    .search-form.rental-grid { grid-template-columns: 1fr 1fr 1fr; }
     .btn-search { grid-column: span 2; }
+    .search-form.rental-grid .rental-search-btn { grid-column: span 3; }
     .car-grid { grid-template-columns: repeat(2, 1fr); }
     .benefit-grid { grid-template-columns: 1fr; }
     .rental-result-bar { flex-direction: column; align-items: stretch; }
+    .destination-popover { width: min(640px, calc(100vw - 56px)); }
 }
 @media (max-width: 768px) {
     .header-search-bar { display: none; }
@@ -251,6 +302,10 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     .search-form.rental-grid { grid-template-columns: 1fr; }
     .btn-search { grid-column: span 1; }
     .popover-container { width: calc(100vw - 40px); left: 0 !important; }
+    .destination-popover { min-height: 0; flex-direction: column; }
+    .destination-sidebar { width: 100%; border-right: 0; border-bottom: 1px solid var(--border-color); }
+    .destination-region-btn { text-align: left; }
+    .destination-city-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .rental-filters { display:grid; grid-template-columns: 1fr 1fr; }
     .filter-field select { min-width: 0; width: 100%; }
     .btn-filter-apply { grid-column: span 2; }

@@ -215,6 +215,12 @@ function renderPosts(page) {
  * 모달 제어
  */
 function openModal(id) {
+    const nickname = (window.__AUTH__ && window.__AUTH__.nickname ? String(window.__AUTH__.nickname) : '').trim();
+    if (id === 'writeModal' && !nickname) {
+        alert('로그인 후 공동예매 모집글을 작성할 수 있습니다.');
+        window.location.href = '/login';
+        return;
+    }
     document.getElementById(id).style.display = 'flex';
 }
 
@@ -227,6 +233,12 @@ function closeModal(id) {
  */
 function handleFormSubmit(e) {
     e.preventDefault();
+    const nickname = (window.__AUTH__ && window.__AUTH__.nickname ? String(window.__AUTH__.nickname) : '').trim();
+    if (!nickname) {
+        alert('로그인 후 공동예매 모집글을 작성할 수 있습니다.');
+        window.location.href = '/login';
+        return;
+    }
 
     const newPost = {
         id: Date.now(), // 고유 ID 생성

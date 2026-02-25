@@ -21,6 +21,31 @@ router = APIRouter()
 _APP_DIR = os.path.dirname(os.path.dirname(__file__))
 templates = Jinja2Templates(directory=os.path.join(_APP_DIR, "templates"))
 
+_RENTAL_COUNTRY_OPTIONS = [
+    {"code": "JP", "name": "일본", "currency": "JPY"},
+    {"code": "KR", "name": "대한민국", "currency": "KRW"},
+    {"code": "US", "name": "미국", "currency": "USD"},
+    {"code": "FR", "name": "프랑스", "currency": "EUR"},
+    {"code": "AE", "name": "아랍에미리트", "currency": "AED"},
+    {"code": "TH", "name": "태국", "currency": "THB"},
+    {"code": "VN", "name": "베트남", "currency": "VND"},
+    {"code": "SG", "name": "싱가포르", "currency": "SGD"},
+    {"code": "TW", "name": "대만", "currency": "TWD"},
+]
+
+
+def _normalize_rental_country(country_code: str | None) -> str:
+    code = (country_code or "JP").strip().upper()
+    valid = {x["code"] for x in _RENTAL_COUNTRY_OPTIONS}
+    return code if code in valid else "JP"
+
+
+def _currency_for_country(country_code: str) -> str:
+    for row in _RENTAL_COUNTRY_OPTIONS:
+        if row["code"] == country_code:
+            return row["currency"]
+    return "JPY"
+
 
 def _get_nickname_from_request(request: Request) -> str | None:
     session_token = request.cookies.get("session_token")
@@ -60,8 +85,14 @@ def _parse_int_param(value: str | int | None) -> int | None:
 def rental_location_search_api(
     q: str = Query(""),
     category: str = Query("all"),
+    country_code: str = Query("JP"),
 ):
-    items = search_rental_locations(q, category=category, limit=12)
+    items = search_rental_locations(
+        q,
+        category=category,
+        limit=12,
+        country_code=_normalize_rental_country(country_code),
+    )
     return {"items": items}
 
 
@@ -76,11 +107,15 @@ def rental_page(
     dropoff_lon: str | None = Query(None),
     pickup_at: str | None = Query(None),
     dropoff_at: str | None = Query(None),
+    country_code: str | None = Query("JP"),
+    city_hint: str | None = Query(None),
     sort: str | None = Query("price_asc"),
     min_seats: str | None = Query(None),
     transmission: str | None = Query(None),
 ):
     nickname = _get_nickname_from_request(request)
+    country_code = _normalize_rental_country(country_code)
+    currency_code = _currency_for_country(country_code)
     min_seats_value = _parse_int_param(min_seats)
     rental_cars = []
     rental_error = None
@@ -113,8 +148,8 @@ def rental_page(
                 pick_up_time=pickup_api_time,
                 drop_off_time=dropoff_api_time,
                 driver_age=30,
-                currency_code="KRW",
-                location="KR",
+                currency_code=currency_code,
+                location=country_code,
             )
             rental_cars = parse_rental_search_results(rental_raw)
             for car in rental_cars:
@@ -165,6 +200,9 @@ def rental_page(
             "dropoff_lon": dropoff_lon or (pickup_lon or ""),
             "pickup_at": pickup_at or "",
             "dropoff_at": dropoff_at or "",
+            "country_code": country_code,
+            "city_hint": city_hint or "",
+            "rental_country_options": _RENTAL_COUNTRY_OPTIONS,
             "rental_days": rental_days,
             "sort": sort or "price_asc",
             "min_seats": min_seats_value,

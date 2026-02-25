@@ -17,7 +17,12 @@
         <div class="container header-inner">
             <h1 class="logo"><a href="/">DESTINO</a></h1>
             <nav class="header-nav">
-                <a href="#">로그인</a>
+                {% if nickname %}
+                <a href="/mypage"><span style="font-weight: 700; color: #00aaff">{{ nickname }}</span></a>
+                <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
+                {% else %}
+                <a href="/login">로그인</a>
+                {% endif %}
                 <a href="#">이용안내</a>
                 <a href="#">고객센터</a>
                 <a href="#">KOR</a>
@@ -237,6 +242,9 @@
         </div>
     </footer>
 
+    <script>
+        window.__AUTH__ = { nickname: {{ (nickname or '')|tojson }} };
+    </script>
     <!-- 스크립트 파일 연결 -->
     <script src="../static/travel-group.js"></script>
 </body>

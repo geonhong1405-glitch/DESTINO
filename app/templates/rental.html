@@ -33,6 +33,19 @@
             <h1 class="hero-title">가장 편안한 여행의 시작, 렌터카 예약</h1>
             <div class="search-widget">
                 <form class="search-form rental-grid" id="rentalSearchForm" method="get" action="/rental">
+                    <div class="input-group" id="destinationInputGroup">
+                        <label><i data-lucide="map" width="14"></i> 목적지</label>
+                        <div class="display-text" id="destinationDisplay">{{ city_hint or '여행지 선택' }}</div>
+                        <input type="hidden" name="country_code" id="countryCodeHidden" value="{{ country_code or 'JP' }}">
+                        <input type="hidden" name="city_hint" id="cityHintHidden" value="{{ city_hint or '' }}">
+                        <div class="popover-container destination-popover" id="destinationPopover">
+                            <div class="destination-sidebar" id="destinationRegionList"></div>
+                            <div class="destination-main">
+                                <div class="destination-panel-title" id="destinationPanelTitle">주요 도시 선택</div>
+                                <div class="destination-city-grid" id="destinationCityGrid"></div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="input-group" id="pickupLocInputGroup">
                         <label><i data-lucide="map-pin" width="14"></i> 대여 장소</label>
                         <div class="display-text" id="pickupLocDisplay">{{ pickup_name or '대여 장소를 선택하세요' }}</div>
@@ -102,9 +115,6 @@
 
                     <input type="hidden" name="pickup_at" id="pickupAtHidden" value="{{ pickup_at or '' }}">
                     <input type="hidden" name="dropoff_at" id="dropoffAtHidden" value="{{ dropoff_at or '' }}">
-                    <input type="hidden" name="sort" id="sortHidden" value="{{ sort or 'price_asc' }}">
-                    <input type="hidden" name="min_seats" id="minSeatsHidden" value="{{ min_seats or '' }}">
-                    <input type="hidden" name="transmission" id="transmissionHidden" value="{{ transmission or 'all' }}">
                     <button class="btn-search rental-search-btn" id="rentalSearchBtn" type="submit">차량 검색</button>
                 </form>
             </div>
@@ -121,6 +131,8 @@
             <div class="rental-result-bar">
                 <h2 class="section-title" style="margin:0;">지금 예약 가능한 차량</h2>
                 <form method="get" action="/rental" class="rental-filters">
+                    <input type="hidden" name="country_code" value="{{ country_code or 'JP' }}">
+                    <input type="hidden" name="city_hint" value="{{ city_hint or '' }}">
                     <input type="hidden" name="pickup_name" value="{{ pickup_name or '' }}">
                     <input type="hidden" name="pickup_lat" value="{{ pickup_lat or '' }}">
                     <input type="hidden" name="pickup_lon" value="{{ pickup_lon or '' }}">
@@ -217,6 +229,9 @@
 
     <script>
         window.__RENTAL_INITIAL__ = {
+            countryCode: {{ (country_code or 'JP')|tojson }},
+            cityHint: {{ (city_hint or '')|tojson }},
+            countryOptions: {{ (rental_country_options or [])|tojson }},
             pickupName: {{ (pickup_name or '')|tojson }},
             pickupLat: {{ (pickup_lat or '')|tojson }},
             pickupLon: {{ (pickup_lon or '')|tojson }},

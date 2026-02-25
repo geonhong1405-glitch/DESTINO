@@ -31,11 +31,28 @@ def _coerce_number(value):
     return None
 
 
-def search_rental_locations(query: str | None, category: str | None = "all", limit: int = 10) -> list[dict]:
+def search_rental_locations(
+    query: str | None,
+    category: str | None = "all",
+    limit: int = 10,
+    country_code: str | None = None,
+) -> list[dict]:
     q = (query or "").strip()
     if not q:
         return []
     category = (category or "all").strip().lower()
+    country_code = (country_code or "").strip().upper()
+    country_hint_name = {
+        "KR": "대한민국",
+        "JP": "일본",
+        "US": "미국",
+        "FR": "프랑스",
+        "AE": "아랍에미리트",
+        "TH": "태국",
+        "VN": "베트남",
+        "SG": "싱가포르",
+        "TW": "대만",
+    }.get(country_code, "")
 
     local_candidates = [
         {"name": "서울", "sub": "대한민국 서울", "lat": 37.5665, "lon": 126.9780, "category": "city"},
@@ -69,6 +86,19 @@ def search_rental_locations(query: str | None, category: str | None = "all", lim
             if category in {"airport", "station", "city"} and item["category"] != category:
                 continue
             hay = f"{item['name']} {item['sub']}".lower()
+            if country_hint_name and country_hint_name.lower() not in hay:
+                continue
+            if ql in hay:
+                out.append(item)
+            if len(out) >= max(1, limit):
+                break
+        if out:
+            return out
+        # If country filter made local fallback too strict, relax country filtering.
+        for item in local_candidates:
+            if category in {"airport", "station", "city"} and item["category"] != category:
+                continue
+            hay = f"{item['name']} {item['sub']}".lower()
             if ql in hay:
                 out.append(item)
             if len(out) >= max(1, limit):
@@ -86,7 +116,8 @@ def search_rental_locations(query: str | None, category: str | None = "all", lim
         type_hint = "train_station"
 
     url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
-    params = {"query": q, "language": "ko", "key": api_key}
+    google_query = f"{q} {country_hint_name}".strip() if country_hint_name else q
+    params = {"query": google_query, "language": "ko", "key": api_key}
     if type_hint:
         params["type"] = type_hint
     try:
@@ -257,4 +288,3 @@ def calc_rental_days(pickup_at: str | None, dropoff_at: str | None) -> int | Non
         return max(1, int((hours + 23.9999) // 24))
     except Exception:
         return None
-
