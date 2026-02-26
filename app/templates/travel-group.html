@@ -1,281 +1,472 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DESTINO - 여행 공동예매</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DESTINO - 여행 공동구매</title>
     <!-- Pretendard 폰트 -->
-    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+    <link
+      rel="stylesheet"
+      as="style"
+      crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"
+    />
     <!-- 외부 스타일시트 연결 -->
-    <link rel="stylesheet" href="../static/travel-group.css">
+    <link rel="stylesheet" href="../static/travel-group.css" />
     <!-- Lucide 아이콘 -->
     <script src="https://unpkg.com/lucide@latest"></script>
-</head>
-<body>
-
+  </head>
+  <body>
     <header class="header">
-        <div class="container header-inner">
-            <h1 class="logo"><a href="/">DESTINO</a></h1>
-            <nav class="header-nav">
-                {% if nickname %}
-                <a href="/mypage"><span style="font-weight: 700; color: #00aaff">{{ nickname }}</span></a>
-                <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
-                {% else %}
-                <a href="/login">로그인</a>
-                {% endif %}
-                <a href="#">이용안내</a>
-                <a href="#">고객센터</a>
-                <a href="#">KOR</a>
-            </nav>
-        </div>
+      <div class="container header-inner">
+        <h1 class="logo"><a href="/">DESTINO</a></h1>
+        <nav class="header-nav">
+          {% if nickname %}
+          <a href="/mypage"
+            ><span style="font-weight: 700; color: #00aaff"
+              >{{ nickname }}</span
+            ></a
+          >
+          <a
+            href="/logout"
+            style="margin-left: 15px; color: #ff5555; font-weight: 700"
+            >로그아웃</a
+          >
+          {% else %}
+          <a href="/login">로그인</a>
+          {% endif %}
+          <a href="#">이용안내</a>
+          <a href="#">고객센터</a>
+          <a href="#">KOR</a>
+        </nav>
+      </div>
     </header>
 
     <main>
-        <div class="overlay" id="overlay"></div>
+      <div class="overlay" id="overlay"></div>
 
-        <section class="hero-section">
-            <h1 class="hero-title">함께라서 더 가벼운 여행의 시작</h1>
-            <p class="hero-sub">취향이 맞는 동행과 함께 공동예매로 혜택을 누리세요</p>
+      <section class="hero-section">
+        <h1 class="hero-title">함께라서 더 가벼운 여행의 시작</h1>
+        <p class="hero-sub">
+          취향이 맞는 동행과 함께 공동예매로 혜택을 누리세요
+        </p>
 
-            <div class="search-widget">
-                <div class="search-form">
-                    <div class="input-group" id="countryInputGroup">
-                        <label><i data-lucide="map-pin" width="14"></i> 어디로 떠나시나요?</label>
-                        <div class="display-text" id="countryDisplay">나라 선택</div>
-                        <div class="popover-container" id="countryPopover">
-                            <div class="popover-search">
-                                <i data-lucide="search" width="14" color="#999"></i>
-                                <input type="text" id="countrySearch" placeholder="나라 이름 검색" onclick="event.stopPropagation()">
-                            </div>
-                            <div class="popover-list" id="countryList">
-                                <div class="popover-item" data-val="일본">일본</div>
-                                <div class="popover-item" data-val="베트남">베트남</div>
-                                <div class="popover-item" data-val="태국">태국</div>
-                                <div class="popover-item" data-val="프랑스">프랑스</div>
-                                <div class="popover-item" data-val="미국">미국</div>
-                                <div class="popover-item" data-val="이탈리아">이탈리아</div>
-                                <div class="popover-item" data-val="스페인">스페인</div>
-                                <div class="popover-item" data-val="영국">영국</div>
-                                <div class="popover-item" data-val="대만">대만</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="input-group">
-                        <label><i data-lucide="calendar" width="14"></i> 검색 시작 월</label>
-                        <input type="month" id="startMonth">
-                    </div>
-
-                    <div class="input-group">
-                        <label><i data-lucide="calendar-check" width="14"></i> 검색 종료 월</label>
-                        <input type="month" id="endMonth">
-                    </div>
-
-                    <button class="btn-search" id="searchBtn">검색하기</button>
+        <div class="search-widget">
+          <div class="search-form">
+            <div class="input-group" id="countryInputGroup">
+              <label
+                ><i data-lucide="map-pin" width="14"></i> 어디로
+                떠나시나요?</label
+              >
+              <div class="display-text" id="countryDisplay">나라 선택</div>
+              <div class="popover-container" id="countryPopover">
+                <div class="popover-search">
+                  <i data-lucide="search" width="14" color="#999"></i>
+                  <input
+                    type="text"
+                    id="countrySearch"
+                    placeholder="나라 이름 검색"
+                    onclick="event.stopPropagation()"
+                  />
                 </div>
-            </div>
-        </section>
-
-        <section class="container">
-            <div class="section-header">
-                <h2 class="section-title">공동예매 모집 중</h2>
-                <button class="btn-write" onclick="openModal('writeModal')">
-                    <i data-lucide="plus-circle" width="18"></i>
-                    모집 글쓰기
-                </button>
-            </div>
-
-            <div class="board-list" id="boardList"></div>
-            <div class="pagination" id="pagination"></div>
-
-            <div class="comparison-section">
-                <h2 class="section-title">왜 DESTINO 공동예매인가요?</h2>
-                <div class="comp-grid">
-                    <div>
-                        <p style="color:#666; margin-bottom:20px;">타사 대비 압도적인 할인율과 안전한 매칭 시스템을 제공합니다.</p>
-                        <table class="comp-table">
-                            <thead>
-                                <tr>
-                                    <th>비교 항목</th>
-                                    <th>일반 여행사</th>
-                                    <th class="destino-col">DESTINO</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>평균 할인율</td>
-                                    <td>5~10%</td>
-                                    <td class="destino-col">최대 45%</td>
-                                </tr>
-                                <tr>
-                                    <td>동행 매칭</td>
-                                    <td>불가능</td>
-                                    <td class="destino-col">AI 추천 매칭</td>
-                                </tr>
-                                <tr>
-                                    <td>예약 취소</td>
-                                    <td>수수료 높음</td>
-                                    <td class="destino-col">24시간 전 무료</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="theme-box">
-                        <h3 style="margin-bottom:15px; font-weight:800;">💡 이번 달 추천 테마</h3>
-                        <p style="font-size:14px; color:#555; line-height:1.7;">
-                            지금 가장 핫한 테마는 '유럽 기차 패스 공동구매'입니다. <br>
-                            비슷한 시기에 유럽을 방문하는 여행자들과 그룹을 형성하여 유레일 패스 단체 할인을 받아보세요. 
-                            더불어 현지 가이드 투어도 공동예매 시 인당 비용이 크게 절감됩니다.
-                        </p>
-                    </div>
+                <div class="popover-list" id="countryList">
+                  <div class="popover-item" data-val="일본">일본</div>
+                  <div class="popover-item" data-val="베트남">베트남</div>
+                  <div class="popover-item" data-val="태국">태국</div>
+                  <div class="popover-item" data-val="프랑스">프랑스</div>
+                  <div class="popover-item" data-val="미국">미국</div>
+                  <div class="popover-item" data-val="이탈리아">이탈리아</div>
+                  <div class="popover-item" data-val="스페인">스페인</div>
+                  <div class="popover-item" data-val="영국">영국</div>
+                  <div class="popover-item" data-val="대만">대만</div>
                 </div>
+              </div>
             </div>
-        </section>
+
+            <div class="input-group">
+              <label
+                ><i data-lucide="calendar" width="14"></i> 검색 시작 월</label
+              >
+              <input type="month" id="startMonth" />
+            </div>
+
+            <div class="input-group">
+              <label
+                ><i data-lucide="calendar-check" width="14"></i> 검색 종료
+                월</label
+              >
+              <input type="month" id="endMonth" />
+            </div>
+
+            <button class="btn-search" id="searchBtn">검색하기</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="container">
+        <div class="section-header">
+          <h2 class="section-title">공동예매 모집 중</h2>
+          <button class="btn-write" onclick="openModal('writeModal')">
+            <i data-lucide="plus-circle" width="18"></i>
+            모집 글쓰기
+          </button>
+        </div>
+
+        <div class="board-list" id="boardList"></div>
+        <div class="pagination" id="pagination"></div>
+
+        <div class="comparison-section">
+          <h2 class="section-title">왜 DESTINO 공동예매인가요?</h2>
+          <div class="comp-grid">
+            <div>
+              <p style="color: #666; margin-bottom: 20px">
+                타사 대비 압도적인 할인율과 안전한 매칭 시스템을 제공합니다.
+              </p>
+              <table class="comp-table">
+                <thead>
+                  <tr>
+                    <th>비교 항목</th>
+                    <th>일반 여행사</th>
+                    <th class="destino-col">DESTINO</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>평균 할인율</td>
+                    <td>5~10%</td>
+                    <td class="destino-col">최대 45%</td>
+                  </tr>
+                  <tr>
+                    <td>동행 매칭</td>
+                    <td>불가능</td>
+                    <td class="destino-col">AI 추천 매칭</td>
+                  </tr>
+                  <tr>
+                    <td>예약 취소</td>
+                    <td>수수료 높음</td>
+                    <td class="destino-col">24시간 전 무료</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="theme-box">
+              <h3 style="margin-bottom: 15px; font-weight: 800">
+                💡 이번 달 추천 테마
+              </h3>
+              <p style="font-size: 14px; color: #555; line-height: 1.7">
+                지금 가장 핫한 테마는 '유럽 기차 패스 공동구매'입니다. <br />
+                비슷한 시기에 유럽을 방문하는 여행자들과 그룹을 형성하여 유레일
+                패스 단체 할인을 받아보세요. 더불어 현지 가이드 투어도 공동예매
+                시 인당 비용이 크게 절감됩니다.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <div class="modal-overlay" id="writeModal">
-        <div class="modal-content">
-            <span class="close-modal" onclick="closeModal('writeModal')">&times;</span>
-            <div class="modal-header"><h2>공동예매 모집글 작성</h2></div>
-            <div class="modal-scroll-area">
-                <div class="policy-box">
-                    <h4><i data-lucide="megaphone" width="16" style="color:var(--primary-color);"></i> 공동예매 운영 정책 안내</h4>
-                    <ul>
-                        <li><strong>최소 모집 인원:</strong> 본 공동예매는 <strong>최소 15명</strong>이 모집되어야 최종 진행됩니다.</li>
-                        <li><strong>예약 확정 시기:</strong> 숙소 및 패키지는 여행 시작일 기준 <strong>120일 전</strong>까지만 확정 가능합니다.</li>
-                        <li><strong>미달 시 취소 안내:</strong> 기한 내 최소 인원이 모집되지 않을 경우 공동예매가 취소될 수 있습니다.</li>
-                    </ul>
-                </div>
+      <div class="modal-content">
+        <span class="close-modal" onclick="closeModal('writeModal')"
+          >&times;</span
+        >
+        <div class="modal-header"><h2>공동예매 모집글 작성</h2></div>
+        <div class="modal-scroll-area">
+          <div class="policy-box">
+            <h4>
+              <i
+                data-lucide="megaphone"
+                width="16"
+                style="color: var(--primary-color)"
+              ></i>
+              공동예매 운영 정책 안내
+            </h4>
+            <ul>
+              <li>
+                <strong>최소 모집 인원:</strong> 본 공동예매는
+                <strong>최소 15명</strong>이 모집되어야 최종 진행됩니다.
+              </li>
+              <li>
+                <strong>예약 확정 시기:</strong> 숙소 및 패키지는 여행 시작일
+                기준 <strong>120일 전</strong>까지만 확정 가능합니다.
+              </li>
+              <li>
+                <strong>미달 시 취소 안내:</strong> 기한 내 최소 인원이 모집되지
+                않을 경우 공동예매가 취소될 수 있습니다.
+              </li>
+            </ul>
+          </div>
 
-                <form id="writeForm">
-                    <div class="form-group">
-                        <label>카테고리</label>
-                        <select id="formCategory" onchange="toggleFormDates()">
-                            <option value="package">호텔 + 항공권 (패키지)</option>
-                            <option value="hotel">호텔 전용</option>
-                            <option value="flight">항공권 전용</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>제목</label>
-                        <input type="text" id="formTitle" placeholder="예) 도쿄 비즈니스석 공동구매 10인" required>
-                    </div>
-                    <div class="form-row-split" style="margin-bottom:20px;">
-                        <div class="form-group" style="margin-bottom:0; position:relative;">
-                            <label>나라 선택</label>
-                            <div class="input-group" id="formCountryTrigger" style="padding:12px;">
-                                <div class="display-text" id="formCountryDisplay">나라 선택</div>
-                                <div class="popover-container" id="formCountryPopover" style="width:100%;">
-                                    <div class="popover-input-wrapper"><input type="text" id="formCountryInput" class="popover-input" placeholder="나라 입력"></div>
-                                    <div class="recommend-list" id="formCountryList"></div>
-                                    <div style="padding:0 18px;"><button type="button" class="btn-popover-done" id="formCountryDoneBtn">완료</button></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group" style="margin-bottom:0; position:relative;">
-                            <label>도시 선택</label>
-                            <div class="input-group disabled" id="formCityTrigger" style="padding:12px;">
-                                <div class="display-text" id="formCityDisplay">도시 입력</div>
-                                <div class="popover-container" id="formCityPopover" style="width:100%;">
-                                    <div class="popover-input-wrapper"><input type="text" id="formCityInput" class="popover-input" placeholder="도시 입력"></div>
-                                    <div class="recommend-list" id="formCityList"></div>
-                                    <div style="padding:0 18px;"><button type="button" class="btn-popover-done" id="formCityDoneBtn">완료</button></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="form-row-split">
-                        <div class="form-group">
-                            <label>출발일</label>
-                            <input type="date" id="formDateStart" required onchange="updateMinEndDate()">
-                        </div>
-                        <div class="form-group" id="formEndDateWrapper">
-                            <label>종료일</label>
-                            <input type="date" id="formDateEnd" required>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>상세 설명</label>
-                        <textarea id="formDesc" rows="4" placeholder="상세 내용을 입력하세요" required style="resize:none;"></textarea>
-                    </div>
-                    <button type="submit" class="btn-detail-apply" style="width:100%; margin-top:10px;">모집 게시글 등록</button>
-                </form>
+          <form id="writeForm" onsubmit="handleFormSubmit(event)">
+            <div class="form-group">
+              <label>카테고리</label>
+              <select id="formCategory" onchange="toggleFormDates()">
+                <option value="package">호텔 + 항공권 (패키지)</option>
+                <option value="hotel">호텔 전용</option>
+                <option value="flight">항공권 (편도)</option>
+                <option value="roundtrip">항공권 (왕복)</option>
+              </select>
             </div>
+            <div class="form-group">
+              <label>제목</label>
+              <input
+                type="text"
+                id="formTitle"
+                placeholder="예) 도쿄 비즈니스석 공동구매 10인"
+                required
+              />
+            </div>
+            <div class="form-row-split" style="margin-bottom: 20px">
+              <div
+                class="form-group"
+                style="margin-bottom: 0; position: relative"
+              >
+                <label>나라 선택</label>
+                <div
+                  class="input-group"
+                  id="formCountryTrigger"
+                  style="padding: 12px"
+                >
+                  <div class="display-text" id="formCountryDisplay">
+                    나라 선택
+                  </div>
+                  <div
+                    class="popover-container"
+                    id="formCountryPopover"
+                    style="width: 100%"
+                  >
+                    <div class="popover-input-wrapper">
+                      <input
+                        type="text"
+                        id="formCountryInput"
+                        class="popover-input"
+                        placeholder="나라 입력"
+                      />
+                    </div>
+                    <div class="recommend-list" id="formCountryList"></div>
+                    <div style="padding: 0 18px">
+                      <button
+                        type="button"
+                        class="btn-popover-done"
+                        id="formCountryDoneBtn"
+                      >
+                        완료
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="form-group"
+                style="margin-bottom: 0; position: relative"
+              >
+                <label>도시 선택</label>
+                <div
+                  class="input-group disabled"
+                  id="formCityTrigger"
+                  style="padding: 12px"
+                >
+                  <div class="display-text" id="formCityDisplay">도시 입력</div>
+                  <div
+                    class="popover-container"
+                    id="formCityPopover"
+                    style="width: 100%"
+                  >
+                    <div class="popover-input-wrapper">
+                      <input
+                        type="text"
+                        id="formCityInput"
+                        class="popover-input"
+                        placeholder="도시 입력"
+                      />
+                    </div>
+                    <div class="recommend-list" id="formCityList"></div>
+                    <div style="padding: 0 18px">
+                      <button
+                        type="button"
+                        class="btn-popover-done"
+                        id="formCityDoneBtn"
+                      >
+                        완료
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="form-row-split">
+              <div class="form-group">
+                <label>출발일</label>
+                <input
+                  type="date"
+                  id="formDateStart"
+                  required
+                  onchange="updateMinEndDate()"
+                />
+              </div>
+              <div class="form-group" id="formEndDateWrapper">
+                <label>종료일</label>
+                <input type="date" id="formDateEnd" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="formBudget">예상 가격 (인당)</label>
+              <div
+                class="input-with-unit"
+                style="position: relative; display: flex; align-items: center"
+              >
+                <input
+                  type="text"
+                  id="formBudget"
+                  placeholder="0"
+                  oninput="formatCurrency(this)"
+                  style="width: 100%; padding-right: 30px; text-align: right"
+                  required
+                />
+                <span
+                  style="
+                    position: absolute;
+                    right: 10px;
+                    color: #666;
+                    font-weight: bold;
+                  "
+                  >₩</span
+                >
+              </div>
+            </div>
+            <div class="form-group">
+              <label>상세 설명</label>
+              <textarea
+                id="formDesc"
+                rows="4"
+                placeholder="상세 내용을 입력하세요"
+                required
+                style="resize: none"
+              ></textarea>
+            </div>
+            <button
+              type="submit"
+              class="btn-detail-apply btn-submit"
+              style="width: 100%; margin-top: 10px"
+            >
+              모집 게시글 등록
+            </button>
+          </form>
         </div>
+      </div>
     </div>
 
     <div class="modal-overlay" id="detailModal">
-        <div class="modal-content">
-            <span class="close-modal" onclick="closeModal('detailModal')">&times;</span>
-            <div class="modal-header" id="detailHeader"></div>
-            <div class="modal-scroll-area">
-                <div id="detailBody"></div>
-                
-                <div style="margin-top:20px; border-top:1px solid #f0f0f0; padding-top:20px;">
-                    <div style="font-weight:700; margin-bottom:10px;">문의 및 신청 전 안내</div>
-                    <p style="font-size:13px; color:#666; line-height:1.6;">본 상품에 대한 문의사항을 제출하시면 담당자의 메일로 즉시 발송됩니다.</p>
-                    
-                    <label class="privacy-box">
-                        <input type="checkbox" id="privacyCheck" class="custom-checkbox">
-                        <span style="font-size:13px; font-weight:600;">(필수) 개인정보 수집 및 이용에 동의합니다.</span>
-                    </label>
-                </div>
+      <div class="modal-content">
+        <span class="close-modal" onclick="closeModal('detailModal')"
+          >&times;</span
+        >
+        <div class="modal-header" id="detailHeader"></div>
+        <div class="modal-scroll-area">
+          <div id="detailBody"></div>
 
-                <div class="policy-box" style="margin-top:20px;">
-                    <h4><i data-lucide="help-circle" width="16"></i> 예약 관련 필수 안내</h4>
-                    <p style="font-size:13px; line-height:1.6; color:#666;">• 여행 시작일 <strong>120일 전</strong> 확정됩니다. (최소 15명 미달 시 취소될 수 있음)</p>
-                </div>
-                <div class="detail-actions" id="detailActions"></div>
+          <div
+            style="
+              margin-top: 20px;
+              border-top: 1px solid #f0f0f0;
+              padding-top: 20px;
+            "
+          >
+            <div style="font-weight: 700; margin-bottom: 10px">
+              문의 및 신청 전 안내
             </div>
+            <p style="font-size: 13px; color: #666; line-height: 1.6">
+              본 상품에 대한 문의사항을 제출하시면 담당자의 메일로 즉시
+              발송됩니다.
+            </p>
+
+            <label class="privacy-box">
+              <input
+                type="checkbox"
+                id="privacyCheck"
+                class="custom-checkbox"
+              />
+              <span style="font-size: 13px; font-weight: 600"
+                >(필수) 개인정보 수집 및 이용에 동의합니다.</span
+              >
+            </label>
+          </div>
+
+          <div class="policy-box" style="margin-top: 20px">
+            <h4>
+              <i data-lucide="help-circle" width="16"></i> 예약 관련 필수 안내
+            </h4>
+            <p style="font-size: 13px; line-height: 1.6; color: #666">
+              • 여행 시작일 <strong>120일 전</strong> 확정됩니다. (최소 15명
+              미달 시 취소될 수 있음)
+            </p>
+          </div>
+          <div class="detail-actions" id="detailActions"></div>
         </div>
+      </div>
     </div>
 
     <!-- 토스트 알림 -->
     <div class="toast" id="toast">
-        <i data-lucide="check-circle" width="18"></i>
-        <span id="toastMsg"></span>
+      <i data-lucide="check-circle" width="18"></i>
+      <span id="toastMsg"></span>
     </div>
 
     <footer class="footer">
-        <div class="footer-container">
-            <div class="footer-top">
-                <div class="footer-column">
-                    <h3>고객센터</h3>
-                    <p>오전 9시 ~ 새벽 3시 운영</p>
-                    <p>채팅 상담 문의: 24시간 운영</p>
-                    <div class="cs-buttons">
-                        <a href="tel:1670-0000" class="btn-cs"><span class="icon">📞</span><strong>1670-0000</strong></a>
-                        <a href="#" class="btn-cs"><span class="icon">💬</span><strong>채팅 상담</strong></a>
-                    </div>
-                </div>
-                <div class="footer-column">
-                    <h3>회사</h3>
-                    <ul><li><a href="#">회사소개</a></li><li><a href="#">채용정보</a></li></ul>
-                </div>
-                <div class="footer-column">
-                    <h3>서비스</h3>
-                    <ul><li><a href="#">공지사항</a></li><li><a href="#">자주 묻는 질문</a></li></ul>
-                </div>
+      <div class="footer-container">
+        <div class="footer-top">
+          <div class="footer-column">
+            <h3>고객센터</h3>
+            <p>오전 9시 ~ 새벽 3시 운영</p>
+            <p>채팅 상담 문의: 24시간 운영</p>
+            <div class="cs-buttons">
+              <a href="tel:1670-0000" class="btn-cs"
+                ><span class="icon">📞</span><strong>1670-0000</strong></a
+              >
+              <a href="#" class="btn-cs"
+                ><span class="icon">💬</span><strong>채팅 상담</strong></a
+              >
             </div>
-            <hr class="footer-divider" />
-            <div class="footer-bottom">
-                <div class="company-info">
-                    <p>(주)데스티노 컴퍼니 | 대표이사: 김여행</p>
-                    <p>주소: 서울특별시 강남구 테헤란로 123 | 이메일: help@destino.com</p>
-                    <div class="footer-policy"><a href="#">이용약관</a><a href="#"><strong>개인정보처리방침</strong></a></div>
-                </div>
-                <div class="social-links">
-                    <a href="#" class="social-icon">YouTube</a>
-                    <a href="#" class="social-icon">Instagram</a>
-                </div>
-            </div>
+          </div>
+          <div class="footer-column">
+            <h3>회사</h3>
+            <ul>
+              <li><a href="#">회사소개</a></li>
+              <li><a href="#">채용정보</a></li>
+            </ul>
+          </div>
+          <div class="footer-column">
+            <h3>서비스</h3>
+            <ul>
+              <li><a href="#">공지사항</a></li>
+              <li><a href="#">자주 묻는 질문</a></li>
+            </ul>
+          </div>
         </div>
+        <hr class="footer-divider" />
+        <div class="footer-bottom">
+          <div class="company-info">
+            <p>(주)데스티노 컴퍼니 | 대표이사: 김여행</p>
+            <p>
+              주소: 서울특별시 강남구 테헤란로 123 | 이메일: help@destino.com
+            </p>
+            <div class="footer-policy">
+              <a href="#">이용약관</a
+              ><a href="#"><strong>개인정보처리방침</strong></a>
+            </div>
+          </div>
+          <div class="social-links">
+            <a href="#" class="social-icon">YouTube</a>
+            <a href="#" class="social-icon">Instagram</a>
+          </div>
+        </div>
+      </div>
     </footer>
 
     <script>
-        window.__AUTH__ = { nickname: {{ (nickname or '')|tojson }} };
+      window.__AUTH__ = { nickname: {{ (nickname or '')|tojson }} };
     </script>
     <!-- 스크립트 파일 연결 -->
     <script src="../static/travel-group.js"></script>
-</body>
+  </body>
 </html>
