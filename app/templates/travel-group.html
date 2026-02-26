@@ -133,77 +133,107 @@
         </section>
     </main>
 
-    <!-- 글쓰기 모달 -->
     <div class="modal-overlay" id="writeModal">
         <div class="modal-content">
             <span class="close-modal" onclick="closeModal('writeModal')">&times;</span>
-            <div class="modal-header-fixed">
-                <h2 style="margin-bottom: 5px;">새 모집글 작성</h2>
-                <p style="font-size: 14px; color: #666; margin-bottom: 20px;">함께 혜택을 누릴 동행자를 찾아보세요.</p>
-            </div>
-            
-            <div class="modal-notice">
-                ⚠️ 유의사항: 공동예매 특성상 선택하신 해당 달에 일정이 완전히 비어있는 분들만 참여가 가능합니다. 상호 일정을 꼭 확인해주세요.
-            </div>
-
-            <form id="writeForm" onsubmit="handleFormSubmit(event)">
-                <div class="form-group">
-                    <label>모집 제목</label>
-                    <input type="text" id="formTitle" placeholder="예: 오사카 같이가서 숙소 할인 받아요!" required>
+            <div class="modal-header"><h2>공동예매 모집글 작성</h2></div>
+            <div class="modal-scroll-area">
+                <div class="policy-box">
+                    <h4><i data-lucide="megaphone" width="16" style="color:var(--primary-color);"></i> 공동예매 운영 정책 안내</h4>
+                    <ul>
+                        <li><strong>최소 모집 인원:</strong> 본 공동예매는 <strong>최소 15명</strong>이 모집되어야 최종 진행됩니다.</li>
+                        <li><strong>예약 확정 시기:</strong> 숙소 및 패키지는 여행 시작일 기준 <strong>120일 전</strong>까지만 확정 가능합니다.</li>
+                        <li><strong>미달 시 취소 안내:</strong> 기한 내 최소 인원이 모집되지 않을 경우 공동예매가 취소될 수 있습니다.</li>
+                    </ul>
                 </div>
 
-                <div class="form-row">
+                <form id="writeForm">
                     <div class="form-group">
-                        <label>여행 일정 (년/월)</label>
-                        <input type="month" id="formMonth" required>
-                    </div>
-                    <div class="form-group">
-                        <label>목적지 (나라)</label>
-                        <select id="formCountry" required>
-                            <option value="">나라 선택</option>
-                            <option value="일본">일본</option>
-                            <option value="베트남">베트남</option>
-                            <option value="태국">태국</option>
-                            <option value="프랑스">프랑스</option>
-                            <option value="미국">미국</option>
-                            <option value="이탈리아">이탈리아</option>
-                            <option value="스페인">스페인</option>
-                            <option value="영국">영국</option>
-                            <option value="대만">대만</option>
+                        <label>카테고리</label>
+                        <select id="formCategory" onchange="toggleFormDates()">
+                            <option value="package">호텔 + 항공권 (패키지)</option>
+                            <option value="hotel">호텔 전용</option>
+                            <option value="flight">항공권 전용</option>
                         </select>
                     </div>
-                </div>
-
-                <div class="form-row">
                     <div class="form-group">
-                        <label>출발지</label>
-                        <input type="text" id="formDeparture" placeholder="예: 인천공항, 부산" required>
+                        <label>제목</label>
+                        <input type="text" id="formTitle" placeholder="예) 도쿄 비즈니스석 공동구매 10인" required>
+                    </div>
+                    <div class="form-row-split" style="margin-bottom:20px;">
+                        <div class="form-group" style="margin-bottom:0; position:relative;">
+                            <label>나라 선택</label>
+                            <div class="input-group" id="formCountryTrigger" style="padding:12px;">
+                                <div class="display-text" id="formCountryDisplay">나라 선택</div>
+                                <div class="popover-container" id="formCountryPopover" style="width:100%;">
+                                    <div class="popover-input-wrapper"><input type="text" id="formCountryInput" class="popover-input" placeholder="나라 입력"></div>
+                                    <div class="recommend-list" id="formCountryList"></div>
+                                    <div style="padding:0 18px;"><button type="button" class="btn-popover-done" id="formCountryDoneBtn">완료</button></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0; position:relative;">
+                            <label>도시 선택</label>
+                            <div class="input-group disabled" id="formCityTrigger" style="padding:12px;">
+                                <div class="display-text" id="formCityDisplay">도시 입력</div>
+                                <div class="popover-container" id="formCityPopover" style="width:100%;">
+                                    <div class="popover-input-wrapper"><input type="text" id="formCityInput" class="popover-input" placeholder="도시 입력"></div>
+                                    <div class="recommend-list" id="formCityList"></div>
+                                    <div style="padding:0 18px;"><button type="button" class="btn-popover-done" id="formCityDoneBtn">완료</button></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row-split">
+                        <div class="form-group">
+                            <label>출발일</label>
+                            <input type="date" id="formDateStart" required onchange="updateMinEndDate()">
+                        </div>
+                        <div class="form-group" id="formEndDateWrapper">
+                            <label>종료일</label>
+                            <input type="date" id="formDateEnd" required>
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label>예상 인당 금액</label>
-                        <input type="text" id="formBudget" placeholder="예: 50만원" required>
+                        <label>상세 설명</label>
+                        <textarea id="formDesc" rows="4" placeholder="상세 내용을 입력하세요" required style="resize:none;"></textarea>
                     </div>
-                </div>
-
-                <div class="form-group">
-                    <label>상세 설명</label>
-                    <textarea id="formDesc" rows="4" placeholder="여행 계획이나 원하는 동행 스타일을 적어주세요." required></textarea>
-                </div>
-
-                <button type="submit" class="btn-submit">모집 게시글 등록</button>
-            </form>
+                    <button type="submit" class="btn-detail-apply" style="width:100%; margin-top:10px;">모집 게시글 등록</button>
+                </form>
+            </div>
         </div>
     </div>
 
-    <!-- 상세 보기 모달 -->
     <div class="modal-overlay" id="detailModal">
         <div class="modal-content">
             <span class="close-modal" onclick="closeModal('detailModal')">&times;</span>
-            <div id="detailView">
-                <!-- JS에서 동적 렌더링 -->
+            <div class="modal-header" id="detailHeader"></div>
+            <div class="modal-scroll-area">
+                <div id="detailBody"></div>
+                
+                <div style="margin-top:20px; border-top:1px solid #f0f0f0; padding-top:20px;">
+                    <div style="font-weight:700; margin-bottom:10px;">문의 및 신청 전 안내</div>
+                    <p style="font-size:13px; color:#666; line-height:1.6;">본 상품에 대한 문의사항을 제출하시면 담당자의 메일로 즉시 발송됩니다.</p>
+                    
+                    <label class="privacy-box">
+                        <input type="checkbox" id="privacyCheck" class="custom-checkbox">
+                        <span style="font-size:13px; font-weight:600;">(필수) 개인정보 수집 및 이용에 동의합니다.</span>
+                    </label>
+                </div>
+
+                <div class="policy-box" style="margin-top:20px;">
+                    <h4><i data-lucide="help-circle" width="16"></i> 예약 관련 필수 안내</h4>
+                    <p style="font-size:13px; line-height:1.6; color:#666;">• 여행 시작일 <strong>120일 전</strong> 확정됩니다. (최소 15명 미달 시 취소될 수 있음)</p>
+                </div>
+                <div class="detail-actions" id="detailActions"></div>
             </div>
-            <button class="btn-submit" onclick="closeModal('detailModal')" style="background: #333;">닫기</button>
         </div>
+    </div>
+
+    <!-- 토스트 알림 -->
+    <div class="toast" id="toast">
+        <i data-lucide="check-circle" width="18"></i>
+        <span id="toastMsg"></span>
     </div>
 
     <footer class="footer">

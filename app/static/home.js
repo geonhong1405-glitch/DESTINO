@@ -171,7 +171,7 @@ const bookings = [
         title: '3박 4일 벚꽃투어 항공+호텔 특가 모여라!',
         startDate: '2026-03-25',
         endDate: '2026-03-28',
-        currentPax: 5,
+        currentPax: 8,
         maxPax: '명 참여 중',
     },
     {
@@ -182,7 +182,7 @@ const bookings = [
         title: '왕복 특가 항공권 4인 이상 모이면 반값!',
         startDate: '2026-04-10',
         endDate: '2026-04-14',
-        currentPax: 3,
+        currentPax: 13,
         maxPax: '명 참여 중',
     },
     {
@@ -193,7 +193,7 @@ const bookings = [
         title: '5성급 오션뷰 호텔 풀빌라 쉐어하실 분',
         startDate: '2026-05-01',
         endDate: '2026-05-03',
-        currentPax: 6,
+        currentPax: 21,
         maxPax: '명 참여 중',
     },
     {
@@ -204,7 +204,7 @@ const bookings = [
         title: '시내 중심가 레지던스 장기 투숙 모집',
         startDate: '2026-06-15',
         endDate: '2026-06-20',
-        currentPax: 1,
+        currentPax: 11,
         maxPax: '명 참여 중',
     },
 ];
