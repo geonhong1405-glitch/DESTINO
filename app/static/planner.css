@@ -584,6 +584,98 @@ ul {
     overflow: hidden;
 }
 
+.ai-commerce-card--hotel {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr) 190px;
+    gap: 12px;
+    align-items: stretch;
+    padding: 12px;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.ai-hotel-card__thumb-wrap {
+    min-height: 108px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ai-hotel-card__thumb {
+    width: 100%;
+    height: 108px;
+    object-fit: contain;
+    display: block;
+    background: #fff;
+}
+
+.ai-hotel-card__thumb-wrap--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #eff6ff, #f8fafc);
+}
+
+.ai-hotel-card__thumb-fallback {
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.ai-hotel-card__body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+}
+
+.ai-hotel-card__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ai-hotel-card__chip {
+    font-size: 11px;
+    color: #0f172a;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    padding: 3px 8px;
+    line-height: 1.2;
+}
+
+.ai-hotel-card__note {
+    font-size: 11px;
+    color: #64748b;
+    line-height: 1.35;
+}
+
+.ai-hotel-card__fare {
+    border-left: 1px solid #e5e7eb;
+    padding-left: 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+}
+
+.ai-hotel-card__price {
+    font-size: 20px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    word-break: break-word;
+}
+
 .ai-flight-card__brand {
     border-right: 1px solid #e5e7eb;
     padding-right: 8px;
@@ -856,6 +948,11 @@ ul {
         gap: 10px;
     }
 
+    .ai-commerce-card--hotel {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
     .ai-flight-card__brand,
     .ai-flight-card__fare {
         border: 0;
@@ -922,6 +1019,13 @@ ul {
     .ai-flight-card__duration-wrap {
         align-items: flex-start;
     }
+
+    .ai-hotel-card__fare {
+        border-left: 0;
+        border-top: 1px solid #e5e7eb;
+        padding-left: 0;
+        padding-top: 10px;
+    }
 }
 
 @media (max-width: 700px) {
@@ -948,6 +1052,11 @@ ul {
 .ai-flight-card__fare .ai-commerce-card__add:hover {
     background: linear-gradient(135deg, #1d4ed8, #1e3a8a);
     filter: brightness(1.04);
+}
+
+.ai-hotel-card__fare .ai-commerce-card__add {
+    align-self: stretch;
+    text-align: center;
 }
 
 .ai-cart-fab {

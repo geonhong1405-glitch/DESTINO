@@ -267,6 +267,13 @@
         const html = String(rawHtml || "");
         const isHotel = /호텔|숙소|렌터카|렌트카|rental|hotel/i.test(html);
         if (!isHotel) return [];
+        const distanceBasisSource = html
+            .replace(/<br\s*\/?>/gi, "\n")
+            .replace(/<\/div>/gi, "\n")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/\u00a0/g, " ");
+        const distanceBasisMatch = distanceBasisSource.match(/^\s*거리\s*기준\s*:\s*([^\n]+)$/im);
+        const distanceBasis = distanceBasisMatch ? distanceBasisMatch[1].trim() : "";
         const normalized = html
             .replace(/<br\s*\/?>/gi, "\n")
             .replace(/<\/div>/gi, "\n")
@@ -282,10 +289,21 @@
             const name = parts[0];
             if (!name) continue;
             const type = /렌터카|렌트카|rental/i.test(html) ? "렌터카" : "호텔";
+            const fields = {};
+            for (const p of parts.slice(1)) {
+                const kv = p.match(/^([^:]+):\s*(.+)$/);
+                if (!kv) continue;
+                fields[kv[1].trim()] = kv[2].trim();
+            }
             cards.push({
                 type,
                 name,
-                meta: parts.slice(1).join(" | "),
+                meta: parts.slice(1).filter((p) => !/^사진\s*:/i.test(p)).join(" | "),
+                price: fields["가격"] || "",
+                rating: fields["평점"] || "",
+                stars: fields["성급"] || "",
+                photo: fields["사진"] || "",
+                distanceBasis,
             });
         }
         return cards.slice(0, 8);
@@ -554,7 +572,6 @@
                                         <div class="ai-flight-card__code">${escapeHtml(inSeg.arrCode)}</div>
                                     </div>
                                 </div>
-                                <div class="ai-flight-card__rt-summary">${escapeHtml(routeInfoLabel)}</div>
                             </div>
                         </div>`;
                     })() : `
@@ -584,6 +601,25 @@
                         <button type="button" class="ai-commerce-card__add">장바구니 담기</button>
                     </div>
                 `;
+            } else if (cardData.type === "호텔") {
+                const metaBits = [];
+                if (cardData.rating) metaBits.push(`평점 ${cardData.rating}`);
+                if (cardData.stars) metaBits.push(`${cardData.stars}성급`);
+                const priceText = cardData.price || "";
+                card.classList.add("ai-commerce-card--hotel");
+                card.innerHTML = `
+                    ${cardData.photo ? `<div class="ai-hotel-card__thumb-wrap"><img class="ai-hotel-card__thumb" src="${escapeHtml(cardData.photo)}" alt="${escapeHtml(cardData.name)}" loading="lazy"></div>` : `<div class="ai-hotel-card__thumb-wrap ai-hotel-card__thumb-wrap--placeholder"><div class="ai-hotel-card__thumb-fallback">HOTEL</div></div>`}
+                    <div class="ai-hotel-card__body">
+                        <div class="ai-commerce-card__type">${escapeHtml(cardData.type)}</div>
+                        <div class="ai-commerce-card__name">${escapeHtml(cardData.name)}</div>
+                        ${metaBits.length ? `<div class="ai-hotel-card__chips">${metaBits.map((t) => `<span class="ai-hotel-card__chip">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
+                    </div>
+                    <div class="ai-hotel-card__fare">
+                        <div class="ai-flight-card__fare-label">1박 기준가(참고)</div>
+                        <div class="ai-hotel-card__price">${escapeHtml(priceText || "-")}</div>
+                        <button type="button" class="ai-commerce-card__add">장바구니 담기</button>
+                    </div>
+                `;
             } else {
                 card.innerHTML = `
                     <div class="ai-commerce-card__type">${escapeHtml(cardData.type)}</div>
@@ -604,9 +640,7 @@
             grid.appendChild(card);
         });
         section.appendChild(grid);
-        if (flightCards.length) {
-            content.innerHTML = "";
-        }
+        content.innerHTML = "";
         content.appendChild(section);
     }
 

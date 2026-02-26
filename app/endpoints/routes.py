@@ -1,80 +1,137 @@
-from fastapi import APIRouter, Query, Body, HTTPException
+import os
+
+from dotenv import load_dotenv
+from fastapi import APIRouter, Body, HTTPException, Query
+from openai import OpenAI
+
+from app.api.booking_hotel_flight_api import (
+    recommend_buckets as booking_recommend_buckets,
+    search_destination as booking_search_destination,
+    search_flights as booking_search_flights,
+    search_hotels_by_dest_id,
+)
 from app.api.geoapify import get_attractions
 from app.api.google_places import get_google_places
-from app.api.ai_helper import ask_ai_about_attractions
-from app.api.amadeus_api import search_flights
-from app.api.booking_hotel_flight_api import (
-    search_flights as booking_search_flights,
-    search_destination as booking_search_destination,
-    search_hotels_by_dest_id,
-    recommend_buckets as booking_recommend_buckets,
-)
 
 router = APIRouter()
 
+load_dotenv()
+_routes_ai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+
+def ask_ai_about_attractions(question, attractions, flight_info=None):
+    context = "\n".join(
+        [
+            (
+                f"상호명: {a.get('name', 'Unknown')}\n"
+                f"주소: {a.get('address', {}).get('formatted', '') if isinstance(a.get('address'), dict) else (a.get('address') or '')}\n"
+                f"카테고리: {', '.join(a.get('categories', [])) if isinstance(a.get('categories'), list) else str(a.get('categories', ''))}\n"
+                f"웹사이트: {a.get('website', '없음')}\n"
+                f"영업시간: {a.get('opening_hours', '정보 없음')}\n"
+            )
+            for a in attractions
+        ]
+    )
+
+    flight_context = ""
+    if flight_info:
+        flight_context = "\n\n항공권 정보:\n" + "\n".join(
+            [
+                (
+                    f"항공사: {f.get('airline', 'Unknown')}, "
+                    f"항공편: {f.get('flight_number', 'Unknown')}, "
+                    f"출발: {f.get('departure', '')}, 도착: {f.get('arrival', '')}, "
+                    f"출발지: {f.get('origin', '')}, 도착지: {f.get('destination', '')}"
+                )
+                for f in flight_info
+            ]
+        )
+
+    prompt = (
+        f"관광객이 '{question}'이라고 물어봤을 때 아래 명소와 항공권 정보 중에서 "
+        f"가장 적합한 정보를 정확하게 추천해줘.\n명소 목록:\n{context}{flight_context}"
+    )
+    response = _routes_ai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "너는 여행지 추천 전문가야."},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    return response.choices[0].message.content
+
+
 @router.get("/attractions")
-def attractions(lat: float = Query(...), lon: float = Query(...), radius: int = 5000, kind: str = "tourist_attraction"):
+def attractions(
+    lat: float = Query(...),
+    lon: float = Query(...),
+    radius: int = Query(5000),
+    kind: str = Query("tourist_attraction"),
+):
     """
     Fetch tourist or local attractions from Geoapify API.
     """
     return get_attractions(lat, lon, radius, kind)
 
+
 @router.post("/recommend")
 def recommend_attraction(
     lat: float = Query(...),
     lon: float = Query(...),
-    radius: int = 5000,
-    kind: str = "tourist_attraction",
+    radius: int = Query(5000),
+    kind: str = Query("tourist_attraction"),
     question: str = Body(..., embed=True),
-    keyword: str = None,
-    origin: str = None,
-    destination: str = None,
-    departure_date: str = None
+    keyword: str | None = None,
+    origin: str | None = None,
+    destination: str | None = None,
+    departure_date: str | None = None,
 ):
     """
-    AI가 Geoapify, Google Places, Amadeus 항공권 정보를 참고하여 질문에 맞는 추천을 제공합니다.
+    Geoapify / Google Places / (선택) 항공권 정보를 바탕으로 AI 추천 결과를 생성합니다.
     """
     flight_keywords = ["비행기", "항공권", "항공편", "flight", "airplane", "plane", "티켓"]
-    include_flights = any(word in question for word in flight_keywords)
+    include_flights = any(word in (question or "") for word in flight_keywords)
 
-    # Geoapify 데이터
     data = get_attractions(lat, lon, radius, kind)
-    attractions = data.get("features", [])
-    geoapify_places = [a.get("properties", {}) for a in attractions]
+    attractions_data = data.get("features", [])
+    geoapify_places = [a.get("properties", {}) for a in attractions_data]
 
-    # Google Places 데이터
     google_data = get_google_places(lat, lon, radius, keyword=keyword or question)
     google_places = []
     for place in google_data.get("results", []):
-        google_places.append({
-            "name": place.get("name"),
-            "address": place.get("vicinity"),
-            "categories": [place.get("types", [])],
-            "website": None,
-            "opening_hours": place.get("opening_hours", {}).get("weekday_text", "정보 없음")
-        })
+        google_places.append(
+            {
+                "name": place.get("name"),
+                "address": place.get("vicinity"),
+                "categories": place.get("types", []),
+                "website": None,
+                "opening_hours": place.get("opening_hours", {}).get("weekday_text", "정보 없음"),
+            }
+        )
 
-    # 항공권 데이터 (Booking.com RapidAPI만 사용)
     flight_info = []
     if include_flights and origin and destination and departure_date:
         try:
             booking_flight_data = booking_search_flights(origin, destination, departure_date)
             for offer in booking_flight_data.get("data", []):
-                segments = offer.get("itineraries", [])[0].get("segments", [])
-                for seg in segments:
-                    flight_info.append({
-                        "airline": seg.get("carrierCode"),
-                        "flight_number": seg.get("number"),
-                        "departure": seg.get("departure", {}).get("at"),
-                        "arrival": seg.get("arrival", {}).get("at"),
-                        "origin": seg.get("departure", {}).get("iataCode"),
-                        "destination": seg.get("arrival", {}).get("iataCode"),
-                        "source": "Booking.com"
-                    })
+                itineraries = offer.get("itineraries", [])
+                if not itineraries:
+                    continue
+                for seg in itineraries[0].get("segments", []):
+                    flight_info.append(
+                        {
+                            "airline": seg.get("carrierCode"),
+                            "flight_number": seg.get("number"),
+                            "departure": seg.get("departure", {}).get("at"),
+                            "arrival": seg.get("arrival", {}).get("at"),
+                            "origin": seg.get("departure", {}).get("iataCode"),
+                            "destination": seg.get("arrival", {}).get("iataCode"),
+                            "source": "Booking.com",
+                        }
+                    )
         except Exception as e:
             flight_info.append({"airline": "Booking.com API 오류", "flight_number": str(e)})
 
-    # 통합 데이터
     all_places = geoapify_places + google_places
     return {"recommendation": ask_ai_about_attractions(question, all_places, flight_info)}
 
