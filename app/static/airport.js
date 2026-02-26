@@ -27,6 +27,12 @@ const airportData = {
 };
 
 let currentTripType = 'round';
+let mainSearchState = {
+    dep: '인천 (ICN)',
+    arr: '',
+    departureDate: '',
+    returnDate: '',
+};
 let segments = [
     { id: 1, dep: '인천 (ICN)', arr: '', date: '' },
     { id: 2, dep: '', arr: '인천 (ICN)', date: '' },
@@ -39,10 +45,12 @@ let passengerState = {
     infant: 0,
     cabin: 'ECONOMY',
 };
+let flightSortState = 'price';
 
 document.addEventListener('DOMContentLoaded', () => {
     renderForm();
     initAirportPopover();
+    initFlightSortControls();
     initIcons();
 });
 
@@ -57,6 +65,43 @@ function setTripType(type) {
     const addBtn = document.getElementById('addSegmentBtn');
     if (addBtn) addBtn.style.display = type === 'multi' ? 'flex' : 'none';
     renderForm();
+}
+
+function initFlightSortControls() {
+    const sortBar = document.getElementById('flightSortBar');
+    if (!sortBar) return;
+    sortBar.addEventListener('click', (e) => {
+        const btn = e.target.closest('.flight-sort-btn');
+        if (!btn) return;
+        const nextSort = btn.getAttribute('data-sort') || 'price';
+        setFlightSort(nextSort);
+    });
+    updateFlightSortButtons();
+}
+
+function setFlightSort(sortKey) {
+    flightSortState = ['price', 'duration', 'departure'].includes(sortKey) ? sortKey : 'price';
+    updateFlightSortButtons();
+    rerenderCurrentFlightResults();
+}
+
+function updateFlightSortButtons() {
+    document.querySelectorAll('.flight-sort-btn').forEach((btn) => {
+        btn.classList.toggle('is-active', btn.getAttribute('data-sort') === flightSortState);
+    });
+}
+
+function rerenderCurrentFlightResults() {
+    const resultDiv = document.getElementById('flightResultArea');
+    const payload = resultDiv?._flightRenderPayload;
+    if (!resultDiv || !payload) return;
+    if (payload.type === 'multi') {
+        renderMultiFlightResults(payload.dataList, payload.legs);
+        return;
+    }
+    if (payload.type === 'single') {
+        renderFlightResults(payload.data);
+    }
 }
 
 function renderForm() {
@@ -89,6 +134,15 @@ function renderForm() {
                 ${segments.length > 2 ? `<button type="button" class="remove-segment-btn" onclick="removeSegment(${index})">&times;</button>` : ''}
             `;
             container.appendChild(row);
+            const dateInput = row.querySelector(`#seg-${index}-date`);
+            if (dateInput) {
+                dateInput.addEventListener('change', (e) => {
+                    segments[index].date = e.target.value || '';
+                });
+                dateInput.addEventListener('input', (e) => {
+                    segments[index].date = e.target.value || '';
+                });
+            }
         });
 
         const bottomRow = document.createElement('div');
@@ -106,23 +160,78 @@ function renderForm() {
         row.innerHTML = `
             <div class="input-group" onclick="openAirportPopover('main-dep')">
                 <label>출발지</label>
-                <input type="text" id="main-dep" value="인천 (ICN)" readonly>
+                <input type="text" id="main-dep" value="${mainSearchState.dep || ''}" readonly>
             </div>
             <button type="button" class="swap-btn" onclick="swapMainLocations(event)"><i data-lucide="arrow-right-left" width="16"></i></button>
             <div class="input-group" onclick="openAirportPopover('main-arr')">
                 <label>도착지</label>
-                <input type="text" id="main-arr" value="" readonly placeholder="어디로 떠나시나요?">
+                <input type="text" id="main-arr" value="${mainSearchState.arr || ''}" readonly placeholder="어디로 떠나시나요?">
             </div>
-            <div class="input-group"><label>출발일</label><input type="date" id="main-dep-date"></div>
-            ${currentTripType === 'round' ? '<div class="input-group"><label>오는 날</label><input type="date" id="main-return-date"></div>' : ''}
+            <div class="input-group"><label>출발일</label><input type="date" id="main-dep-date" value="${mainSearchState.departureDate || ''}"></div>
+            ${currentTripType === 'round' ? `<div class="input-group"><label>오는 날</label><input type="date" id="main-return-date" value="${mainSearchState.returnDate || ''}"></div>` : ''}
             <div class="input-group" onclick="openPassengerPopover()">
                 <label>인원 및 좌석</label>
                 <input type="text" id="pass-input" value="${passValue}" readonly>
             </div>
         `;
         container.appendChild(row);
+        const depDateInput = row.querySelector('#main-dep-date');
+        if (depDateInput) {
+            depDateInput.addEventListener('change', (e) => {
+                mainSearchState.departureDate = e.target.value || '';
+            });
+            depDateInput.addEventListener('input', (e) => {
+                mainSearchState.departureDate = e.target.value || '';
+            });
+        }
+        const returnDateInput = row.querySelector('#main-return-date');
+        if (returnDateInput) {
+            returnDateInput.addEventListener('change', (e) => {
+                mainSearchState.returnDate = e.target.value || '';
+            });
+            returnDateInput.addEventListener('input', (e) => {
+                mainSearchState.returnDate = e.target.value || '';
+            });
+        }
     }
     initIcons();
+}
+
+function setAirportValue(targetId, value) {
+    if (!targetId) return;
+    const el = document.getElementById(targetId);
+    if (el) el.value = value;
+
+    if (targetId === 'main-dep') {
+        mainSearchState.dep = value;
+        return;
+    }
+    if (targetId === 'main-arr') {
+        mainSearchState.arr = value;
+        return;
+    }
+    const match = targetId.match(/^seg-(\d+)-(dep|arr)$/);
+    if (!match) return;
+    const idx = Number(match[1]);
+    const key = match[2];
+    if (!Number.isNaN(idx) && segments[idx]) {
+        segments[idx][key] = value;
+    }
+}
+
+function syncCurrentFormStateFromDom() {
+    if (currentTripType === 'multi') {
+        segments.forEach((seg, index) => {
+            seg.dep = document.getElementById(`seg-${index}-dep`)?.value || seg.dep || '';
+            seg.arr = document.getElementById(`seg-${index}-arr`)?.value || seg.arr || '';
+            seg.date = document.getElementById(`seg-${index}-date`)?.value || seg.date || '';
+        });
+        return;
+    }
+    mainSearchState.dep = document.getElementById('main-dep')?.value || mainSearchState.dep || '';
+    mainSearchState.arr = document.getElementById('main-arr')?.value || mainSearchState.arr || '';
+    mainSearchState.departureDate = document.getElementById('main-dep-date')?.value || mainSearchState.departureDate || '';
+    mainSearchState.returnDate = document.getElementById('main-return-date')?.value || mainSearchState.returnDate || '';
 }
 
 function openAirportPopover(targetId) {
@@ -209,7 +318,7 @@ function renderAirportList(region) {
         div.className = 'airport-item';
         div.innerHTML = `<div><span class="airport-name">${ap.name}</span><span class="airport-country">${ap.country}</span></div><span class="airport-code">${ap.code}</span>`;
         div.onclick = () => {
-            if (activeInputId) document.getElementById(activeInputId).value = `${ap.name} (${ap.code})`;
+            if (activeInputId) setAirportValue(activeInputId, `${ap.name} (${ap.code})`);
             closeAllPopovers();
         };
         list.appendChild(div);
@@ -230,9 +339,12 @@ function swapMainLocations(e) {
     e.stopPropagation();
     const d = document.getElementById('main-dep');
     const a = document.getElementById('main-arr');
+    if (!d || !a) return;
     const t = d.value;
     d.value = a.value;
     a.value = t;
+    mainSearchState.dep = d.value || '';
+    mainSearchState.arr = a.value || '';
 }
 
 function addMultiCitySegment() {
@@ -277,6 +389,7 @@ async function fetchFlightSearch({ origin, destination, departure_date, return_d
 
 async function performSearch() {
     closeAllPopovers();
+    syncCurrentFormStateFromDom();
 
     let resultDiv = document.getElementById('flightResultArea');
     if (resultDiv) resultDiv.innerHTML = '';
@@ -337,13 +450,25 @@ async function performSearch() {
 }
 
 function showFlightLoading() {
-    let resultDiv = document.getElementById('flightResultArea');
-    if (!resultDiv) {
-        resultDiv = document.createElement('div');
-        resultDiv.id = 'flightResultArea';
-        document.querySelector('.search-widget').appendChild(resultDiv);
-    }
+    const resultDiv = ensureFlightResultArea();
+    resultDiv._flightRenderPayload = null;
     resultDiv.innerHTML = '<div class="flight-loading">항공편을 검색 중입니다...</div>';
+}
+
+function ensureFlightResultArea() {
+    let resultDiv = document.getElementById('flightResultArea');
+    if (resultDiv) return resultDiv;
+
+    resultDiv = document.createElement('div');
+    resultDiv.id = 'flightResultArea';
+
+    const mount = document.getElementById('flightResultsMount');
+    if (mount) {
+        mount.appendChild(resultDiv);
+    } else {
+        document.querySelector('.search-widget')?.appendChild(resultDiv);
+    }
+    return resultDiv;
 }
 
 function escapeHtml(value) {
@@ -376,6 +501,61 @@ function formatDuration(duration) {
     if (h && min) return `${h}시간 ${min}분`;
     if (h) return `${h}시간`;
     return `${min}분`;
+}
+
+function durationMinutesFromIso(duration) {
+    if (!duration || typeof duration !== 'string') return Number.MAX_SAFE_INTEGER;
+    const m = duration.match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/);
+    if (!m) return Number.MAX_SAFE_INTEGER;
+    return (Number(m[1] || 0) * 60) + Number(m[2] || 0);
+}
+
+function getOfferPriceValue(offer) {
+    return Number(offer?.price?.krwTotal || offer?.price?.total || Number.MAX_SAFE_INTEGER);
+}
+
+function getOfferDurationValue(offer) {
+    const itineraries = Array.isArray(offer?.itineraries) ? offer.itineraries : [];
+    if (!itineraries.length) return Number.MAX_SAFE_INTEGER;
+    let total = 0;
+    let hasValid = false;
+    itineraries.forEach((it) => {
+        const mins = durationMinutesFromIso(it?.duration);
+        if (Number.isFinite(mins) && mins < Number.MAX_SAFE_INTEGER) {
+            total += mins;
+            hasValid = true;
+        }
+    });
+    return hasValid ? total : Number.MAX_SAFE_INTEGER;
+}
+
+function getOfferFirstDepartureValue(offer) {
+    const dep = offer?.itineraries?.[0]?.segments?.[0]?.departure?.at;
+    const ts = dep ? new Date(dep).getTime() : Number.NaN;
+    return Number.isNaN(ts) ? Number.MAX_SAFE_INTEGER : ts;
+}
+
+function sortOffersForDisplay(results) {
+    const rows = [...(Array.isArray(results) ? results : [])];
+    const sortKey = flightSortState || 'price';
+    rows.sort((a, b) => {
+        const aPrice = getOfferPriceValue(a);
+        const bPrice = getOfferPriceValue(b);
+        const aDur = getOfferDurationValue(a);
+        const bDur = getOfferDurationValue(b);
+        const aDep = getOfferFirstDepartureValue(a);
+        const bDep = getOfferFirstDepartureValue(b);
+
+        if (sortKey === 'duration') {
+            return (aDur - bDur) || (aPrice - bPrice) || (aDep - bDep);
+        }
+        if (sortKey === 'departure') {
+            return (aDep - bDep) || (aPrice - bPrice) || (aDur - bDur);
+        }
+        // price default
+        return (aPrice - bPrice) || (aDur - bDur) || (aDep - bDep);
+    });
+    return rows;
 }
 
 function buildStopLabel(itinerary) {
@@ -437,18 +617,15 @@ function buildFlightCardsHtml(data) {
         return '<div class="flight-no-result">검색 결과가 없습니다.</div>';
     }
     const carriers = getCarrierDict(data);
-    const sorted = [...results].sort((a, b) => {
-        const aPrice = Number(a?.price?.krwTotal || a?.price?.total || Number.MAX_SAFE_INTEGER);
-        const bPrice = Number(b?.price?.krwTotal || b?.price?.total || Number.MAX_SAFE_INTEGER);
-        return aPrice - bPrice;
-    });
+    const sorted = sortOffersForDisplay(results);
 
     let html = '<div class="flight-result-list">';
     sorted.forEach((f) => {
         const itineraries = Array.isArray(f.itineraries) ? f.itineraries : [];
         const airline = getAirlineDisplay(f, carriers);
+        const singleClass = itineraries.length <= 1 ? ' flight-card--single' : '';
         html += `
-            <article class="flight-card">
+            <article class="flight-card${singleClass}">
                 <div class="flight-card-main">
                     <div class="flight-airline">
                         <div class="flight-airline-mark">
@@ -503,12 +680,18 @@ function renderItineraryLine(itinerary) {
     const segs = itinerary?.segments || [];
     const first = segs[0] || {};
     const last = segs[segs.length - 1] || {};
+    const stops = Math.max(segs.length - 1, 0);
     const depAt = first?.departure?.at;
     const arrAt = last?.arrival?.at;
     const depCode = first?.departure?.iataCode || '-';
     const arrCode = last?.arrival?.iataCode || '-';
     const viaCode = segs.length > 1 ? (segs[0]?.arrival?.iataCode || '') : '';
     const stopDetail = segs.length > 1 && viaCode ? `${buildStopLabel(itinerary)} ${viaCode}` : buildStopLabel(itinerary);
+    const routePathCodes = segs.length
+        ? [segs[0]?.departure?.iataCode, ...segs.map((s) => s?.arrival?.iataCode)]
+            .filter(Boolean)
+            .join(' → ')
+        : `${depCode} → ${arrCode}`;
     return `
         <div class="flight-leg">
             <div class="flight-leg-time">
@@ -518,6 +701,7 @@ function renderItineraryLine(itinerary) {
             <div class="flight-leg-middle">
                 <div class="flight-leg-duration">${formatDuration(itinerary?.duration)}</div>
                 <div class="flight-leg-line"></div>
+                <div class="flight-leg-path">${escapeHtml(routePathCodes)}</div>
                 <div class="flight-leg-stop">${escapeHtml(stopDetail)}</div>
             </div>
             <div class="flight-leg-time">
@@ -529,22 +713,14 @@ function renderItineraryLine(itinerary) {
 }
 
 function renderFlightResults(data) {
-    let resultDiv = document.getElementById('flightResultArea');
-    if (!resultDiv) {
-        resultDiv = document.createElement('div');
-        resultDiv.id = 'flightResultArea';
-        document.querySelector('.search-widget').appendChild(resultDiv);
-    }
+    const resultDiv = ensureFlightResultArea();
+    resultDiv._flightRenderPayload = { type: 'single', data };
     resultDiv.innerHTML = buildFlightCardsHtml(data);
 }
 
 function renderMultiFlightResults(dataList, legs) {
-    let resultDiv = document.getElementById('flightResultArea');
-    if (!resultDiv) {
-        resultDiv = document.createElement('div');
-        resultDiv.id = 'flightResultArea';
-        document.querySelector('.search-widget').appendChild(resultDiv);
-    }
+    const resultDiv = ensureFlightResultArea();
+    resultDiv._flightRenderPayload = { type: 'multi', dataList, legs };
     let html = '<div class="flight-multi-result">';
     dataList.forEach((data, idx) => {
         const leg = legs[idx];
@@ -560,11 +736,7 @@ function renderMultiFlightResults(dataList, legs) {
 }
 
 function renderFlightError(msg) {
-    let resultDiv = document.getElementById('flightResultArea');
-    if (!resultDiv) {
-        resultDiv = document.createElement('div');
-        resultDiv.id = 'flightResultArea';
-        document.querySelector('.search-widget').appendChild(resultDiv);
-    }
+    const resultDiv = ensureFlightResultArea();
+    resultDiv._flightRenderPayload = null;
     resultDiv.innerHTML = `<div class="flight-error">오류: ${escapeHtml(msg)}</div>`;
 }

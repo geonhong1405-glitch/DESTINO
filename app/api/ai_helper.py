@@ -24,7 +24,7 @@ def ask_ai_about_attractions(question, attractions, flight_info=None):
         f"명소 목록:\n{context}{flight_context}"
     )
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4-mini",
         messages=[{"role": "system", "content": "너는 여행지 추천 전문가야."},
                   {"role": "user", "content": prompt}]
     )

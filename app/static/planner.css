@@ -339,6 +339,165 @@ ul {
     font-weight: 600;
 }
 
+/* Local place recommendations (restaurants/attractions/cafes/shopping) */
+.ai-place-reco {
+    margin: 0;
+    padding: 14px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
+    color: #0f172a;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.ai-place-reco__top {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 10px;
+    align-items: start;
+    margin-bottom: 12px;
+}
+
+.ai-place-reco__badge {
+    align-self: start;
+    font-size: 11px;
+    font-weight: 800;
+    color: #92400e;
+    background: #fef3c7;
+    border-radius: 999px;
+    padding: 4px 8px;
+}
+
+.ai-place-reco__title {
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.25;
+}
+
+.ai-place-reco__subtitle {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.35;
+}
+
+.ai-place-reco__list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ai-place-reco__card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.ai-place-reco__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 12px 8px;
+}
+
+.ai-place-reco__rank {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 800;
+    background: #fff7ed;
+    color: #ea580c;
+    border: 1px solid #fed7aa;
+    flex-shrink: 0;
+}
+
+.ai-place-reco__name {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.3;
+}
+
+.ai-place-reco__images {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    padding: 0 12px 10px;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.ai-place-reco__images img {
+    width: 100%;
+    height: 110px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    background: #f8fafc;
+}
+
+.ai-place-reco__list,
+.ai-place-reco__card,
+.ai-place-reco__body {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.ai-place-reco__body {
+    padding: 0 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ai-place-reco__bullets {
+    list-style: disc;
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ai-place-reco__bullets li {
+    font-size: 12px;
+    color: #334155;
+    line-height: 1.45;
+}
+
+.ai-place-reco__actions {
+    margin-top: 4px;
+}
+
+.ai-place-reco__actions a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    border-radius: 999px;
+    padding: 5px 9px;
+}
+
+.ai-place-reco__actions a:hover {
+    background: #dbeafe;
+}
+
 .ai-commerce-cards {
     margin-top: 10px;
     border-top: 1px solid #eef2f7;
@@ -416,7 +575,7 @@ ul {
 
 .ai-commerce-card--flight {
     display: grid;
-    grid-template-columns: 88px 1fr 170px;
+    grid-template-columns: 88px minmax(0, 1fr) 190px;
     gap: 12px;
     align-items: stretch;
     padding: 12px;
@@ -435,6 +594,14 @@ ul {
     gap: 8px;
 }
 
+.ai-flight-card__logo-wrap {
+    width: 54px;
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .ai-flight-card__logo {
     width: 54px;
     min-height: 34px;
@@ -449,6 +616,16 @@ ul {
     font-weight: 700;
     color: #1f2937;
     background: #fff;
+}
+
+.ai-flight-card__logo-img {
+    width: 54px;
+    height: 54px;
+    object-fit: contain;
+    border-radius: 12px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    padding: 4px;
 }
 
 .ai-flight-card__airline {
@@ -467,6 +644,70 @@ ul {
     min-width: 0;
 }
 
+.ai-flight-card__schedule--round {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+}
+
+.ai-flight-card__rt-list {
+    display: grid;
+    gap: 8px;
+    align-content: center;
+}
+
+.ai-flight-card__rt-row {
+    display: grid;
+    grid-template-columns: 42px minmax(72px, 1fr) minmax(96px, 1.1fr) minmax(72px, 1fr);
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+}
+
+.ai-flight-card__rt-tag {
+    font-size: 11px;
+    font-weight: 800;
+    color: #475569;
+    background: #eef2f7;
+    border: 1px solid #dbe2ea;
+    border-radius: 999px;
+    padding: 4px 6px;
+    text-align: center;
+}
+
+.ai-flight-card__route--rt {
+    gap: 4px;
+}
+
+.ai-flight-card__rt-summary {
+    text-align: center;
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 700;
+    margin-top: 2px;
+}
+
+.ai-flight-card__point-col {
+    display: grid;
+    gap: 10px;
+    align-content: center;
+}
+
+.ai-flight-card__point-col .ai-flight-card__point {
+    gap: 1px;
+}
+
+.ai-flight-card__route-col {
+    display: grid;
+    gap: 6px;
+    align-content: center;
+}
+
+.ai-flight-card__route-row {
+    display: grid;
+    gap: 4px;
+    align-items: center;
+}
+
 .ai-flight-card__point {
     display: flex;
     flex-direction: column;
@@ -481,6 +722,24 @@ ul {
     line-height: 1;
     letter-spacing: -0.02em;
     word-break: break-word;
+}
+
+.ai-flight-card__schedule--round .ai-flight-card__time {
+    font-size: 20px;
+    letter-spacing: -0.01em;
+}
+
+.ai-flight-card__schedule--round .ai-flight-card__date {
+    font-size: 11px;
+}
+
+.ai-flight-card__schedule--round .ai-flight-card__code {
+    font-size: 12px;
+}
+
+.ai-flight-card__point--arr {
+    align-items: flex-end;
+    text-align: right;
 }
 
 .ai-flight-card__date {
@@ -544,6 +803,24 @@ ul {
     font-size: 12px;
     font-weight: 700;
     color: #047857;
+    text-align: center;
+}
+
+.ai-flight-card__segments {
+    grid-column: 1 / -1;
+    margin-top: 4px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    display: grid;
+    gap: 4px;
+}
+
+.ai-flight-card__segment-line {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #475569;
 }
 
 .ai-flight-card__fare {
@@ -567,6 +844,10 @@ ul {
     color: #0f172a;
     letter-spacing: -0.02em;
     word-break: break-word;
+}
+
+.ai-flight-card__schedule--round + .ai-flight-card__fare .ai-flight-card__fare-value {
+    font-size: 18px;
 }
 
 @media (max-width: 1200px) {
@@ -594,11 +875,40 @@ ul {
         padding: 8px 0;
     }
 
+    .ai-flight-card__schedule--round {
+        grid-template-columns: 1fr;
+    }
+
+    .ai-flight-card__rt-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 8px 0;
+        border-bottom: 1px dashed #e5e7eb;
+    }
+
+    .ai-flight-card__rt-row:last-of-type {
+        border-bottom: 0;
+    }
+
+    .ai-flight-card__rt-tag {
+        justify-self: start;
+    }
+
+    .ai-flight-card__point-col {
+        gap: 8px;
+    }
+
     .ai-flight-card__point {
         flex-direction: row;
         align-items: baseline;
         gap: 8px;
         flex-wrap: wrap;
+    }
+
+    .ai-flight-card__route-col {
+        border-top: 1px dashed #e5e7eb;
+        border-bottom: 1px dashed #e5e7eb;
+        padding: 8px 0;
     }
 
     .ai-flight-card__time {
@@ -611,6 +921,18 @@ ul {
 
     .ai-flight-card__duration-wrap {
         align-items: flex-start;
+    }
+}
+
+@media (max-width: 700px) {
+    .ai-place-reco {
+        padding: 12px;
+    }
+    .ai-place-reco__images {
+        grid-template-columns: 1fr 1fr;
+    }
+    .ai-place-reco__images img {
+        height: 96px;
     }
 }
 

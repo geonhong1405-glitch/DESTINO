@@ -183,13 +183,18 @@
         const table = wrap.querySelector("table");
         if (!table) return [];
         const cards = [];
-        table.querySelectorAll("tr").forEach((tr) => {
+        const rows = Array.from(table.querySelectorAll("tr"));
+        rows.forEach((tr, idx) => {
             const tds = Array.from(tr.querySelectorAll("td"));
-            if (tds.length < 5) return;
+            if (tds.length !== 6) return;
             const cells = tds.map((td) => (td.textContent || "").trim()).filter(Boolean);
-            if (cells.length < 5) return;
-            if (cells[0].includes("-")) return;
+            if (cells.length < 6) return;
             const [airline, dep, arr, routeInfo, duration, price] = cells;
+            const detailRow = rows[idx + 1];
+            const detailDiv = detailRow?.querySelector("details div");
+            const segmentDetails = (detailDiv?.textContent || "")
+                .replace(/\s+/g, " ")
+                .trim();
             cards.push({
                 type: "항공편",
                 name: `${airline} ${dep} 출발`,
@@ -202,9 +207,60 @@
                 routeInfo,
                 duration,
                 price,
+                segmentDetails,
+                isRoundTrip,
             });
         });
         return cards.slice(0, 8);
+    }
+
+    function formatFlightSegmentDetailsHtml(segmentDetails) {
+        const raw = String(segmentDetails || "").trim();
+        if (!raw) return "";
+        const parts = raw.match(/\d+\)\s[\s\S]*?(?=(?:\s\d+\)\s)|$)/g) || [raw];
+        return parts
+            .map((p) => {
+                const normalized = p
+                    .trim()
+                    .replace(/\s*\|\s*/g, " · ")
+                    .replace(/\s+/g, " ");
+                return `<div class="ai-flight-card__segment-line">${escapeHtml(normalized)}</div>`;
+            })
+            .join("");
+    }
+
+    function getAirlineLogoUrlByCode(code) {
+        const c = String(code || "").trim().toUpperCase();
+        if (!c || c === "-") return "";
+        return `https://images.kiwi.com/airlines/64x64/${encodeURIComponent(c)}.png`;
+    }
+
+    function splitMmddHm(value) {
+        const txt = String(value || "").trim();
+        const m = txt.match(/(\d{2}-\d{2})\s+(\d{2}:\d{2})/);
+        if (m) return { date: m[1], time: m[2] };
+        return { date: "", time: txt || "-" };
+    }
+
+    function parseFlightSegmentEntries(segmentDetails) {
+        const txt = String(segmentDetails || "").trim();
+        if (!txt) return [];
+        const normalized = txt.replace(/\s+/g, " ");
+        const re = /(\d+)\)\s*([A-Z0-9]{2,3})\s*\|\s*([A-Z]{3})\s*(\d{2}-\d{2}\s+\d{2}:\d{2})\s*->\s*([A-Z]{3})\s*(\d{2}-\d{2}\s+\d{2}:\d{2})\s*\|\s*(PT(?:\d+H)?(?:\d+M)?)/g;
+        const out = [];
+        let m;
+        while ((m = re.exec(normalized)) !== null) {
+            out.push({
+                idx: Number(m[1]),
+                airline: m[2],
+                depCode: m[3],
+                depAt: m[4],
+                arrCode: m[5],
+                arrAt: m[6],
+                duration: m[7],
+            });
+        }
+        return out;
     }
 
     function parseListCards(rawHtml) {
@@ -233,6 +289,163 @@
             });
         }
         return cards.slice(0, 8);
+    }
+
+    function parsePlaceRecommendationCards(rawHtml) {
+        const html = String(rawHtml || "");
+        if (!/(맛집|명소|놀거리|카페|쇼핑).*(추천)|출처:/i.test(html)) return null;
+
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html;
+        const rootText = (wrap.textContent || "").replace(/\s+/g, " ").trim();
+        if (!rootText) return null;
+
+        const titleNode = wrap.querySelector("b");
+        const title = (titleNode?.textContent || "").trim() || "추천";
+
+        const blocks = [];
+        // Parse only outer recommendation cards (backend wraps each item with a bordered div).
+        // This avoids picking nested title divs again and creating duplicate/empty cards.
+        const candidateBlocks = Array.from(wrap.querySelectorAll("div[style*='border-radius']")).filter((el) => {
+            const b = el.querySelector("b");
+            return b && /^\s*\d+\./.test((b.textContent || "").trim());
+        });
+
+        for (const el of candidateBlocks) {
+            const nameLine = (el.querySelector("b")?.textContent || "").trim();
+            const name = nameLine.replace(/^\s*\d+\.\s*/, "").trim();
+            if (!name) continue;
+
+            const imgs = Array.from(el.querySelectorAll("img"))
+                .map((img) => img.getAttribute("src") || "")
+                .filter(Boolean)
+                .slice(0, 3);
+
+            const textLines = Array.from(el.querySelectorAll("div"))
+                .map((d) => (d.textContent || "").trim())
+                .filter(Boolean)
+                .filter((t) => !/^\d+\./.test(t));
+
+            const address = textLines.find((t) => /^주소[:\s]/.test(t)) || "";
+            const source = textLines.find((t) => /^출처[:\s]/.test(t)) || "";
+            const metaLines = textLines.filter((t) => t !== address && t !== source);
+            const summary = metaLines[0] || "";
+            const extra = metaLines.slice(1, 3);
+
+            const mapsAnchor = Array.from(el.querySelectorAll("a")).find((a) => /지도|maps/i.test(a.textContent || ""));
+            const mapsUrl = mapsAnchor?.getAttribute("href") || "";
+
+            // Skip thin/duplicate parses that only captured the nested title line.
+            if (!imgs.length && !summary && !address && !source) continue;
+
+            blocks.push({ name, imgs, summary, extra, address, source, mapsUrl });
+        }
+
+        if (!blocks.length) {
+            // Fallback: parse plain LLM numbered recommendations like
+            // "1. ...", "2. ..." without structured HTML blocks.
+            const plain = (wrap.textContent || "")
+                .replace(/\r/g, "")
+                .split("\n")
+                .map((s) => s.trim())
+                .filter(Boolean);
+            const items = [];
+            let current = null;
+            for (const line of plain) {
+                const m = line.match(/^(\d+)\.\s+(.+)$/);
+                if (m) {
+                    if (current) items.push(current);
+                    current = {
+                        name: m[2].trim(),
+                        imgs: [],
+                        summary: "",
+                        extra: [],
+                        address: "",
+                        source: "출처: AI 추천",
+                        mapsUrl: "",
+                    };
+                    continue;
+                }
+                if (!current) continue;
+                if (!current.summary) current.summary = line;
+                else current.extra.push(line);
+            }
+            if (current) items.push(current);
+            if (items.length) {
+                return {
+                    title,
+                    subtitle: "추천 후보를 보기 쉽게 정리했어요.",
+                    items: items.slice(0, 5),
+                };
+            }
+            return null;
+        }
+
+        return {
+            title,
+            subtitle: "후보별 핵심 정보와 이미지를 보기 쉽게 정리했어요.",
+            items: blocks.slice(0, 5),
+        };
+    }
+
+    function enhancePlaceRecommendationCards(botBubble, rawHtml) {
+        const parsed = parsePlaceRecommendationCards(rawHtml);
+        if (!parsed) return false;
+
+        const content = botBubble.querySelector(".ai-msg__content");
+        if (!content) return false;
+
+        const section = document.createElement("section");
+        section.className = "ai-place-reco";
+
+        const itemsHtml = parsed.items.map((item, idx) => {
+            const imagesHtml = item.imgs.length
+                ? `<div class="ai-place-reco__images">${
+                    item.imgs.map((src) => `<img src="${escapeHtml(src)}" alt="${escapeHtml(item.name)}">`).join("")
+                }</div>`
+                : "";
+            const bulletLines = [];
+            if (item.summary) bulletLines.push(item.summary);
+            item.extra.forEach((t) => bulletLines.push(t));
+            if (item.address) bulletLines.push(item.address);
+            if (item.source) bulletLines.push(item.source);
+            const bulletsHtml = bulletLines.length
+                ? `<ul class="ai-place-reco__bullets">${
+                    bulletLines.map((t) => `<li>${escapeHtml(t)}</li>`).join("")
+                }</ul>`
+                : "";
+            const actionsHtml = item.mapsUrl
+                ? `<div class="ai-place-reco__actions"><a href="${escapeHtml(item.mapsUrl)}" target="_blank" rel="noopener">지도 보기</a></div>`
+                : "";
+            return `
+                <article class="ai-place-reco__card">
+                    <div class="ai-place-reco__head">
+                        <span class="ai-place-reco__rank">${idx + 1}</span>
+                        <h4 class="ai-place-reco__name">${escapeHtml(item.name)}</h4>
+                    </div>
+                    ${imagesHtml}
+                    <div class="ai-place-reco__body">
+                        ${bulletsHtml}
+                        ${actionsHtml}
+                    </div>
+                </article>
+            `;
+        }).join("");
+
+        section.innerHTML = `
+            <div class="ai-place-reco__top">
+                <div class="ai-place-reco__badge">추천</div>
+                <div>
+                    <div class="ai-place-reco__title">${escapeHtml(parsed.title)}</div>
+                    <div class="ai-place-reco__subtitle">${escapeHtml(parsed.subtitle)}</div>
+                </div>
+            </div>
+            <div class="ai-place-reco__list">${itemsHtml}</div>
+        `;
+
+        content.innerHTML = "";
+        content.appendChild(section);
+        return true;
     }
 
     function enhanceCommerceCards(botBubble, rawHtml) {
@@ -268,14 +481,83 @@
                 const duration = cardData.duration || "-";
                 const price = cardData.price || "-";
                 const airline = cardData.airline || "항공사";
+                const airlineCode = String(cardData.airline || "").trim().toUpperCase() || "-";
+                const airlineLogoUrl = getAirlineLogoUrlByCode(airlineCode);
+                const isRoundTrip = Boolean(cardData.isRoundTrip);
                 const isDirect = /직항/.test(routeInfo);
-                const durationLabel = isDirect ? "비행시간" : "총 여정";
+                const durationLabel = isRoundTrip ? "왕복 여정" : (isDirect ? "비행시간" : "총 여정");
+                const segs = parseFlightSegmentEntries(cardData.segmentDetails);
+                const outSeg = segs[0];
+                const inSeg = segs[1];
+                const isRoundDirect = Boolean(isRoundTrip && outSeg && inSeg && segs.length === 2);
+                const routeInfoLabel = isRoundTrip
+                    ? (isRoundDirect ? "출국/귀국 직항" : "왕복 여정")
+                    : routeInfo;
+                const fareLabel = isRoundTrip ? "왕복 총액" : "가격";
 
                 card.innerHTML = `
                     <div class="ai-flight-card__brand">
-                        <div class="ai-flight-card__logo">${escapeHtml(airline)}</div>
-                        <div class="ai-flight-card__airline">${escapeHtml(airline)}</div>
+                        <div class="ai-flight-card__logo-wrap">
+                            ${airlineLogoUrl ? `<img class="ai-flight-card__logo-img" src="${airlineLogoUrl}" alt="${escapeHtml(airlineCode)} 로고" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ""}
+                            <div class="ai-flight-card__logo${airlineLogoUrl ? '" style="display:none;' : ''}">${escapeHtml(airlineCode || airline)}</div>
+                        </div>
+                        <div class="ai-flight-card__airline">${escapeHtml(airlineCode || airline)}</div>
                     </div>
+                    ${isRoundTrip && outSeg && inSeg ? (() => {
+                        const oDep = splitMmddHm(outSeg.depAt);
+                        const oArr = splitMmddHm(outSeg.arrAt);
+                        const iDep = splitMmddHm(inSeg.depAt);
+                        const iArr = splitMmddHm(inSeg.arrAt);
+                        const legBadge = isRoundDirect ? "직항" : "구간 확인";
+                        return `
+                        <div class="ai-flight-card__schedule ai-flight-card__schedule--round">
+                            <div class="ai-flight-card__rt-list">
+                                <div class="ai-flight-card__rt-row">
+                                    <div class="ai-flight-card__rt-tag">출국</div>
+                                    <div class="ai-flight-card__point">
+                                    <div class="ai-flight-card__time">${escapeHtml(oDep.time)}</div>
+                                    <div class="ai-flight-card__date">${escapeHtml(oDep.date)}</div>
+                                    <div class="ai-flight-card__code">${escapeHtml(outSeg.depCode)}</div>
+                                    </div>
+                                    <div class="ai-flight-card__route ai-flight-card__route--rt">
+                                        <div class="ai-flight-card__duration-wrap">
+                                        <span class="ai-flight-card__duration">${escapeHtml(outSeg.duration)}</span>
+                                        <span class="ai-flight-card__duration-label">&nbsp;</span>
+                                        </div>
+                                        <div class="ai-flight-card__line"></div>
+                                        <div class="ai-flight-card__routeinfo">${escapeHtml(legBadge)}</div>
+                                    </div>
+                                    <div class="ai-flight-card__point ai-flight-card__point--arr">
+                                    <div class="ai-flight-card__time">${escapeHtml(oArr.time)}</div>
+                                    <div class="ai-flight-card__date">${escapeHtml(oArr.date)}</div>
+                                    <div class="ai-flight-card__code">${escapeHtml(outSeg.arrCode)}</div>
+                                    </div>
+                                </div>
+                                <div class="ai-flight-card__rt-row">
+                                    <div class="ai-flight-card__rt-tag">귀국</div>
+                                    <div class="ai-flight-card__point">
+                                        <div class="ai-flight-card__time">${escapeHtml(iDep.time)}</div>
+                                        <div class="ai-flight-card__date">${escapeHtml(iDep.date)}</div>
+                                        <div class="ai-flight-card__code">${escapeHtml(inSeg.depCode)}</div>
+                                    </div>
+                                    <div class="ai-flight-card__route ai-flight-card__route--rt">
+                                        <div class="ai-flight-card__duration-wrap">
+                                            <span class="ai-flight-card__duration">${escapeHtml(inSeg.duration)}</span>
+                                            <span class="ai-flight-card__duration-label">&nbsp;</span>
+                                        </div>
+                                        <div class="ai-flight-card__line"></div>
+                                        <div class="ai-flight-card__routeinfo">${escapeHtml(legBadge)}</div>
+                                    </div>
+                                    <div class="ai-flight-card__point ai-flight-card__point--arr">
+                                        <div class="ai-flight-card__time">${escapeHtml(iArr.time)}</div>
+                                        <div class="ai-flight-card__date">${escapeHtml(iArr.date)}</div>
+                                        <div class="ai-flight-card__code">${escapeHtml(inSeg.arrCode)}</div>
+                                    </div>
+                                </div>
+                                <div class="ai-flight-card__rt-summary">${escapeHtml(routeInfoLabel)}</div>
+                            </div>
+                        </div>`;
+                    })() : `
                     <div class="ai-flight-card__schedule">
                         <div class="ai-flight-card__point">
                             <div class="ai-flight-card__time">${escapeHtml(depTime)}</div>
@@ -288,16 +570,16 @@
                                 <span class="ai-flight-card__duration-label">${escapeHtml(durationLabel)}</span>
                             </div>
                             <div class="ai-flight-card__line"></div>
-                            <div class="ai-flight-card__routeinfo">${escapeHtml(routeInfo)}</div>
+                            <div class="ai-flight-card__routeinfo">${escapeHtml(routeInfoLabel)}</div>
                         </div>
                         <div class="ai-flight-card__point">
                             <div class="ai-flight-card__time">${escapeHtml(arrTime)}</div>
                             <div class="ai-flight-card__date">${escapeHtml(arrDate)}</div>
                             <div class="ai-flight-card__code">도착</div>
                         </div>
-                    </div>
+                    </div>`}
                     <div class="ai-flight-card__fare">
-                        <div class="ai-flight-card__fare-label">가격</div>
+                        <div class="ai-flight-card__fare-label">${escapeHtml(fareLabel)}</div>
                         <div class="ai-flight-card__fare-value">${escapeHtml(price)}</div>
                         <button type="button" class="ai-commerce-card__add">장바구니 담기</button>
                     </div>
@@ -322,6 +604,9 @@
             grid.appendChild(card);
         });
         section.appendChild(grid);
+        if (flightCards.length) {
+            content.innerHTML = "";
+        }
         content.appendChild(section);
     }
 
@@ -352,7 +637,8 @@
                 <div class="ai-msg__meta">DESTINO AI</div>
                 <div class="ai-msg__bubble"><div class="ai-msg__content">${html}</div></div>
             `;
-            enhanceCommerceCards(loadingItem, html);
+            const renderedReco = enhancePlaceRecommendationCards(loadingItem, html);
+            if (!renderedReco) enhanceCommerceCards(loadingItem, html);
             scrollToBottom(true);
         } catch (error) {
             loadingItem.innerHTML = `

@@ -45,6 +45,11 @@
                     <button class="add-segment-btn" id="addSegmentBtn" onclick="addMultiCitySegment()">
                         <i data-lucide="plus-circle" width="16"></i> 구간 추가
                     </button>
+                    <div class="flight-sortbar" id="flightSortBar">
+                        <button type="button" class="flight-sort-btn is-active" data-sort="price">가격순</button>
+                        <button type="button" class="flight-sort-btn" data-sort="duration">소요시간순</button>
+                        <button type="button" class="flight-sort-btn" data-sort="departure">출발시간순</button>
+                    </div>
                     <button class="btn-search" onclick="performSearch()">검색</button>
                 </div>
 
@@ -115,6 +120,8 @@
                     </div>
                 </div>
             </div>
+
+            <div id="flightResultsMount"></div>
         </section>
     </main>
 
