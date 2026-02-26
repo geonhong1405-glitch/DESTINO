@@ -51,22 +51,14 @@
                 <i data-lucide="heart" size="20"></i>
                 <span class="font-medium">찜한 여행지</span>
             </button>
+            <button onclick="switchTab('cart')" id="tab-btn-cart" class="sidebar-item">
+                <i data-lucide="shopping-cart" size="20"></i>
+                <span class="font-medium">장바구니</span>
+            </button>
             <button onclick="switchTab('post')" id="tab-btn-post" class="sidebar-item">
                 <i data-lucide="sticky-note" size="20"></i>
                 <span class="font-medium">내 게시물</span>
             </button>
-            
-            <div class="sidebar-divider">
-                <p class="sidebar-group-label">혜택/알림</p>
-                <button onclick="switchTab('mileage')" id="tab-btn-mileage" class="sidebar-item">
-                    <i data-lucide="coins" size="20"></i>
-                    <span class="font-medium">마일리지함</span>
-                </button>
-                <button onclick="switchTab('coupons')" id="tab-btn-coupons" class="sidebar-item">
-                    <i data-lucide="ticket" size="20"></i>
-                    <span class="font-medium">쿠폰함</span>
-                </button>
-            </div>
 
             <div class="sidebar-divider">
                 <p class="sidebar-group-label">고객지원</p>
@@ -104,17 +96,17 @@
                 </div>
                 
                 <div class="user-stats-section">
-                    <div class="stat-box clickable" onclick="switchTab('mileage')">
-                        <p class="stat-label">마일리지</p>
-                        <p class="stat-value">12,500M</p>
-                    </div>
-                    <div class="stat-box clickable" onclick="switchTab('coupons')">
-                        <p class="stat-label">쿠폰</p>
-                        <p class="stat-value">3장</p>
+                    <div class="stat-box clickable" onclick="switchTab('bookings')">
+                        <p class="stat-label">예약</p>
+                        <p id="mypage-booking-count" class="stat-value">0건</p>
                     </div>
                     <div class="stat-box clickable" onclick="switchTab('wishlist')">
                         <p class="stat-label">찜</p>
-                        <p class="stat-value">2개</p>
+                        <p id="mypage-wishlist-count" class="stat-value">0개</p>
+                    </div>
+                    <div class="stat-box clickable" onclick="switchTab('cart')">
+                        <p class="stat-label">장바구니</p>
+                        <p id="mypage-cart-count" class="stat-value">0개</p>
                     </div>
                 </div>
             </div>
@@ -127,11 +119,20 @@
                             <i data-lucide="calendar" class="destino-blue-icon" size="20"></i>
                             최근 예약 내역
                         </h4>
-                        <button onclick="switchTab('bookings')" class="view-all-btn">
-                            전체보기 <i data-lucide="chevron-right" size="16"></i>
-                        </button>
                     </div>
                     <div id="recent-bookings-list">
+                        <!-- JS render -->
+                    </div>
+                </section>
+
+                <section class="mt-8">
+                    <div class="section-header">
+                        <h4 class="section-title">
+                            <i data-lucide="shopping-cart" class="destino-blue-icon" size="20"></i>
+                            최근 장바구니
+                        </h4>
+                    </div>
+                    <div id="recent-cart-list">
                         <!-- JS render -->
                     </div>
                 </section>
@@ -163,29 +164,20 @@
             <div id="content-wishlist" class="tab-content">
                 <div class="card-container min-h-card">
                     <div class="section-header">
-                        <h4 class="card-title mb-0">찜한 여행지 (8)</h4>
+                        <h4 id="mypage-wishlist-title" class="card-title mb-0">찜한 여행지 (0)</h4>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                        <!-- sample -->
-                        <div class="wish-item">
-                            <div class="wish-img-placeholder"></div>
-                            <div class="wish-info">
-                                <p class="wish-category">파리 전용 항공/호텔</p>
-                                <h5 class="wish-name">에펠뷰 5성급 호텔 패키지</h5>
-                                <p class="wish-price">1,250,000원</p>
-                            </div>
-                            <button class="wish-remove-btn"><i data-lucide="heart" class="fill-current text-red-500" size="18"></i></button>
-                        </div>
-                        <div class="wish-item">
-                            <div class="wish-img-placeholder bg-blue-100"></div>
-                            <div class="wish-info">
-                                <p class="wish-category">도쿄 전용 투어/티켓</p>
-                                <h5 class="wish-name">스카이트리 전망대 입장권</h5>
-                                <p class="wish-price">22,000원</p>
-                            </div>
-                            <button class="wish-remove-btn"><i data-lucide="heart" class="fill-current text-red-500" size="18"></i></button>
-                        </div>
+                    <div id="mypage-wishlist-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                     </div>
+                </div>
+            </div>
+
+            <!-- TAB: Cart -->
+            <div id="content-cart" class="tab-content">
+                <div class="card-container min-h-card">
+                    <div class="section-header">
+                        <h4 id="mypage-cart-title" class="card-title mb-0">장바구니 (0)</h4>
+                    </div>
+                    <div id="mypage-cart-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4"></div>
                 </div>
             </div>
 
@@ -202,73 +194,6 @@
                         </a>
                     </div>
                     <div id="my-trip-posts-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-                </div>
-            </div>
-
-            <!-- TAB: Mileage -->
-            <div id="content-mileage" class="tab-content">
-                <div class="card-container">
-                    <div class="mileage-status-box">
-                        <p class="text-sm text-gray-500">사용 가능한 마일리지</p>
-                        <h4 class="text-3xl font-black text-[#00AEEF] mt-1">12,500 M</h4>
-                        <div class="flex gap-4 mt-4">
-                            <button class="flex-1 py-3 bg-gray-50 rounded-xl text-sm font-bold text-gray-700">적립 예정: 0 M</button>
-                            <button class="flex-1 py-3 bg-gray-50 rounded-xl text-sm font-bold text-gray-700">오늘의 미션 500 M</button>
-                        </div>
-                    </div>
-                    <div class="mt-8">
-                        <h5 class="font-bold text-gray-800 mb-4">마일리지 내역</h5>
-                        <div class="divide-y divide-gray-100">
-                            <div class="py-4 flex justify-between items-center">
-                                <div>
-                                    <p class="text-sm font-bold">도쿄 호텔 예약 적립</p>
-                                    <p class="text-xs text-gray-400">2024.02.10</p>
-                                </div>
-                                <p class="font-bold text-[#00AEEF]">+2,500 M</p>
-                            </div>
-                            <div class="py-4 flex justify-between items-center">
-                                <div>
-                                    <p class="text-sm font-bold">이벤트 참여 (출석 체크)</p>
-                                    <p class="text-xs text-gray-400">2024.02.05</p>
-                                </div>
-                                <p class="font-bold text-[#00AEEF]">+100 M</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- TAB: Coupons -->
-            <div id="content-coupons" class="tab-content">
-                <div class="card-container min-h-card">
-                    <div class="flex justify-between items-center mb-6">
-                        <h4 class="card-title mb-0">사용 가능한 쿠폰 (3)</h4>
-                        <button class="px-4 py-2 bg-gray-100 rounded-lg text-xs font-bold text-gray-600">+ 쿠폰 등록</button>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="coupon-card">
-                            <div class="coupon-left">
-                                <p class="coupon-value">15%</p>
-                                <p class="coupon-type">할인쿠폰</p>
-                            </div>
-                            <div class="coupon-right">
-                                <h5 class="coupon-name">첫 여행 응원! 유럽 전용 할인</h5>
-                                <p class="coupon-desc">100만원 이상 결제 시 사용 가능</p>
-                                <p class="coupon-date">~ 2024.03.31 까지</p>
-                            </div>
-                        </div>
-                        <div class="coupon-card border-orange-100">
-                            <div class="coupon-left bg-orange-500">
-                                <p class="coupon-value">5,000</p>
-                                <p class="coupon-type">즉시할인</p>
-                            </div>
-                            <div class="coupon-right">
-                                <h5 class="coupon-name">이디야브랜드 투어 5천원 할인</h5>
-                                <p class="coupon-desc">전체 투어/티켓 상품 사용</p>
-                                <p class="coupon-date">~ 2024.12.31 까지</p>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -411,7 +336,5 @@
     <script src="../static/mypage.js?v=20260224f"></script>
 </body>
 </html>
-
-
 
 

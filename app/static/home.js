@@ -298,4 +298,199 @@ document.addEventListener('DOMContentLoaded', () => {
     initSlider();     // 슬라이더 초기화
     renderBookings(); // 공동구매 리스트 초기화
     initAiTabs();     // AI 탭 초기화 (추가)
+    initHomeSavedDrawer(); // 공통 장바구니/위시리스트 드로어
 });
+
+/* 홈 공통 저장목록(장바구니/위시리스트) */
+let homeSavedTab = 'cart';
+let homeSavedState = { cart: [], wishlist: [] };
+
+async function homeSavedApi(path = '/api/saved-items', options = {}) {
+    const res = await fetch(path, {
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(options.headers || {}),
+        },
+        ...options,
+    });
+    let data = null;
+    try { data = await res.json(); } catch (_e) {}
+    if (res.status === 401) {
+        const err = new Error('LOGIN_REQUIRED');
+        err.code = 'LOGIN_REQUIRED';
+        throw err;
+    }
+    if (!res.ok) {
+        const err = new Error((data && (data.detail || data.error)) || `HTTP ${res.status}`);
+        err.code = 'API_ERROR';
+        throw err;
+    }
+    return data;
+}
+
+function homeSavedEscape(v) {
+    return String(v ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function homeSavedAirlineLogo(code) {
+    if (!code) return '';
+    return `https://images.kiwi.com/airlines/64x64/${encodeURIComponent(String(code).toUpperCase())}.png`;
+}
+
+function homeSavedImageUrl(item) {
+    const p = item?.payload || {};
+    if (item?.item_type === 'flight') {
+        return homeSavedAirlineLogo(p?.airline_code || '');
+    }
+    return p?.image_url || p?.image || p?.thumbnail || p?.photo || (Array.isArray(p?.images) ? p.images[0] : '') || '';
+}
+
+function homeSavedMetaParts(item) {
+    const raw = String(item?.meta || '').trim();
+    const parts = raw.split('|').map((x) => x.trim()).filter(Boolean);
+    return {
+        price: parts[0] || '',
+        lines: parts.slice(1, 3),
+    };
+}
+
+function homeSavedItemHtml(item) {
+    const img = homeSavedImageUrl(item);
+    const kind = `${String(item?.item_type || 'item').toUpperCase()} · ${item?.source || 'saved-item'}`;
+    const meta = homeSavedMetaParts(item);
+    const lines = (meta.lines || []).map((line) => `<div class="home-saved-line">${homeSavedEscape(line)}</div>`).join('');
+    return `
+        <div class="home-saved-item" data-saved-id="${Number(item.id)}">
+            <div class="home-saved-thumb">
+                ${img ? `<img src="${homeSavedEscape(img)}" alt="${homeSavedEscape(item?.name || '')}" loading="lazy" onerror="this.remove()">` : ''}
+            </div>
+            <div class="home-saved-meta">
+                <div class="home-saved-kind">${homeSavedEscape(kind)}</div>
+                <div class="home-saved-name">${homeSavedEscape(item?.name || '(이름 없음)')}</div>
+                ${meta.price ? `<div class="home-saved-line home-saved-price">${homeSavedEscape(meta.price)}</div>` : ''}
+                ${lines}
+            </div>
+            <button type="button" class="home-saved-remove" data-saved-remove="${Number(item.id)}" aria-label="삭제">×</button>
+        </div>
+    `;
+}
+
+async function loadHomeSavedItems() {
+    try {
+        const data = await homeSavedApi('/api/saved-items', { method: 'GET', headers: {} });
+        homeSavedState = {
+            cart: Array.isArray(data?.cart) ? data.cart : [],
+            wishlist: Array.isArray(data?.wishlist) ? data.wishlist : [],
+        };
+    } catch (e) {
+        if (e?.code !== 'LOGIN_REQUIRED') {
+            console.warn('home saved-items load failed', e);
+        }
+        homeSavedState = { cart: [], wishlist: [] };
+    }
+    renderHomeSavedDrawer();
+}
+
+function setHomeSavedDrawer(open) {
+    const drawer = document.getElementById('homeSavedDrawer');
+    const fab = document.getElementById('homeSavedFab');
+    if (!drawer || !fab) return;
+    drawer.classList.toggle('is-open', !!open);
+    drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
+    fab.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function renderHomeSavedDrawer() {
+    const listEl = document.getElementById('homeSavedList');
+    const emptyEl = document.getElementById('homeSavedEmpty');
+    const countEl = document.getElementById('homeSavedFabCount');
+    const tabs = document.querySelectorAll('[data-home-saved-tab]');
+    if (!listEl || !emptyEl) return;
+
+    const cartCount = homeSavedState.cart?.length || 0;
+    const wishCount = homeSavedState.wishlist?.length || 0;
+    const total = cartCount + wishCount;
+    if (countEl) {
+        countEl.hidden = total === 0;
+        countEl.textContent = String(total);
+    }
+
+    tabs.forEach((btn) => {
+        const tab = btn.getAttribute('data-home-saved-tab');
+        btn.classList.toggle('is-active', tab === homeSavedTab);
+    });
+
+    const items = Array.isArray(homeSavedState[homeSavedTab]) ? homeSavedState[homeSavedTab] : [];
+    if (!items.length) {
+        listEl.innerHTML = '';
+        emptyEl.style.display = 'block';
+        emptyEl.textContent = homeSavedTab === 'wishlist' ? '위시리스트 항목이 없습니다.' : '장바구니 항목이 없습니다.';
+        return;
+    }
+
+    emptyEl.style.display = 'none';
+    listEl.innerHTML = items.map(homeSavedItemHtml).join('');
+}
+
+async function removeHomeSavedItem(itemId) {
+    try {
+        await homeSavedApi(`/api/saved-items/${itemId}`, { method: 'DELETE', headers: {} });
+        homeSavedState.cart = (homeSavedState.cart || []).filter((x) => Number(x.id) !== Number(itemId));
+        homeSavedState.wishlist = (homeSavedState.wishlist || []).filter((x) => Number(x.id) !== Number(itemId));
+        renderHomeSavedDrawer();
+    } catch (e) {
+        if (e?.code === 'LOGIN_REQUIRED') {
+            if (confirm('로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?')) location.href = '/login';
+            return;
+        }
+        alert(e?.message || '삭제 중 오류가 발생했습니다.');
+    }
+}
+
+function initHomeSavedDrawer() {
+    const fab = document.getElementById('homeSavedFab');
+    const drawer = document.getElementById('homeSavedDrawer');
+    const closeBtn = document.getElementById('homeSavedDrawerClose');
+    const listEl = document.getElementById('homeSavedList');
+    if (!fab || !drawer || !closeBtn || !listEl) return;
+
+    fab.addEventListener('click', () => {
+        const open = !drawer.classList.contains('is-open');
+        setHomeSavedDrawer(open);
+        if (open) loadHomeSavedItems();
+    });
+    closeBtn.addEventListener('click', () => setHomeSavedDrawer(false));
+
+    document.querySelectorAll('[data-home-saved-tab]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            homeSavedTab = btn.getAttribute('data-home-saved-tab') || 'cart';
+            renderHomeSavedDrawer();
+        });
+    });
+
+    listEl.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('[data-saved-remove]');
+        if (!removeBtn) return;
+        const itemId = Number(removeBtn.getAttribute('data-saved-remove'));
+        if (!itemId) return;
+        removeHomeSavedItem(itemId);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!drawer.classList.contains('is-open')) return;
+        if (drawer.contains(e.target) || fab.contains(e.target)) return;
+        setHomeSavedDrawer(false);
+    });
+
+    window.addEventListener('focus', () => {
+        if (drawer.classList.contains('is-open')) loadHomeSavedItems();
+    });
+
+    loadHomeSavedItems();
+}

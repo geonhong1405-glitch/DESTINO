@@ -933,3 +933,213 @@ ul {list-style: none;}
         margin-bottom: 20px;
     }
 }
+
+/* Home Saved Drawer (wishlist/cart) */
+.home-saved-fab {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 1200;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #0ea5e9, #2563eb);
+    color: #fff;
+    padding: 10px 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.28);
+}
+
+.home-saved-fab-count {
+    min-width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 0 5px;
+}
+
+.home-saved-drawer {
+    position: fixed;
+    right: 20px;
+    bottom: 78px;
+    z-index: 1199;
+    width: min(420px, calc(100vw - 24px));
+    max-height: min(60vh, 560px);
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
+    padding: 10px 12px 12px;
+    display: none;
+    overflow: hidden;
+}
+
+.home-saved-drawer.is-open { display: block; }
+
+.home-saved-drawer-handle {
+    width: 46px;
+    height: 4px;
+    border-radius: 999px;
+    background: #d1d5db;
+    margin: 0 auto 10px;
+}
+
+.home-saved-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.home-saved-tabs {
+    display: inline-flex;
+    background: #f3f4f6;
+    padding: 4px;
+    border-radius: 12px;
+    gap: 4px;
+}
+
+.home-saved-tab {
+    border: 0;
+    background: transparent;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.home-saved-tab.is-active {
+    background: #fff;
+    color: #0d2b5b;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+
+.home-saved-close {
+    border: 0;
+    background: #eef2ff;
+    color: #274690;
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.home-saved-empty {
+    color: #64748b;
+    font-size: 13px;
+    padding: 14px 6px 6px;
+}
+
+.home-saved-list {
+    margin-top: 8px;
+    display: grid;
+    gap: 10px;
+    max-height: calc(min(60vh, 560px) - 92px);
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.home-saved-item {
+    display: grid;
+    grid-template-columns: 54px 1fr auto;
+    gap: 10px;
+    align-items: start;
+    border: 1px solid #eef2f7;
+    border-radius: 14px;
+    padding: 10px;
+    background: #fff;
+}
+
+.home-saved-thumb {
+    width: 54px;
+    height: 54px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #dbeafe, #e5e7eb);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.home-saved-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.home-saved-meta {
+    min-width: 0;
+}
+
+.home-saved-kind {
+    font-size: 11px;
+    color: #94a3b8;
+    font-weight: 700;
+    margin-bottom: 3px;
+}
+
+.home-saved-name {
+    font-size: 14px;
+    color: #0f172a;
+    font-weight: 700;
+    line-height: 1.35;
+    margin-bottom: 4px;
+    word-break: break-word;
+}
+
+.home-saved-line {
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.35;
+    word-break: break-word;
+}
+
+.home-saved-price {
+    color: #00aaff;
+    font-weight: 800;
+}
+
+.home-saved-remove {
+    border: 0;
+    background: #f8fafc;
+    color: #475569;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.home-saved-remove:hover {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+@media (max-width: 768px) {
+    .home-saved-fab {
+        right: 14px;
+        bottom: 14px;
+    }
+    .home-saved-drawer {
+        right: 12px;
+        left: 12px;
+        width: auto;
+        bottom: 70px;
+    }
+}
