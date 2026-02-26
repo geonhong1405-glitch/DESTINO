@@ -1,6 +1,7 @@
+import datetime
 import os
 import re
-import datetime
+
 import requests
 
 
@@ -40,53 +41,103 @@ def search_rental_locations(
     q = (query or "").strip()
     if not q:
         return []
+
     category = (category or "all").strip().lower()
     country_code = (country_code or "").strip().upper()
 
-    # Fast preset matcher: protects destination/location search even if local seed text is mis-encoded.
     def _normalize_query_alias(text: str) -> str:
         s = (text or "").strip().lower()
         alias = {
-            "\ud6d7\uce74\uc774\ub3c4": "\uc0bf\ud3ec\ub85c",
-            "\ud649\uce74\uc774\ub3c4": "\uc0bf\ud3ec\ub85c",
-            "\ubd81\ud574\ub3c4": "\uc0bf\ud3ec\ub85c",
-            "\ubcb3\ubd80": "\ubcb3\ud478",
-            "\ubcb3\ud478": "\ubcb3\ud478",
-            "\ubc43\ubd80": "\ubcb3\ud478",
-            "\ubc43\ud478": "\ubcb3\ud478",
-            "hokkaido": "\uc0bf\ud3ec\ub85c",
-            "sapporo": "\uc0bf\ud3ec\ub85c",
-            "beppu": "\ubcb3\ud478",
+            "홋카이도": "삿포로",
+            "혹카이도": "삿포로",
+            "북해도": "삿포로",
+            "벳부": "벳푸",
+            "beppu": "벳푸",
+            "hokkaido": "삿포로",
+            "sapporo": "삿포로",
+            "new york": "뉴욕",
+            "newyork": "뉴욕",
+            "ho chi minh": "호치민",
+            "hochiminh": "호치민",
+            "hochiminhcity": "호치민",
+            "saigon": "호치민",
         }
         return alias.get(s, s)
 
     q_norm = _normalize_query_alias(q)
 
     def _preset_locations() -> list[dict]:
+        # Country is used only for filtering and removed before return.
         return [
-            {"name": "\ub3c4\ucfc4", "sub": "\uc77c\ubcf8 \ub3c4\ucfc4", "lat": 35.6762, "lon": 139.6503, "category": "city", "country": "JP"},
-            {"name": "\ub3c4\ucfc4\uc5ed", "sub": "\uc77c\ubcf8 \ub3c4\ucfc4", "lat": 35.6812, "lon": 139.7671, "category": "station", "country": "JP"},
-            {"name": "\ud558\ub124\ub2e4\uacf5\ud56d (HND)", "sub": "\uc77c\ubcf8 \ub3c4\ucfc4", "lat": 35.5494, "lon": 139.7798, "category": "airport", "country": "JP"},
-            {"name": "\ub098\ub9ac\ud0c0\uacf5\ud56d (NRT)", "sub": "\uc77c\ubcf8 \uce58\ubc14", "lat": 35.7719, "lon": 140.3929, "category": "airport", "country": "JP"},
-            {"name": "\uc624\uc0ac\uce74", "sub": "\uc77c\ubcf8 \uc624\uc0ac\uce74", "lat": 34.6937, "lon": 135.5023, "category": "city", "country": "JP"},
-            {"name": "\uc2e0\uc624\uc0ac\uce74\uc5ed", "sub": "\uc77c\ubcf8 \uc624\uc0ac\uce74", "lat": 34.7335, "lon": 135.5003, "category": "station", "country": "JP"},
-            {"name": "\uac04\uc0ac\uc774\uad6d\uc81c\uacf5\ud56d (KIX)", "sub": "\uc77c\ubcf8 \uc624\uc0ac\uce74", "lat": 34.4347, "lon": 135.2440, "category": "airport", "country": "JP"},
-            {"name": "\uc0bf\ud3ec\ub85c", "sub": "\uc77c\ubcf8 \ud64b\uce74\uc774\ub3c4", "lat": 43.0618, "lon": 141.3545, "category": "city", "country": "JP"},
-            {"name": "\uc0bf\ud3ec\ub85c\uc5ed", "sub": "\uc77c\ubcf8 \ud64b\uce74\uc774\ub3c4", "lat": 43.0687, "lon": 141.3508, "category": "station", "country": "JP"},
-            {"name": "\uc2e0\uce58\ud1a0\uc138\uacf5\ud56d (CTS)", "sub": "\uc77c\ubcf8 \ud64b\uce74\uc774\ub3c4", "lat": 42.7752, "lon": 141.6923, "category": "airport", "country": "JP"},
-            {"name": "\ud6c4\ucfe0\uc624\uce74", "sub": "\uc77c\ubcf8 \ud6c4\ucfe0\uc624\uce74", "lat": 33.5902, "lon": 130.4017, "category": "city", "country": "JP"},
-            {"name": "\ud6c4\ucfe0\uc624\uce74\uacf5\ud56d (FUK)", "sub": "\uc77c\ubcf8 \ud6c4\ucfe0\uc624\uce74", "lat": 33.5859, "lon": 130.4507, "category": "airport", "country": "JP"},
-            {"name": "\ub098\uace0\uc57c", "sub": "\uc77c\ubcf8 \uc544\uc774\uce58", "lat": 35.1815, "lon": 136.9066, "category": "city", "country": "JP"},
-            {"name": "\ub098\uace0\uc57c\uc5ed", "sub": "\uc77c\ubcf8 \uc544\uc774\uce58", "lat": 35.1709, "lon": 136.8815, "category": "station", "country": "JP"},
-            {"name": "\uc911\ubd80\uad6d\uc81c\uacf5\ud56d (NGO)", "sub": "\uc77c\ubcf8 \uc544\uc774\uce58", "lat": 34.8584, "lon": 136.8054, "category": "airport", "country": "JP"},
-            {"name": "\uad50\ud1a0", "sub": "\uc77c\ubcf8 \uad50\ud1a0", "lat": 35.0116, "lon": 135.7681, "category": "city", "country": "JP"},
-            {"name": "\uad50\ud1a0\uc5ed", "sub": "\uc77c\ubcf8 \uad50\ud1a0", "lat": 34.9855, "lon": 135.7586, "category": "station", "country": "JP"},
-            {"name": "\uace0\ubca0", "sub": "\uc77c\ubcf8 \ud6a8\uace0", "lat": 34.6901, "lon": 135.1955, "category": "city", "country": "JP"},
-            {"name": "\ubcb3\ud478", "sub": "\uc77c\ubcf8 \uc624\uc774\ud0c0 \ubcb3\ud478", "lat": 33.2795, "lon": 131.4970, "category": "city", "country": "JP"},
-            {"name": "\ubcb3\ud478\uc5ed", "sub": "\uc77c\ubcf8 \uc624\uc774\ud0c0 \ubcb3\ud478", "lat": 33.2799, "lon": 131.5007, "category": "station", "country": "JP"},
-            {"name": "\uc624\uc774\ud0c0\uacf5\ud56d (OIT)", "sub": "\uc77c\ubcf8 \uc624\uc774\ud0c0", "lat": 33.4794, "lon": 131.7369, "category": "airport", "country": "JP"},
-            {"name": "\ub098\ud558", "sub": "\uc77c\ubcf8 \uc624\ud0a4\ub098\uc640", "lat": 26.2124, "lon": 127.6809, "category": "city", "country": "JP"},
-            {"name": "\ub098\ud558\uacf5\ud56d (OKA)", "sub": "\uc77c\ubcf8 \uc624\ud0a4\ub098\uc640", "lat": 26.1958, "lon": 127.6460, "category": "airport", "country": "JP"},
+            # Korea
+            {"name": "서울", "sub": "대한민국 서울", "lat": 37.5665, "lon": 126.9780, "category": "city", "country": "KR"},
+            {"name": "서울역", "sub": "대한민국 서울", "lat": 37.5547, "lon": 126.9706, "category": "station", "country": "KR"},
+            {"name": "강남역", "sub": "대한민국 서울", "lat": 37.4979, "lon": 127.0276, "category": "station", "country": "KR"},
+            {"name": "김포공항 (GMP)", "sub": "대한민국 서울", "lat": 37.5583, "lon": 126.7906, "category": "airport", "country": "KR"},
+            {"name": "인천국제공항 (ICN)", "sub": "대한민국 인천", "lat": 37.4602, "lon": 126.4407, "category": "airport", "country": "KR"},
+            {"name": "부산", "sub": "대한민국 부산", "lat": 35.1796, "lon": 129.0756, "category": "city", "country": "KR"},
+            {"name": "부산역", "sub": "대한민국 부산", "lat": 35.1151, "lon": 129.0414, "category": "station", "country": "KR"},
+            {"name": "김해국제공항 (PUS)", "sub": "대한민국 부산", "lat": 35.1795, "lon": 128.9382, "category": "airport", "country": "KR"},
+            {"name": "제주", "sub": "대한민국 제주", "lat": 33.4996, "lon": 126.5312, "category": "city", "country": "KR"},
+            {"name": "제주국제공항 (CJU)", "sub": "대한민국 제주", "lat": 33.5104, "lon": 126.4928, "category": "airport", "country": "KR"},
+            # Japan
+            {"name": "도쿄", "sub": "일본 도쿄", "lat": 35.6762, "lon": 139.6503, "category": "city", "country": "JP"},
+            {"name": "도쿄역", "sub": "일본 도쿄", "lat": 35.6812, "lon": 139.7671, "category": "station", "country": "JP"},
+            {"name": "하네다공항 (HND)", "sub": "일본 도쿄", "lat": 35.5494, "lon": 139.7798, "category": "airport", "country": "JP"},
+            {"name": "나리타공항 (NRT)", "sub": "일본 지바", "lat": 35.7719, "lon": 140.3929, "category": "airport", "country": "JP"},
+            {"name": "오사카", "sub": "일본 오사카", "lat": 34.6937, "lon": 135.5023, "category": "city", "country": "JP"},
+            {"name": "신오사카역", "sub": "일본 오사카", "lat": 34.7335, "lon": 135.5003, "category": "station", "country": "JP"},
+            {"name": "간사이국제공항 (KIX)", "sub": "일본 오사카", "lat": 34.4347, "lon": 135.2440, "category": "airport", "country": "JP"},
+            {"name": "삿포로", "sub": "일본 홋카이도", "lat": 43.0618, "lon": 141.3545, "category": "city", "country": "JP"},
+            {"name": "삿포로역", "sub": "일본 홋카이도", "lat": 43.0687, "lon": 141.3508, "category": "station", "country": "JP"},
+            {"name": "신치토세공항 (CTS)", "sub": "일본 홋카이도", "lat": 42.7752, "lon": 141.6923, "category": "airport", "country": "JP"},
+            {"name": "후쿠오카", "sub": "일본 후쿠오카", "lat": 33.5902, "lon": 130.4017, "category": "city", "country": "JP"},
+            {"name": "후쿠오카공항 (FUK)", "sub": "일본 후쿠오카", "lat": 33.5859, "lon": 130.4507, "category": "airport", "country": "JP"},
+            {"name": "나고야", "sub": "일본 아이치", "lat": 35.1815, "lon": 136.9066, "category": "city", "country": "JP"},
+            {"name": "나고야역", "sub": "일본 아이치", "lat": 35.1709, "lon": 136.8815, "category": "station", "country": "JP"},
+            {"name": "중부국제공항 (NGO)", "sub": "일본 아이치", "lat": 34.8584, "lon": 136.8054, "category": "airport", "country": "JP"},
+            {"name": "교토", "sub": "일본 교토", "lat": 35.0116, "lon": 135.7681, "category": "city", "country": "JP"},
+            {"name": "교토역", "sub": "일본 교토", "lat": 34.9855, "lon": 135.7586, "category": "station", "country": "JP"},
+            {"name": "벳푸", "sub": "일본 오이타 벳푸", "lat": 33.2795, "lon": 131.4970, "category": "city", "country": "JP"},
+            {"name": "벳푸역", "sub": "일본 오이타 벳푸", "lat": 33.2799, "lon": 131.5007, "category": "station", "country": "JP"},
+            {"name": "오이타공항 (OIT)", "sub": "일본 오이타", "lat": 33.4794, "lon": 131.7369, "category": "airport", "country": "JP"},
+            {"name": "나하", "sub": "일본 오키나와", "lat": 26.2124, "lon": 127.6809, "category": "city", "country": "JP"},
+            {"name": "나하공항 (OKA)", "sub": "일본 오키나와", "lat": 26.1958, "lon": 127.6460, "category": "airport", "country": "JP"},
+            # USA
+            {"name": "뉴욕", "sub": "미국 뉴욕", "lat": 40.7128, "lon": -74.0060, "category": "city", "country": "US"},
+            {"name": "JFK 공항 (JFK)", "sub": "미국 뉴욕", "lat": 40.6413, "lon": -73.7781, "category": "airport", "country": "US"},
+            {"name": "뉴어크 공항 (EWR)", "sub": "미국 뉴저지", "lat": 40.6895, "lon": -74.1745, "category": "airport", "country": "US"},
+            {"name": "LGA 공항 (LGA)", "sub": "미국 뉴욕", "lat": 40.7769, "lon": -73.8740, "category": "airport", "country": "US"},
+            # UK/France/Italy
+            {"name": "런던", "sub": "영국 런던", "lat": 51.5072, "lon": -0.1276, "category": "city", "country": "GB"},
+            {"name": "히드로공항 (LHR)", "sub": "영국 런던", "lat": 51.4700, "lon": -0.4543, "category": "airport", "country": "GB"},
+            {"name": "파리", "sub": "프랑스 파리", "lat": 48.8566, "lon": 2.3522, "category": "city", "country": "FR"},
+            {"name": "샤를드골공항 (CDG)", "sub": "프랑스 파리", "lat": 49.0097, "lon": 2.5479, "category": "airport", "country": "FR"},
+            {"name": "로마", "sub": "이탈리아 로마", "lat": 41.9028, "lon": 12.4964, "category": "city", "country": "IT"},
+            {"name": "피우미치노공항 (FCO)", "sub": "이탈리아 로마", "lat": 41.8003, "lon": 12.2389, "category": "airport", "country": "IT"},
+            # Southeast Asia / Asia
+            {"name": "방콕", "sub": "태국 방콕", "lat": 13.7563, "lon": 100.5018, "category": "city", "country": "TH"},
+            {"name": "수완나품공항 (BKK)", "sub": "태국 방콕", "lat": 13.6900, "lon": 100.7501, "category": "airport", "country": "TH"},
+            {"name": "하노이", "sub": "베트남 하노이", "lat": 21.0278, "lon": 105.8342, "category": "city", "country": "VN"},
+            {"name": "노이바이공항 (HAN)", "sub": "베트남 하노이", "lat": 21.2212, "lon": 105.8072, "category": "airport", "country": "VN"},
+            {"name": "호치민", "sub": "베트남 호치민", "lat": 10.8231, "lon": 106.6297, "category": "city", "country": "VN"},
+            {"name": "탄손녓공항 (SGN)", "sub": "베트남 호치민", "lat": 10.8188, "lon": 106.6519, "category": "airport", "country": "VN"},
+            {"name": "다낭", "sub": "베트남 다낭", "lat": 16.0544, "lon": 108.2022, "category": "city", "country": "VN"},
+            {"name": "다낭공항 (DAD)", "sub": "베트남 다낭", "lat": 16.0439, "lon": 108.1993, "category": "airport", "country": "VN"},
+            {"name": "싱가포르", "sub": "싱가포르", "lat": 1.3521, "lon": 103.8198, "category": "city", "country": "SG"},
+            {"name": "창이공항 (SIN)", "sub": "싱가포르", "lat": 1.3644, "lon": 103.9915, "category": "airport", "country": "SG"},
+            {"name": "타이베이", "sub": "대만 타이베이", "lat": 25.0330, "lon": 121.5654, "category": "city", "country": "TW"},
+            {"name": "타오위안공항 (TPE)", "sub": "대만 타오위안", "lat": 25.0797, "lon": 121.2342, "category": "airport", "country": "TW"},
+            # Australia
+            {"name": "시드니", "sub": "호주 시드니", "lat": -33.8688, "lon": 151.2093, "category": "city", "country": "AU"},
+            {"name": "시드니공항 (SYD)", "sub": "호주 시드니", "lat": -33.9399, "lon": 151.1753, "category": "airport", "country": "AU"},
+            {"name": "멜버른", "sub": "호주 멜버른", "lat": -37.8136, "lon": 144.9631, "category": "city", "country": "AU"},
+            {"name": "멜버른공항 (MEL)", "sub": "호주 멜버른", "lat": -37.6690, "lon": 144.8410, "category": "airport", "country": "AU"},
+            {"name": "브리즈번", "sub": "호주 브리즈번", "lat": -27.4698, "lon": 153.0251, "category": "city", "country": "AU"},
+            {"name": "브리즈번공항 (BNE)", "sub": "호주 브리즈번", "lat": -27.3842, "lon": 153.1175, "category": "airport", "country": "AU"},
+            # UAE
+            {"name": "두바이", "sub": "아랍에미리트 두바이", "lat": 25.2048, "lon": 55.2708, "category": "city", "country": "AE"},
+            {"name": "두바이공항 (DXB)", "sub": "아랍에미리트 두바이", "lat": 25.2532, "lon": 55.3657, "category": "airport", "country": "AE"},
         ]
 
     def _preset_match() -> list[dict]:
@@ -97,7 +148,7 @@ def search_rental_locations(
                 continue
             if category in {"airport", "station", "city"} and item.get("category") != category:
                 continue
-            hay = f"{item.get('name','')} {item.get('sub','')}".lower()
+            hay = f"{item.get('name', '')} {item.get('sub', '')}".lower()
             if ql and ql in hay:
                 out.append({k: v for k, v in item.items() if k != "country"})
             if len(out) >= max(1, limit):
@@ -112,61 +163,44 @@ def search_rental_locations(
         "KR": "대한민국",
         "JP": "일본",
         "US": "미국",
+        "GB": "영국",
         "FR": "프랑스",
+        "IT": "이탈리아",
         "AE": "아랍에미리트",
         "TH": "태국",
         "VN": "베트남",
         "SG": "싱가포르",
         "TW": "대만",
+        "AU": "호주",
     }.get(country_code, "")
 
-    local_candidates = [
-        {"name": "서울", "sub": "대한민국 서울", "lat": 37.5665, "lon": 126.9780, "category": "city"},
-        {"name": "강남역", "sub": "대한민국 서울", "lat": 37.4979, "lon": 127.0276, "category": "station"},
-        {"name": "서울역", "sub": "대한민국 서울", "lat": 37.5547, "lon": 126.9706, "category": "station"},
-        {"name": "김포국제공항 (GMP)", "sub": "대한민국 서울", "lat": 37.5583, "lon": 126.7906, "category": "airport"},
-        {"name": "인천국제공항 (ICN)", "sub": "대한민국 인천", "lat": 37.4602, "lon": 126.4407, "category": "airport"},
-        {"name": "제주국제공항 (CJU)", "sub": "대한민국 제주", "lat": 33.5104, "lon": 126.4928, "category": "airport"},
-        {"name": "부산역", "sub": "대한민국 부산", "lat": 35.1151, "lon": 129.0414, "category": "station"},
-        {"name": "도쿄", "sub": "일본 도쿄", "lat": 35.6762, "lon": 139.6503, "category": "city"},
-        {"name": "도쿄역", "sub": "일본 도쿄", "lat": 35.6812, "lon": 139.7671, "category": "station"},
-        {"name": "하네다공항 (HND)", "sub": "일본 도쿄", "lat": 35.5494, "lon": 139.7798, "category": "airport"},
-        {"name": "나리타공항 (NRT)", "sub": "일본 지바", "lat": 35.7719, "lon": 140.3929, "category": "airport"},
-        {"name": "오사카", "sub": "일본 오사카", "lat": 34.6937, "lon": 135.5023, "category": "city"},
-        {"name": "신오사카역", "sub": "일본 오사카", "lat": 34.7335, "lon": 135.5003, "category": "station"},
-        {"name": "간사이국제공항 (KIX)", "sub": "일본 오사카", "lat": 34.4347, "lon": 135.2440, "category": "airport"},
-        {"name": "교토", "sub": "일본 교토", "lat": 35.0116, "lon": 135.7681, "category": "city"},
-        {"name": "교토역", "sub": "일본 교토", "lat": 34.9855, "lon": 135.7586, "category": "station"},
-        {"name": "나고야", "sub": "일본 아이치", "lat": 35.1815, "lon": 136.9066, "category": "city"},
-        {"name": "나고야역", "sub": "일본 아이치", "lat": 35.1709, "lon": 136.8815, "category": "station"},
-        {"name": "나고야 사카에", "sub": "일본 아이치 나고야", "lat": 35.1701, "lon": 136.9086, "category": "city"},
-        {"name": "주부 센트레아 공항 (NGO)", "sub": "일본 아이치", "lat": 34.8584, "lon": 136.8054, "category": "airport"},
-        {"name": "후쿠오카", "sub": "일본 후쿠오카", "lat": 33.5902, "lon": 130.4017, "category": "city"},
-        {"name": "후쿠오카공항 (FUK)", "sub": "일본 후쿠오카", "lat": 33.5859, "lon": 130.4507, "category": "airport"},
-    ]
+    # fallback local candidates = preset pool (already broadened)
+    local_candidates = [{k: v for k, v in x.items() if k != "country"} | {"_country": x.get("country")} for x in _preset_locations()]
 
     def _local_match() -> list[dict]:
-        ql = q.lower()
+        ql = q_norm.lower()
         out = []
         for item in local_candidates:
             if category in {"airport", "station", "city"} and item["category"] != category:
                 continue
             hay = f"{item['name']} {item['sub']}".lower()
-            if country_hint_name and country_hint_name.lower() not in hay:
+            if country_code and item.get("_country") != country_code:
+                continue
+            if country_hint_name and country_hint_name.lower() not in hay and country_code and item.get("_country") != country_code:
                 continue
             if ql in hay:
-                out.append(item)
+                out.append({k: v for k, v in item.items() if k != "_country"})
             if len(out) >= max(1, limit):
                 break
         if out:
             return out
-        # If country filter made local fallback too strict, relax country filtering.
+        # relax country filter
         for item in local_candidates:
             if category in {"airport", "station", "city"} and item["category"] != category:
                 continue
             hay = f"{item['name']} {item['sub']}".lower()
             if ql in hay:
-                out.append(item)
+                out.append({k: v for k, v in item.items() if k != "_country"})
             if len(out) >= max(1, limit):
                 break
         return out
@@ -186,6 +220,7 @@ def search_rental_locations(
     params = {"query": google_query, "language": "ko", "key": api_key}
     if type_hint:
         params["type"] = type_hint
+
     try:
         resp = requests.get(url, params=params, timeout=12)
         if resp.status_code >= 400:
