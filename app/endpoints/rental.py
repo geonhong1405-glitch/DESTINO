@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.api.booking_api import search_car_rentals
+from app.api.sky_cars_api import parse_sky_car_search_results, search_sky_car_rentals
 from app.api.rental_helper import (
     calc_rental_days,
     parse_rental_search_results,
@@ -47,6 +48,21 @@ def _currency_for_country(country_code: str) -> str:
     return "JPY"
 
 
+def _sky_locale_for_country(country_code: str) -> str:
+    mapping = {
+        "KR": "ko-KR",
+        "JP": "ja-JP",
+        "US": "en-US",
+        "FR": "fr-FR",
+        "AE": "en-US",
+        "TH": "en-US",
+        "VN": "en-US",
+        "SG": "en-US",
+        "TW": "zh-TW",
+    }
+    return mapping.get(country_code, "en-US")
+
+
 def _get_nickname_from_request(request: Request) -> str | None:
     session_token = request.cookies.get("session_token")
     user_id = get_user_id_from_session(session_token) if session_token else None
@@ -79,6 +95,30 @@ def _parse_int_param(value: str | int | None) -> int | None:
         return int(s)
     except Exception:
         return None
+
+
+def _extract_rental_api_error(raw: dict | None) -> str | None:
+    if not isinstance(raw, dict):
+        return None
+    if raw.get("error"):
+        return str(raw.get("error"))
+    if isinstance(raw.get("errors"), dict) and raw.get("errors"):
+        return f"렌터카 API 요청 파라미터 오류일 수 있습니다. (공급사 응답: {list(raw.get('errors', {}).items())})"
+
+    message = str(raw.get("message") or "").strip()
+    status = str(raw.get("status") or "").strip()
+    joined = f"{status} {message}".strip().lower()
+
+    if "something went wrong" in joined:
+        return "렌터카 API 서비스 일시 오류입니다. 잠시 후 다시 시도해 주세요."
+    if any(k in joined for k in ("invalid", "required", "parameter", "validation")):
+        detail = message or status
+        if detail:
+            return f"렌터카 API 요청 파라미터 오류일 수 있습니다. (공급사 응답: {detail})"
+        return "렌터카 API 요청 파라미터 오류일 수 있습니다. 잠시 후 다시 시도해 주세요."
+    if any(k in joined for k in ("rate limit", "too many requests")):
+        return "렌터카 API 호출이 많아 잠시 제한되었습니다. 잠시 후 다시 시도해 주세요."
+    return None
 
 
 @router.get("/api/rental/location-search")
@@ -119,6 +159,8 @@ def rental_page(
     min_seats_value = _parse_int_param(min_seats)
     rental_cars = []
     rental_error = None
+    rental_provider = None
+    rental_provider_detail = None
     rental_days = calc_rental_days(pickup_at, dropoff_at)
 
     p_lat = _parse_float_param(pickup_lat)
@@ -140,18 +182,45 @@ def rental_page(
         try:
             pickup_api_time = pickup_at.replace(" ", "T") + ":00"
             dropoff_api_time = dropoff_at.replace(" ", "T") + ":00"
-            rental_raw = search_car_rentals(
-                pick_up_lat=p_lat,
-                pick_up_lon=p_lon,
-                drop_off_lat=d_lat,
-                drop_off_lon=d_lon,
-                pick_up_time=pickup_api_time,
-                drop_off_time=dropoff_api_time,
+            rental_raw = None
+            sky_raw = search_sky_car_rentals(
+                pickup_name=pickup_name or city_hint or "",
+                pickup_lat=p_lat,
+                pickup_lon=p_lon,
+                dropoff_name=dropoff_name or pickup_name or city_hint or "",
+                dropoff_lat=d_lat,
+                dropoff_lon=d_lon,
+                pickup_at=pickup_api_time,
+                dropoff_at=dropoff_api_time,
+                market=country_code,
+                currency=currency_code,
+                locale=_sky_locale_for_country(country_code),
                 driver_age=30,
-                currency_code=currency_code,
-                location=country_code,
             )
-            rental_cars = parse_rental_search_results(rental_raw)
+            sky_cars = parse_sky_car_search_results(sky_raw)
+            if sky_cars:
+                rental_raw = sky_raw
+                rental_cars = sky_cars
+                rental_provider = "Sky Cars"
+                rental_provider_detail = "Sky cars/search"
+            else:
+                sky_msg = None
+                if isinstance(sky_raw, dict):
+                    sky_msg = str(sky_raw.get("message") or sky_raw.get("errors") or "").strip()
+                rental_raw = search_car_rentals(
+                    pick_up_lat=p_lat,
+                    pick_up_lon=p_lon,
+                    drop_off_lat=d_lat,
+                    drop_off_lon=d_lon,
+                    pick_up_time=pickup_api_time,
+                    drop_off_time=dropoff_api_time,
+                    driver_age=30,
+                    currency_code=currency_code,
+                    location=country_code,
+                )
+                rental_cars = parse_rental_search_results(rental_raw)
+                rental_provider = "Booking Fallback"
+                rental_provider_detail = f"Sky empty/fail -> Booking ({sky_msg or 'no sky detail'})"
             for car in rental_cars:
                 if not isinstance(car, dict):
                     continue
@@ -178,8 +247,9 @@ def rental_page(
             else:
                 rental_cars.sort(key=lambda x: x.get("price") or 10**12)
 
-            if isinstance(rental_raw, dict) and rental_raw.get("error"):
-                rental_error = str(rental_raw.get("error"))
+            api_error = _extract_rental_api_error(rental_raw) if isinstance(rental_raw, dict) else None
+            if api_error:
+                rental_error = api_error
             elif not rental_cars:
                 rental_error = "렌터카 검색 결과를 찾지 못했습니다. 다른 지역/시간으로 다시 시도해 주세요."
         except Exception as e:
@@ -207,5 +277,7 @@ def rental_page(
             "sort": sort or "price_asc",
             "min_seats": min_seats_value,
             "transmission": transmission or "all",
+            "rental_provider": rental_provider or "",
+            "rental_provider_detail": rental_provider_detail or "",
         },
     )

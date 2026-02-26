@@ -42,6 +42,10 @@
                             <div class="destination-sidebar" id="destinationRegionList"></div>
                             <div class="destination-main">
                                 <div class="destination-panel-title" id="destinationPanelTitle">주요 도시 선택</div>
+                                <input type="text" id="destinationSearchInput" class="popover-search-input destination-search-input" placeholder="도시명을 입력하고 검색 버튼을 누르세요">
+                                <button type="button" id="destinationSearchBtn" class="destination-search-btn">검색</button>
+                                <div class="destination-search-meta" id="destinationSearchMeta"></div>
+                                <div class="location-list destination-search-list" id="destinationSearchList"></div>
                                 <div class="destination-city-grid" id="destinationCityGrid"></div>
                             </div>
                         </div>
@@ -174,7 +178,17 @@
             {% if rental_error %}
             <div style="background:#fff; border:1px solid #fecaca; color:#991b1b; border-radius:12px; padding:14px 16px; margin:18px 0;">
                 {{ rental_error }}
+                {% if rental_provider %}
+                <div style="margin-top:6px; font-size:12px; color:#7f1d1d;">Provider: {{ rental_provider }}</div>
+                {% endif %}
+                {% if rental_provider_detail %}
+                <div style="margin-top:4px; font-size:11px; color:#991b1b; opacity:.85;">{{ rental_provider_detail }}</div>
+                {% endif %}
             </div>
+            {% endif %}
+
+            {% if rental_cars and rental_provider %}
+            <div style="margin:8px 0 0; font-size:12px; color:#64748b;">Provider: {{ rental_provider }}</div>
             {% endif %}
 
             {% if rental_cars %}

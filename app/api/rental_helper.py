@@ -42,6 +42,72 @@ def search_rental_locations(
         return []
     category = (category or "all").strip().lower()
     country_code = (country_code or "").strip().upper()
+
+    # Fast preset matcher: protects destination/location search even if local seed text is mis-encoded.
+    def _normalize_query_alias(text: str) -> str:
+        s = (text or "").strip().lower()
+        alias = {
+            "\ud6d7\uce74\uc774\ub3c4": "\uc0bf\ud3ec\ub85c",
+            "\ud649\uce74\uc774\ub3c4": "\uc0bf\ud3ec\ub85c",
+            "\ubd81\ud574\ub3c4": "\uc0bf\ud3ec\ub85c",
+            "\ubcb3\ubd80": "\ubcb3\ud478",
+            "\ubcb3\ud478": "\ubcb3\ud478",
+            "\ubc43\ubd80": "\ubcb3\ud478",
+            "\ubc43\ud478": "\ubcb3\ud478",
+            "hokkaido": "\uc0bf\ud3ec\ub85c",
+            "sapporo": "\uc0bf\ud3ec\ub85c",
+            "beppu": "\ubcb3\ud478",
+        }
+        return alias.get(s, s)
+
+    q_norm = _normalize_query_alias(q)
+
+    def _preset_locations() -> list[dict]:
+        return [
+            {"name": "\ub3c4\ucfc4", "sub": "\uc77c\ubcf8 \ub3c4\ucfc4", "lat": 35.6762, "lon": 139.6503, "category": "city", "country": "JP"},
+            {"name": "\ub3c4\ucfc4\uc5ed", "sub": "\uc77c\ubcf8 \ub3c4\ucfc4", "lat": 35.6812, "lon": 139.7671, "category": "station", "country": "JP"},
+            {"name": "\ud558\ub124\ub2e4\uacf5\ud56d (HND)", "sub": "\uc77c\ubcf8 \ub3c4\ucfc4", "lat": 35.5494, "lon": 139.7798, "category": "airport", "country": "JP"},
+            {"name": "\ub098\ub9ac\ud0c0\uacf5\ud56d (NRT)", "sub": "\uc77c\ubcf8 \uce58\ubc14", "lat": 35.7719, "lon": 140.3929, "category": "airport", "country": "JP"},
+            {"name": "\uc624\uc0ac\uce74", "sub": "\uc77c\ubcf8 \uc624\uc0ac\uce74", "lat": 34.6937, "lon": 135.5023, "category": "city", "country": "JP"},
+            {"name": "\uc2e0\uc624\uc0ac\uce74\uc5ed", "sub": "\uc77c\ubcf8 \uc624\uc0ac\uce74", "lat": 34.7335, "lon": 135.5003, "category": "station", "country": "JP"},
+            {"name": "\uac04\uc0ac\uc774\uad6d\uc81c\uacf5\ud56d (KIX)", "sub": "\uc77c\ubcf8 \uc624\uc0ac\uce74", "lat": 34.4347, "lon": 135.2440, "category": "airport", "country": "JP"},
+            {"name": "\uc0bf\ud3ec\ub85c", "sub": "\uc77c\ubcf8 \ud64b\uce74\uc774\ub3c4", "lat": 43.0618, "lon": 141.3545, "category": "city", "country": "JP"},
+            {"name": "\uc0bf\ud3ec\ub85c\uc5ed", "sub": "\uc77c\ubcf8 \ud64b\uce74\uc774\ub3c4", "lat": 43.0687, "lon": 141.3508, "category": "station", "country": "JP"},
+            {"name": "\uc2e0\uce58\ud1a0\uc138\uacf5\ud56d (CTS)", "sub": "\uc77c\ubcf8 \ud64b\uce74\uc774\ub3c4", "lat": 42.7752, "lon": 141.6923, "category": "airport", "country": "JP"},
+            {"name": "\ud6c4\ucfe0\uc624\uce74", "sub": "\uc77c\ubcf8 \ud6c4\ucfe0\uc624\uce74", "lat": 33.5902, "lon": 130.4017, "category": "city", "country": "JP"},
+            {"name": "\ud6c4\ucfe0\uc624\uce74\uacf5\ud56d (FUK)", "sub": "\uc77c\ubcf8 \ud6c4\ucfe0\uc624\uce74", "lat": 33.5859, "lon": 130.4507, "category": "airport", "country": "JP"},
+            {"name": "\ub098\uace0\uc57c", "sub": "\uc77c\ubcf8 \uc544\uc774\uce58", "lat": 35.1815, "lon": 136.9066, "category": "city", "country": "JP"},
+            {"name": "\ub098\uace0\uc57c\uc5ed", "sub": "\uc77c\ubcf8 \uc544\uc774\uce58", "lat": 35.1709, "lon": 136.8815, "category": "station", "country": "JP"},
+            {"name": "\uc911\ubd80\uad6d\uc81c\uacf5\ud56d (NGO)", "sub": "\uc77c\ubcf8 \uc544\uc774\uce58", "lat": 34.8584, "lon": 136.8054, "category": "airport", "country": "JP"},
+            {"name": "\uad50\ud1a0", "sub": "\uc77c\ubcf8 \uad50\ud1a0", "lat": 35.0116, "lon": 135.7681, "category": "city", "country": "JP"},
+            {"name": "\uad50\ud1a0\uc5ed", "sub": "\uc77c\ubcf8 \uad50\ud1a0", "lat": 34.9855, "lon": 135.7586, "category": "station", "country": "JP"},
+            {"name": "\uace0\ubca0", "sub": "\uc77c\ubcf8 \ud6a8\uace0", "lat": 34.6901, "lon": 135.1955, "category": "city", "country": "JP"},
+            {"name": "\ubcb3\ud478", "sub": "\uc77c\ubcf8 \uc624\uc774\ud0c0 \ubcb3\ud478", "lat": 33.2795, "lon": 131.4970, "category": "city", "country": "JP"},
+            {"name": "\ubcb3\ud478\uc5ed", "sub": "\uc77c\ubcf8 \uc624\uc774\ud0c0 \ubcb3\ud478", "lat": 33.2799, "lon": 131.5007, "category": "station", "country": "JP"},
+            {"name": "\uc624\uc774\ud0c0\uacf5\ud56d (OIT)", "sub": "\uc77c\ubcf8 \uc624\uc774\ud0c0", "lat": 33.4794, "lon": 131.7369, "category": "airport", "country": "JP"},
+            {"name": "\ub098\ud558", "sub": "\uc77c\ubcf8 \uc624\ud0a4\ub098\uc640", "lat": 26.2124, "lon": 127.6809, "category": "city", "country": "JP"},
+            {"name": "\ub098\ud558\uacf5\ud56d (OKA)", "sub": "\uc77c\ubcf8 \uc624\ud0a4\ub098\uc640", "lat": 26.1958, "lon": 127.6460, "category": "airport", "country": "JP"},
+        ]
+
+    def _preset_match() -> list[dict]:
+        ql = q_norm.lower()
+        out = []
+        for item in _preset_locations():
+            if country_code and item.get("country") != country_code:
+                continue
+            if category in {"airport", "station", "city"} and item.get("category") != category:
+                continue
+            hay = f"{item.get('name','')} {item.get('sub','')}".lower()
+            if ql and ql in hay:
+                out.append({k: v for k, v in item.items() if k != "country"})
+            if len(out) >= max(1, limit):
+                break
+        return out
+
+    preset = _preset_match()
+    if preset:
+        return preset
+
     country_hint_name = {
         "KR": "대한민국",
         "JP": "일본",
@@ -116,7 +182,7 @@ def search_rental_locations(
         type_hint = "train_station"
 
     url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
-    google_query = f"{q} {country_hint_name}".strip() if country_hint_name else q
+    google_query = f"{q_norm} {country_hint_name}".strip() if country_hint_name else q_norm
     params = {"query": google_query, "language": "ko", "key": api_key}
     if type_hint:
         params["type"] = type_hint

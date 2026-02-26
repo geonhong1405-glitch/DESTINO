@@ -25,6 +25,10 @@ function initRentalApp() {
     destinationRegionList: document.getElementById('destinationRegionList'),
     destinationCityGrid: document.getElementById('destinationCityGrid'),
     destinationPanelTitle: document.getElementById('destinationPanelTitle'),
+    destinationSearchInput: document.getElementById('destinationSearchInput'),
+    destinationSearchBtn: document.getElementById('destinationSearchBtn'),
+    destinationSearchMeta: document.getElementById('destinationSearchMeta'),
+    destinationSearchList: document.getElementById('destinationSearchList'),
     countryCodeHidden: document.getElementById('countryCodeHidden'),
     cityHintHidden: document.getElementById('cityHintHidden'),
 
@@ -66,6 +70,10 @@ function initRentalApp() {
     pickup: { category: 'all', items: [], timer: null },
     dropoff: { category: 'all', items: [], timer: null },
     destinationRegionKey: 'jp',
+    destinationSearching: false,
+    destinationSearchItems: [],
+    destinationSearchTried: false,
+    destinationSearchSeq: 0,
   };
 
   initDestinationPicker(els, state, initial);
@@ -93,15 +101,19 @@ function initDestinationPicker(els, state, initial) {
   const countryCode = String(initial.countryCode || els.countryCodeHidden?.value || 'JP').toUpperCase();
   const region = DESTINATION_REGIONS.find((r) => r.countryCode === countryCode) || DESTINATION_REGIONS[0];
   state.destinationRegionKey = region.key;
+  state.destinationSearchItems = [];
+  state.destinationSearchTried = false;
+  state.destinationSearching = false;
 
   if (els.countryCodeHidden) els.countryCodeHidden.value = countryCode;
   if (els.cityHintHidden && cityHint) els.cityHintHidden.value = cityHint;
   if (els.destinationDisplay) {
-    els.destinationDisplay.textContent = cityHint || region.label;
+    els.destinationDisplay.textContent = cityHint || '\uC5EC\uD589\uC9C0 \uC120\uD0DD';
   }
 
   renderDestinationRegions(els, state);
   renderDestinationCities(els, state);
+  bindDestinationSearch(els, state);
 
   if (els.destinationGroup) {
     els.destinationGroup.addEventListener('click', () => {
@@ -125,6 +137,10 @@ function renderDestinationRegions(els, state) {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       state.destinationRegionKey = btn.dataset.region || state.destinationRegionKey;
+      state.destinationSearchItems = [];
+      state.destinationSearchTried = false;
+      state.destinationSearching = false;
+      if (els.destinationSearchInput) els.destinationSearchInput.value = '';
       renderDestinationRegions(els, state);
       renderDestinationCities(els, state);
     });
@@ -136,7 +152,16 @@ function renderDestinationCities(els, state) {
   if (els.destinationPanelTitle) {
     els.destinationPanelTitle.textContent = `${region.label} 주요 도시`;
   }
+  renderDestinationSearchArea(els, state);
   if (!els.destinationCityGrid) return;
+  const hasSearchOverlay = state.destinationSearching || state.destinationSearchTried;
+  const showGrid = !hasSearchOverlay;
+  if (!showGrid) {
+    els.destinationCityGrid.style.display = 'none';
+    els.destinationCityGrid.innerHTML = '';
+    return;
+  }
+  els.destinationCityGrid.style.display = '';
   els.destinationCityGrid.innerHTML = region.cities.map((city) => `
     <button type="button" class="destination-city-btn" data-country="${region.countryCode}" data-city="${escapeHtml(city)}">${escapeHtml(city)}</button>
   `).join('');
@@ -146,23 +171,182 @@ function renderDestinationCities(els, state) {
       e.stopPropagation();
       const countryCode = btn.dataset.country || 'JP';
       const city = btn.dataset.city || '';
-      if (els.countryCodeHidden) els.countryCodeHidden.value = countryCode;
-      if (els.cityHintHidden) els.cityHintHidden.value = city;
-      if (els.destinationDisplay) els.destinationDisplay.textContent = city || region.label;
-
-      resetSelectedLocations(els);
-      if (els.pickupSearchInput) els.pickupSearchInput.value = city;
-      if (els.dropoffSearchInput) els.dropoffSearchInput.value = city;
-      closeAllPopovers(els);
-
-      // Auto-open pickup place selection results for chosen city.
-      await triggerLocationSearch(els, state, 'pickup', city);
-      if (els.pickupPopover) {
-        els.pickupPopover.classList.add('active');
-        els.overlay?.classList.add('active');
-      }
+      await selectDestinationCity(els, state, { countryCode, city });
     });
   });
+}
+
+function bindDestinationSearch(els, state) {
+  if (els.destinationSearchInput?.dataset.bound === '1') return;
+  if (els.destinationSearchInput) els.destinationSearchInput.dataset.bound = '1';
+
+  els.destinationSearchBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    triggerDestinationSearch(els, state);
+  });
+
+  els.destinationSearchInput?.addEventListener('click', (e) => e.stopPropagation());
+  els.destinationSearchInput?.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    e.stopPropagation();
+    triggerDestinationSearch(els, state);
+  });
+
+  els.destinationSearchInput?.addEventListener('input', () => {
+    state.destinationSearchItems = [];
+    state.destinationSearchTried = false;
+    state.destinationSearching = false;
+    renderDestinationCities(els, state);
+  });
+}
+
+function renderDestinationSearchArea(els, state) {
+  const listEl = els.destinationSearchList;
+  const metaEl = els.destinationSearchMeta;
+  if (!listEl || !metaEl) return;
+
+  listEl.classList.remove('has-results', 'has-message');
+  listEl.innerHTML = '';
+
+  if (state.destinationSearching) {
+    metaEl.textContent = '\uAC80\uC0C9 \uC911...';
+    listEl.innerHTML = `<div class="location-empty">\uAC80\uC0C9 \uC911...</div>`;
+    listEl.classList.add('has-message');
+    return;
+  }
+
+  if (!state.destinationSearchTried) {
+    metaEl.textContent = '';
+    return;
+  }
+
+  const items = Array.isArray(state.destinationSearchItems) ? state.destinationSearchItems : [];
+  if (!items.length) {
+    metaEl.textContent = '\uAC80\uC0C9 \uACB0\uACFC \uC5C6\uC74C';
+    listEl.innerHTML = `<div class="location-empty">\uAC80\uC0C9 \uACB0\uACFC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4. \uC9C1\uC811 \uC785\uB825\uB85C \uC9C4\uD589\uD574\uB3C4 \uB429\uB2C8\uB2E4.</div>`;
+    listEl.classList.add('has-message');
+    return;
+  }
+
+  metaEl.textContent = `\uAC80\uC0C9 \uACB0\uACFC ${items.length}\uAC1C`;
+  listEl.innerHTML = items.map((item, idx) => `
+    <button type="button" class="location-item destination-result-item" data-idx="${idx}">
+      <i data-lucide="map-pin" width="16"></i>
+      <div class="loc-info">
+        <span class="loc-name">${escapeHtml(item.name || '')}</span>
+        <span class="loc-sub">${escapeHtml(item.sub || '')}</span>
+      </div>
+    </button>
+  `).join('');
+  listEl.classList.add('has-results');
+  if (window.lucide) lucide.createIcons();
+
+  listEl.querySelectorAll('.destination-result-item').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const idx = Number(btn.dataset.idx);
+      const item = items[idx];
+      if (!item) return;
+      await selectDestinationCity(els, state, {
+        city: item.name || '',
+        countryCode: getDestinationRegionCountryCode(state),
+      });
+    });
+  });
+}
+
+function getDestinationRegionCountryCode(state) {
+  const region = DESTINATION_REGIONS.find((r) => r.key === state.destinationRegionKey) || DESTINATION_REGIONS[0];
+  return region?.countryCode || 'JP';
+}
+
+async function triggerDestinationSearch(els, state) {
+  const q = (els.destinationSearchInput?.value || '').trim();
+  if (!q) {
+    state.destinationSearching = false;
+    state.destinationSearchTried = false;
+    state.destinationSearchItems = [];
+    renderDestinationCities(els, state);
+    return;
+  }
+
+  const seq = ++state.destinationSearchSeq;
+  state.destinationSearching = true;
+  state.destinationSearchTried = true;
+  state.destinationSearchItems = [];
+  renderDestinationCities(els, state);
+
+  try {
+    const countryCode = getDestinationRegionCountryCode(state);
+    const searchQ = normalizeDestinationKeyword(q);
+    const url = `/api/rental/location-search?q=${encodeURIComponent(searchQ)}&category=city&country_code=${encodeURIComponent(countryCode)}`;
+    const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+    const data = await resp.json();
+    if (seq !== state.destinationSearchSeq) return;
+    const items = Array.isArray(data.items) ? data.items : [];
+    const dedup = [];
+    const seen = new Set();
+    for (const item of items) {
+      const name = String(item?.name || '').trim();
+      if (!name) continue;
+      if (seen.has(name)) continue;
+      seen.add(name);
+      dedup.push(item);
+    }
+    state.destinationSearchItems = dedup;
+  } catch (_e) {
+    if (seq !== state.destinationSearchSeq) return;
+    state.destinationSearchItems = [];
+  } finally {
+    if (seq !== state.destinationSearchSeq) return;
+    state.destinationSearching = false;
+    renderDestinationCities(els, state);
+  }
+}
+
+function normalizeDestinationKeyword(q) {
+  const s = String(q || '').trim();
+  if (!s) return s;
+
+  const aliasMap = new Map([
+    ['훗카이도', '삿포로'],
+    ['홋카이도', '삿포로'],
+    ['북해도', '삿포로'],
+    ['벳부', '벳푸'],
+    ['벳푸', '벳푸'],
+    ['뱃부', '벳푸'],
+    ['뱃푸', '벳푸'],
+  ]);
+
+  return aliasMap.get(s) || s;
+}
+
+async function selectDestinationCity(els, state, payload) {
+  const region = DESTINATION_REGIONS.find((r) => r.key === state.destinationRegionKey) || DESTINATION_REGIONS[0];
+  const countryCode = payload?.countryCode || region.countryCode || 'JP';
+  const city = String(payload?.city || '').trim();
+
+  if (els.countryCodeHidden) els.countryCodeHidden.value = countryCode;
+  if (els.cityHintHidden) els.cityHintHidden.value = city;
+  if (els.destinationDisplay) els.destinationDisplay.textContent = city || '\uC5EC\uD589\uC9C0 \uC120\uD0DD';
+  if (els.destinationSearchInput) els.destinationSearchInput.value = city;
+
+  state.destinationSearchItems = [];
+  state.destinationSearchTried = false;
+  state.destinationSearching = false;
+
+  resetSelectedLocations(els);
+  if (els.pickupSearchInput) els.pickupSearchInput.value = city;
+  if (els.dropoffSearchInput) els.dropoffSearchInput.value = city;
+  closeAllPopovers(els);
+
+  if (!city) return;
+  await triggerLocationSearch(els, state, 'pickup', city);
+  if (els.pickupPopover) {
+    els.pickupPopover.classList.add('active');
+    els.overlay?.classList.add('active');
+  }
 }
 
 function closeAllPopovers(els) {
