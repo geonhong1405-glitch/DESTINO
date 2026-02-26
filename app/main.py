@@ -1351,8 +1351,6 @@ def airport(request: Request):
     nickname = get_nickname_from_request(request)
     return templates.TemplateResponse("airport.html", {"request": request, "nickname": nickname})
 
-
-
 @app.get("/find-id", response_class=HTMLResponse)
 def find_id_get(request: Request):
     return templates.TemplateResponse("find_id.html", {"request": request})
@@ -1428,6 +1426,12 @@ def home_page(request: Request):
         if user:
             nickname = user.nickname
     return templates.TemplateResponse("home.html", {"request": request, "nickname": nickname})
+
+
+@app.get("/tdetail", response_class=HTMLResponse)
+def tdetail(request: Request):
+    nickname = get_nickname_from_request(request)
+    return templates.TemplateResponse("tour-detail.html", {"request": request, "nickname": nickname})
 
 @app.get("/planner", response_class=HTMLResponse)
 def planner(request: Request):
