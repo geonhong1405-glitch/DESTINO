@@ -53,12 +53,16 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 
 /* Hero Section */
 .hero-section {
-    background: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=1920&auto=format&fit=crop') center/cover;
     padding: 80px 20px 120px;
     display: flex; flex-direction: column; align-items: center;
     margin-bottom: 120px;
+    background-color: #020617;
+    background-image: 
+        radial-gradient(at 0% 0%, rgba(67, 56, 202, 0.8) 0, transparent 55%), 
+        radial-gradient(at 100% 0%, rgba(124, 58, 237, 0.5) 0, transparent 50%), 
+        radial-gradient(at 50% 100%, rgba(30, 27, 75, 1) 0, transparent 50%);
 }
-.hero-title { color: var(--white); font-size: 32px; font-weight: 800; margin-bottom: 30px; text-align: center; text-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+.hero-title { color: #fff; font-size: 32px; font-weight: 800; margin-bottom: 30px; text-align: center; }
 
 /* 항공권 검색 위젯 */
 .search-widget {
