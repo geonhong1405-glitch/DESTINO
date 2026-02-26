@@ -2550,7 +2550,7 @@ def _knowledge_top_k(message: str, topic: Optional[str], subtopic: Optional[str]
 
     # Specific operational questions can use tighter context.
     if subtopic in {"metro_subway", "ticket_pass", "ic_card", "tipping", "emergency_numbers"}:
-        k = min(max(k, 4), 6)
+      k = min(max(k, 4), 6)
 
     if topic in {"visa", "money", "connectivity"} and not any(x in msg for x in ["\ud2b9\uc9d5", "\uc124\uba85", "\uc18c\uac1c"]):
         k = min(max(k, 4), 6)

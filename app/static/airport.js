@@ -46,13 +46,229 @@ let passengerState = {
     cabin: 'ECONOMY',
 };
 let flightSortState = 'price';
+let savedItemState = { wishlist: [], cart: [] };
+let flightSavedDrawerTab = 'cart';
 
 document.addEventListener('DOMContentLoaded', () => {
     renderForm();
     initAirportPopover();
     initFlightSortControls();
+    initFlightSavedDrawer();
+    initFlightSavedItemActions();
+    loadSavedItems().catch(() => {});
     initIcons();
 });
+
+function getSavedItemKey(item) {
+    return `${String(item?.item_type || '').toLowerCase()}__${String(item?.name || '').toLowerCase()}__${String(item?.meta || '').toLowerCase()}`;
+}
+
+function hasSavedItem(listType, item) {
+    const key = getSavedItemKey(item);
+    return (savedItemState[listType] || []).some((x) => getSavedItemKey(x) === key);
+}
+
+async function savedItemsApi(path = '/api/saved-items', options = {}) {
+    const res = await fetch(path, {
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(options.headers || {}),
+        },
+        ...options,
+    });
+    if (res.status === 401) {
+        const err = new Error('LOGIN_REQUIRED');
+        err.code = 'LOGIN_REQUIRED';
+        throw err;
+    }
+    let data = null;
+    try { data = await res.json(); } catch (_e) {}
+    if (!res.ok) {
+        const err = new Error((data && (data.detail || data.error)) || `HTTP ${res.status}`);
+        err.code = 'API_ERROR';
+        err.payload = data;
+        throw err;
+    }
+    return data;
+}
+
+function requireLoginMessage() {
+    if (confirm('로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?')) {
+        location.href = '/login';
+    }
+}
+
+async function loadSavedItems() {
+    try {
+        const data = await savedItemsApi('/api/saved-items', { method: 'GET', headers: {} });
+        savedItemState = {
+            wishlist: Array.isArray(data?.wishlist) ? data.wishlist : [],
+            cart: Array.isArray(data?.cart) ? data.cart : [],
+        };
+        rerenderCurrentFlightResults();
+        renderFlightSavedDrawer();
+    } catch (e) {
+        if (e?.code === 'LOGIN_REQUIRED') {
+            savedItemState = { wishlist: [], cart: [] };
+            renderFlightSavedDrawer();
+            return;
+        }
+        console.warn('saved-items load failed', e);
+    }
+}
+
+function setFlightSavedDrawer(open) {
+    const drawer = document.getElementById('flightSavedDrawer');
+    const fab = document.getElementById('flightSavedFab');
+    if (!drawer || !fab) return;
+    drawer.classList.toggle('is-open', !!open);
+    drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
+    fab.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function renderFlightSavedDrawer() {
+    const listEl = document.getElementById('flightSavedList');
+    const emptyEl = document.getElementById('flightSavedEmpty');
+    const countEl = document.getElementById('flightSavedFabCount');
+    const tabs = Array.from(document.querySelectorAll('[data-flight-saved-tab]'));
+    if (!listEl || !emptyEl) return;
+    const items = Array.isArray(savedItemState[flightSavedDrawerTab]) ? savedItemState[flightSavedDrawerTab] : [];
+    const total = (savedItemState.cart?.length || 0) + (savedItemState.wishlist?.length || 0);
+    if (countEl) {
+        countEl.hidden = total === 0;
+        countEl.textContent = String(total || 0);
+    }
+    tabs.forEach((btn) => {
+        const active = btn.getAttribute('data-flight-saved-tab') === flightSavedDrawerTab;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    listEl.innerHTML = '';
+    emptyEl.style.display = items.length ? 'none' : 'block';
+    emptyEl.textContent = flightSavedDrawerTab === 'wishlist' ? '위시리스트 항목이 없습니다.' : '장바구니 항목이 없습니다.';
+    items.forEach((item) => {
+        const li = document.createElement('li');
+        li.className = 'flight-saved-item';
+        li.innerHTML = `
+            <div class="flight-saved-item__type">${escapeHtml(item.item_type || 'item')}</div>
+            <div class="flight-saved-item__name">${escapeHtml(item.name || '-')}</div>
+            ${item.meta ? `<div class="flight-saved-item__meta">${escapeHtml(item.meta)}</div>` : ''}
+            <button type="button" class="flight-saved-item__remove" data-flight-saved-remove="${item.id}" title="삭제">×</button>
+        `;
+        listEl.appendChild(li);
+    });
+}
+
+function initFlightSavedDrawer() {
+    const fab = document.getElementById('flightSavedFab');
+    const drawer = document.getElementById('flightSavedDrawer');
+    const listEl = document.getElementById('flightSavedList');
+    if (!fab || !drawer) return;
+    fab.addEventListener('click', () => {
+        setFlightSavedDrawer(!drawer.classList.contains('is-open'));
+    });
+    document.querySelectorAll('[data-flight-saved-close]').forEach((el) => {
+        el.addEventListener('click', () => setFlightSavedDrawer(false));
+    });
+    document.querySelectorAll('[data-flight-saved-tab]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            flightSavedDrawerTab = btn.getAttribute('data-flight-saved-tab') || 'cart';
+            renderFlightSavedDrawer();
+        });
+    });
+    listEl?.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-flight-saved-remove]');
+        if (!btn) return;
+        const itemId = Number(btn.getAttribute('data-flight-saved-remove'));
+        if (Number.isNaN(itemId)) return;
+        try {
+            await savedItemsApi(`/api/saved-items/${itemId}`, { method: 'DELETE', headers: {} });
+            savedItemState[flightSavedDrawerTab] = (savedItemState[flightSavedDrawerTab] || []).filter((x) => Number(x.id) !== itemId);
+            renderFlightSavedDrawer();
+            rerenderCurrentFlightResults();
+        } catch (err) {
+            if (err?.code === 'LOGIN_REQUIRED') return requireLoginMessage();
+            alert(err?.message || '삭제 중 오류가 발생했습니다.');
+        }
+    });
+    renderFlightSavedDrawer();
+}
+
+function buildFlightSavedItemPayload(offer, airline) {
+    const itineraries = Array.isArray(offer?.itineraries) ? offer.itineraries : [];
+    const firstSeg = itineraries?.[0]?.segments?.[0] || {};
+    const lastItin = itineraries[itineraries.length - 1] || itineraries[0] || {};
+    const lastSegs = Array.isArray(lastItin?.segments) ? lastItin.segments : [];
+    const lastSeg = lastSegs[lastSegs.length - 1] || {};
+    const depCode = firstSeg?.departure?.iataCode || '';
+    const arrCode = lastSeg?.arrival?.iataCode || '';
+    const depAt = firstSeg?.departure?.at || '';
+    const arrAt = lastSeg?.arrival?.at || '';
+    const priceLabel = getDisplayPrice(offer);
+    const routeLabel = `${depCode} → ${arrCode}`.trim();
+    const name = `${airline?.name || '항공권'} ${routeLabel}`.trim();
+    const meta = [priceLabel, depAt ? `출발 ${depAt.replace('T', ' ')}` : '', arrAt ? `도착 ${arrAt.replace('T', ' ')}` : '']
+        .filter(Boolean)
+        .join(' | ');
+    return {
+        item_type: 'flight',
+        name,
+        meta,
+        source: 'airport-search',
+        payload: {
+            airline: airline?.name || '',
+            airline_code: airline?.code || '',
+            price: offer?.price || {},
+            itineraries,
+        },
+    };
+}
+
+function initFlightSavedItemActions() {
+    const mount = document.getElementById('flightResultsMount');
+    if (!mount || mount.dataset.savedActionsBound === '1') return;
+    mount.dataset.savedActionsBound = '1';
+    mount.addEventListener('click', async (e) => {
+        const heartBtn = e.target.closest('.flight-heart-btn');
+        const cartBtn = e.target.closest('.flight-select-btn[data-save-payload]');
+        const payBtn = e.target.closest('.flight-pay-btn[data-save-payload]');
+        const btn = heartBtn || cartBtn || payBtn;
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        let payload;
+        try {
+            payload = JSON.parse(decodeURIComponent(btn.getAttribute('data-save-payload') || ''));
+        } catch (_err) {
+            alert('항목 정보를 읽지 못했습니다.');
+            return;
+        }
+        const listType = heartBtn ? 'wishlist' : 'cart';
+        try {
+            await savedItemsApi('/api/saved-items', {
+                method: 'POST',
+                body: JSON.stringify({ ...payload, list_type: listType }),
+            });
+            await loadSavedItems();
+            renderFlightSavedDrawer();
+            if (!heartBtn) {
+                btn.textContent = '담김';
+                setFlightSavedDrawer(true);
+                if (payBtn) {
+                    alert('결제하기 기능은 다음 단계에서 연결됩니다. 우선 장바구니에 담았습니다.');
+                }
+            }
+        } catch (err) {
+            if (err?.code === 'LOGIN_REQUIRED') {
+                requireLoginMessage();
+                return;
+            }
+            alert(err?.message || '저장 중 오류가 발생했습니다.');
+        }
+    });
+}
 
 function setTripType(type) {
     closeAllPopovers();
@@ -624,6 +840,10 @@ function buildFlightCardsHtml(data) {
         const itineraries = Array.isArray(f.itineraries) ? f.itineraries : [];
         const airline = getAirlineDisplay(f, carriers);
         const singleClass = itineraries.length <= 1 ? ' flight-card--single' : '';
+        const savePayload = buildFlightSavedItemPayload(f, airline);
+        const payloadAttr = escapeHtml(encodeURIComponent(JSON.stringify(savePayload)));
+        const inWishlist = hasSavedItem('wishlist', savePayload);
+        const inCart = hasSavedItem('cart', savePayload);
         html += `
             <article class="flight-card${singleClass}">
                 <div class="flight-card-main">
@@ -645,10 +865,20 @@ function buildFlightCardsHtml(data) {
                     </div>
                 </div>
                 <aside class="flight-card-price">
+                    <button
+                        type="button"
+                        class="flight-heart-btn ${inWishlist ? 'is-active' : ''}"
+                        data-save-payload="${payloadAttr}"
+                        aria-label="위시리스트 담기"
+                        title="위시리스트"
+                    >♥</button>
                     <div class="flight-offer-count">총 ${itineraries.length}구간</div>
                     <div class="flight-price-main">${getDisplayPrice(f)}</div>
                     <div class="flight-price-sub">${escapeHtml(f?.price?.currency || '')} ${escapeHtml(f?.price?.total || '')}</div>
-                    <button type="button" class="flight-select-btn">선택하기</button>
+                    <div class="flight-card-actions">
+                        <button type="button" class="flight-select-btn" data-save-payload="${payloadAttr}">${inCart ? '담김' : '장바구니'}</button>
+                        <button type="button" class="flight-pay-btn" data-save-payload="${payloadAttr}">결제하기</button>
+                    </div>
                 </aside>
             </article>
         `;
@@ -716,6 +946,7 @@ function renderFlightResults(data) {
     const resultDiv = ensureFlightResultArea();
     resultDiv._flightRenderPayload = { type: 'single', data };
     resultDiv.innerHTML = buildFlightCardsHtml(data);
+    initIcons();
 }
 
 function renderMultiFlightResults(dataList, legs) {
@@ -733,6 +964,7 @@ function renderMultiFlightResults(dataList, legs) {
     });
     html += '</div>';
     resultDiv.innerHTML = html;
+    initIcons();
 }
 
 function renderFlightError(msg) {

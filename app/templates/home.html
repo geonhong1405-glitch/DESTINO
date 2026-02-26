@@ -492,5 +492,24 @@
                 </div>
             </div>
         </footer>
+
+        <button id="homeSavedFab" class="home-saved-fab" type="button" aria-expanded="false" aria-controls="homeSavedDrawer">
+            <span class="home-saved-fab-icon">🧺</span>
+            <span class="home-saved-fab-label">장바구니</span>
+            <span id="homeSavedFabCount" class="home-saved-fab-count" hidden>0</span>
+        </button>
+
+        <section id="homeSavedDrawer" class="home-saved-drawer" aria-hidden="true">
+            <div class="home-saved-drawer-handle"></div>
+            <div class="home-saved-drawer-header">
+                <div class="home-saved-tabs">
+                    <button type="button" class="home-saved-tab is-active" data-home-saved-tab="cart">장바구니</button>
+                    <button type="button" class="home-saved-tab" data-home-saved-tab="wishlist">위시리스트</button>
+                </div>
+                <button type="button" id="homeSavedDrawerClose" class="home-saved-close">닫기</button>
+            </div>
+            <div id="homeSavedEmpty" class="home-saved-empty">장바구니 항목이 없습니다.</div>
+            <div id="homeSavedList" class="home-saved-list"></div>
+        </section>
     </body>
 </html>
