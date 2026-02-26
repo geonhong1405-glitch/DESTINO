@@ -134,31 +134,6 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 .trend-img { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; }
 .trend-name { font-size: 14px; font-weight: 600; }
 
-/* Event Banner */
-.event-banner {
-    background: linear-gradient(90deg, #1e3c72 0%, #2a5298 100%);
-    border-radius: var(--radius-md);
-    padding: 40px;
-    color: var(--white);
-    margin-bottom: 60px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    position: relative;
-    overflow: hidden;
-}
-.event-content h3 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
-.event-content p { font-size: 16px; opacity: 0.9; }
-.event-btn {
-    background: #ffd32a;
-    color: #333;
-    padding: 14px 28px;
-    border-radius: 10px;
-    font-weight: 700;
-    font-size: 16px;
-    transition: 0.2s;
-}
-.event-btn:hover { background: #ffc000; transform: scale(1.05); }
 
 /* Search Results */
 #search-results { display: none; }
@@ -169,47 +144,272 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 .search-suggestion-item:hover { background: #f9f9f9; padding-left: 20px; }
 .search-suggestion-item i { color: var(--primary-color); }
 
-/* Contents */
-.container { max-width: var(--max-width); margin: 0 auto; padding: 0 20px; }
-.section-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 25px; }
-.section-title { font-size: 24px; font-weight: 800; }
-.section-subtext { font-size: 15px; color: var(--text-sub); }
-.view-all { color: var(--primary-color); font-weight: 600; font-size: 14px; }
 
-.card-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 24px;
-    margin-bottom: 80px;
+/* --- Popover --- */
+.popover {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1100;
+    background: var(--white);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border-color);
+    margin-top: 10px;
+    display: none;
+    overflow: hidden;
+    width: 320px;
+    animation: fadeIn 0.2s ease-out;
 }
 
-.card {
-    background: var(--white); border-radius: var(--radius-md); overflow: hidden;
-    transition: 0.3s; cursor: pointer; border: 1px solid #f0f0f0;
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
-.card:hover { transform: translateY(-8px); box-shadow: 0 12px 30px rgba(0,0,0,0.1); }
-.card-img-box { position: relative; aspect-ratio: 4/3; }
-.card-img { width: 100%; height: 100%; object-fit: cover; }
-.badge {
-    position: absolute; top: 12px; left: 12px;
-    background: rgba(0,0,0,0.6); color: white;
-    padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700;
-}
-.card-body { padding: 15px; }
-.card-loc { font-size: 12px; color: var(--text-sub); margin-bottom: 4px; }
-.card-title { font-size: 16px; font-weight: 700; color: #333; height: 44px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; margin-bottom: 10px; }
-.sale-price { font-size: 17px; font-weight: 800; color: var(--text-main); }
 
-/* Footer */
-.footer { background-color: #f9f9f9; padding: 60px 0; border-top: 1px solid #eee; text-align: center; font-size: 14px; color: #666; }
+.popover.active { display: block; }
 
-@media (max-width: 1024px) {
-    .card-grid { grid-template-columns: repeat(3, 1fr); }
+.region-popover { width: 450px; }
+.region-popover.active { display: flex; }
+.popover-sidebar { width: 120px; background: #f8f9fa; border-right: 1px solid var(--border-color); padding: 10px 0; }
+.sidebar-btn { width: 100%; padding: 12px 15px; border: none; background: none; text-align: left; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-sub); }
+.sidebar-btn.active { color: var(--primary-color); background: var(--white); }
+.popover-main { flex: 1; padding: 15px; max-height: 350px; overflow-y: auto; }
+.popover-search { padding: 5px 0 15px; position: sticky; top: 0; background: var(--white); z-index: 5; }
+.popover-search input { width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; outline: none; }
+.popover-search input:focus { border-color: var(--primary-color); }
+.region-list { list-style: none; }
+.region-item { padding: 10px; border-radius: 8px; cursor: pointer; font-size: 14px; display: flex; justify-content: space-between; }
+.region-item:hover { background: #f0f7ff; color: var(--primary-color); }
+
+/* Calendar */
+.calendar-popover { padding: 20px; width: 340px; }
+.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.cal-btn { background: none; border: none; cursor: pointer; padding: 5px; color: var(--text-sub); border-radius: 50%; }
+.cal-btn:hover { background: #eee; }
+.calendar-title-wrap { display: flex; gap: 4px; align-items: center; }
+.calendar-select { border: none; background: none; font-size: 15px; font-weight: 700; cursor: pointer; padding: 2px 4px; border-radius: 4px; outline: none; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.day-label { font-size: 11px; font-weight: 700; color: #999; text-align: center; padding: 10px 0; }
+.calendar-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 13px; cursor: pointer; font-weight: 500; }
+.calendar-day:hover:not(.disabled) { background: #f0f7ff; color: var(--primary-color); }
+.calendar-day.today { color: var(--primary-color); font-weight: 800; text-decoration: underline; }
+.calendar-day.selected { background: var(--primary-color) !important; color: var(--white) !important; }
+.calendar-day.disabled { color: #ccc; cursor: default; pointer-events: none; }
+
+.overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: transparent; z-index: 1050; display: none; }
+.overlay.active { display: block; }
+
+/* --- tour Content --- */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
 }
+.section-padding { padding: 60px 0; }
+.section-title { font-size: 26px; font-weight: 800; margin-bottom: 30px; letter-spacing: -0.5px; }
+.section-title span { color: var(--primary-color); }
+
+.tour-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+.tour-card { background: var(--white); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-decoration: none; color: inherit; transition: transform 0.3s; }
+.tour-card:hover { transform: translateY(-5px); }
+.tour-image { height: 200px; position: relative; }
+
+.tImg1 {background: url('https://cdn.pixabay.com/photo/2019/08/13/17/17/vienna-state-opera-4403839_1280.jpg') no-repeat center /auto 100% ;}
+.tImg2 {background: url('https://media.istockphoto.com/id/530259563/ko/%EC%82%AC%EC%A7%84/%EC%98%A4%EC%8A%AC%EB%A1%9C-%EC%8B%9C%EC%B2%AD-%EB%AA%85%EC%86%8C-%ED%83%80%EC%9B%8C%EC%88%98-%EC%A0%84%EA%B4%91%EC%8B%9D-%EB%82%B4%EB%A0%A4%EB%8B%A4-%EB%B3%B4%EC%9D%B4%EB%8A%94-%ED%95%AD%EA%B5%AC-%ED%95%B4%EC%A7%88%EB%85%98%EA%B9%8C%EC%A7%80-%EB%85%B8%EB%A5%B4%EC%9B%A8%EC%9D%B4.jpg?b=1&s=1024x1024&w=0&k=20&c=R_PCoPZRnW-LvqFQGD1xNZ2pa0bSRtYYR_jBF3mzHFE=') no-repeat center /auto 100% ;}
+.tImg3 {background: url('https://media.istockphoto.com/id/1129048899/ko/%EC%82%AC%EC%A7%84/%EB%84%A4%EB%8D%9C%EB%9E%80%EB%93%9C-%EC%95%94%EC%8A%A4%ED%85%8C%EB%A5%B4%EB%8B%B4-%EB%B4%84-%ED%8A%A4%EB%A6%BD-%EA%BD%83%EA%B3%BC-%EC%9A%B4%ED%95%98-%EB%AC%BC%EA%B0%80%EC%97%90%EC%84%9C-%EB%8F%84%EC%8B%9C-%EC%8A%A4%EC%B9%B4%EC%9D%B4-%EB%9D%BC%EC%9D%B8-%EB%84%A4%EB%8D%9C%EB%9E%80%EB%93%9C-%EC%A7%91.jpg?b=1&s=1024x1024&w=0&k=20&c=GYqfDlR2ZMuvVLjIzIIjJTp1JWCEyhNyHKlBmsqXl_0=') no-repeat center /auto 100% ;}
+.tImg4 {background: url('https://cdn.pixabay.com/photo/2015/08/05/12/38/prague-castle-876467_1280.jpg') no-repeat center /auto 100% ;}
+.tImg5 {background: url('https://media.istockphoto.com/id/2176024993/ko/%EC%82%AC%EC%A7%84/%EB%B8%8C%EB%A4%BC%ED%97%A4-%EB%8F%84%EC%8B%9C-%ED%92%8D%EA%B2%BD-%EB%9E%91%EA%B2%8C%EB%9D%BC%EC%9D%B4-%EC%9A%B4%ED%95%98-%EC%95%84%EC%B9%98-%EB%8B%A4%EB%A6%AC-%ED%99%94%EC%B0%BD%ED%95%9C-%EB%82%A0%EC%97%90-%EC%82%B0%EC%B1%85%EB%A1%9C-%EC%A0%9C%EB%B0%A9%EC%97%90-%EC%A4%91%EC%84%B8-%EC%A3%BC%ED%83%9D-%EB%B8%8C%EB%A4%BC%ED%97%A4-%EA%B5%AC%EC%8B%9C-%EA%B0%80%EC%A7%80-%EB%B8%8C%EB%A4%BC%ED%97%A4-%EC%8B%9C%EB%82%B4-%EC%97%AD%EC%82%AC-%EC%A7%80%EA%B5%AC-%ED%94%8C%EB%9E%91%EB%93%9C%EB%A5%B4-%EC%A7%80%EC%97%AD-%EB%B2%A8%EA%B8%B0%EC%97%90.jpg?b=1&s=1024x1024&w=0&k=20&c=e1csFSCqG64Rd5j_-aCNgB1diSLhgVs8l-pNHlzRFOs=') no-repeat center /auto 100% ;}
+.tImg6 {background: url('https://cdn.pixabay.com/photo/2014/03/28/17/49/queenstown-300181_1280.jpg') no-repeat center /auto 100% ;}
+.tImg7 {background: url('https://media.istockphoto.com/id/1995062084/ko/%EC%82%AC%EC%A7%84/%ED%95%80%EB%9E%80%EB%93%9C-%EB%9D%BC%ED%94%8C%EB%9E%80%EB%93%9C%EC%9D%98-%ED%99%94%EB%A0%A4%ED%95%9C-%EC%A1%B0%EB%AA%85.jpg?b=1&s=1024x1024&w=0&k=20&c=U51OLwSRQryF5Jq-38FWNMl71cEw5YDYIBvGvAv4bus=') no-repeat center / 100% auto;}
+.tImg8 {background: url('https://media.istockphoto.com/id/1210074487/ko/%EC%82%AC%EC%A7%84/%EC%95%84%EB%A5%B4%ED%97%A8%ED%8B%B0%EB%82%98-%EA%B4%80%EA%B4%91.jpg?b=1&s=1024x1024&w=0&k=20&c=7BGQMKievmvAC0sXQJMm5B2Zn0StBxzGUel0Ot3hWJY=') no-repeat center / auto 100% ;}
+.tImg9 {background: url('https://cdn.pixabay.com/photo/2016/04/16/20/22/szechenyi-spa-1333668_1280.jpg') no-repeat center / 100% auto;}
+.tImg10 {background: url('https://cdn.pixabay.com/photo/2018/11/30/19/30/dublin-3848404_1280.jpg') no-repeat center /auto 100% ;}
+.tImg11 {background: url('https://media.istockphoto.com/id/695519044/ko/%EC%82%AC%EC%A7%84/bolders-%ED%95%B4%EB%B3%80-%EC%BC%80%EC%9D%B4%ED%94%84-%ED%83%80%EC%9A%B4-%EB%82%A8%EC%95%84-%ED%94%84%EB%A6%AC-%EC%B9%B4-%EA%B3%B5%ED%99%94%EA%B5%AD%EC%97%90%EC%84%9C-%EC%95%84%ED%94%84%EB%A6%AC%EC%B9%B4-%ED%8E%AD%EA%B7%84.jpg?b=1&s=1024x1024&w=0&k=20&c=z2YTcSenmWhB5vDTFBQ_eo-kCyA9xFZAzhS6G8Qg9GI=') no-repeat center /auto 100% ;}
+.tImg12 {background: url('https://media.istockphoto.com/id/1763678322/ko/%EC%82%AC%EC%A7%84/%EB%A7%88%EC%B6%94-%ED%94%BD%EC%B6%94-%EC%BF%A0%EC%8A%A4%EC%BD%94-%ED%8E%98%EB%A3%A8.jpg?b=1&s=1024x1024&w=0&k=20&c=aXk7uEOEQdLK-Psa-1F5qbKDot-qQITJ1Jpx547HSuE=') no-repeat center /auto 100% ;}
+.tImg13 {background: url('https://cdn.pixabay.com/photo/2019/08/27/18/57/sea-4434933_1280.jpg') no-repeat center /auto 100% ;}
+.tImg14 {background: url('https://cdn.pixabay.com/photo/2017/09/21/16/12/holidays-2772364_1280.jpg') no-repeat center /auto 100% ;}
+.tImg15 {background: url('https://media.istockphoto.com/id/1134637886/ko/%EC%82%AC%EC%A7%84/frederiksholms-%EC%9A%B4%ED%95%98%EC%97%90-%EB%8C%80%EB%A6%AC%EC%84%9D-%EB%8B%A4%EB%A6%AC%EC%9E%85%EB%8B%88%EB%8B%A4.jpg?b=1&s=1024x1024&w=0&k=20&c=ewPoamrYJ9ha-iYnnlkOzmlToUDhl9lwp76VUgGm9LM=') no-repeat center /auto 100% ;}
+.tImg16 {background: url('https://cdn.pixabay.com/photo/2017/06/17/19/17/tashkent-2413252_1280.jpg') no-repeat center /auto 100% ;}
+
+.badge { position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.7); color: white; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+.tour-body { padding: 20px; }
+.tour-loc { font-size: 12px; color: var(--primary-color); font-weight: 700; margin-bottom: 8px; }
+.tour-name { font-size: 16px; font-weight: 700; line-height: 1.5; margin-bottom: 15px; height: 48px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.tour-price { display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #f0f0f0; padding-top: 15px; }
+.price-val { font-size: 19px; font-weight: 800; color: #ff5252; }
+
+/* 기본 초기화 */
+.footer * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+.footer {
+    background-color: #f9f9f9;
+    padding: 60px 0 40px;
+    color: #666;
+    font-size: 14px;
+    border-top: 1px solid #eee;
+    line-height: 1.6;
+}
+
+.footer-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+.footer-top {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 30px;
+    margin-bottom: 40px;
+}
+
+.footer-top > h2 {
+    min-width: calc(100%-600px);
+    font-size: 70px;
+    font-weight: 800;
+    color: #ccc;
+    margin-bottom: 20px;
+    flex: 1;
+}
+
+/* 컬럼 공통 스타일 */
+.footer-column {
+    flex: 1;
+    max-width: 28
+    0px;
+}
+
+.footer-column h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 20px;
+}
+
+.footer-col h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 20px;
+}
+
+/* 고객센터 상세 스타일 */
+.cs-number {
+    font-size: 24px;
+    font-weight: 800;
+    color: #111;
+    margin-bottom: 5px;
+}
+
+.cs-hours {
+    color: #666;
+    margin-bottom: 15px;
+}
+
+.sub-text {
+    font-size: 12px;
+    color: #999;
+}
+
+/* 버튼 스타일 */
+.cs-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-cs {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border: 1px solid #ddd;
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    color: #333;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.btn-cs:hover {
+    background: #f0f0f0;
+    border-color: #ccc;
+}
+
+.btn-cs .icon {
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+}
+
+/* 링크 스타일 */
+.footer-column ul {
+    list-style: none;
+}
+
+.footer-column ul li {
+    margin-bottom: 12px;
+}
+
+.footer-column ul li a {
+    text-decoration: none;
+    color: #666;
+    transition: color 0.2s;
+}
+
+.footer-column ul li a:hover {
+    color: #111;
+    text-decoration: underline;
+}
+
+.policy-highlight {
+    font-weight: 700;
+    color: #333 !important;
+}
+
+/* 하단 정보 섹션 */
+.footer-divider {
+    border: 0;
+    border-top: 1px solid #eee;
+    margin-bottom: 30px;
+}
+
+.company-info p {
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 6px;
+}
+
+.btn-verify {
+    text-decoration: underline;
+    margin-left: 5px;
+    color: #999;
+}
+
+.copyright {
+    margin-top: 20px;
+    color: #bbb;
+}
+
+/* 반응형 모바일 대응 */
 @media (max-width: 768px) {
-    .hero-title { font-size: 32px; }
-    .card-grid { grid-template-columns: repeat(2, 1fr); }
-    .tour-search-row { flex-direction: column; }
-    .btn-search { width: 100%; }
-    .event-banner { flex-direction: column; text-align: center; gap: 20px; }
+    .footer-top {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .footer-column {
+        min-width: unset;
+    }
+
+    .company-info {
+        text-align: left;
+    }
 }
