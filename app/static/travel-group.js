@@ -91,8 +91,28 @@ const itemsPerPage = 5;
 // 필터링된 포스트를 담을 변수 (페이지네이션에서 사용)
 let filteredPosts = [...posts];
 
+
+// 로그인 여부 확인 함수 (window.__AUTH__에 nickname이 있으면 로그인 상태)
+function isLoggedIn() {
+    return window.__AUTH__ && window.__AUTH__.nickname && window.__AUTH__.nickname !== '';
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     initPage();
+    // 글쓰기 버튼 로그인 체크 (모달 자체가 열리지 않도록)
+    const writeBtn = document.querySelector('.btn-write');
+    if (writeBtn) {
+        // 기존 onclick 속성 제거 (HTML에서 남아있을 수 있음)
+        writeBtn.onclick = null;
+        writeBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (!isLoggedIn()) {
+                alert('로그인 후 이용 가능합니다.');
+                return false;
+            }
+            openModal('writeModal');
+        });
+    }
 });
 
 function initPage() {
@@ -100,9 +120,15 @@ function initPage() {
     setupInteractions(); // 기존 검색바 클릭 이벤트
     initPopovers(); // ★ 글쓰기 모달 내 나라/도시 클릭 이벤트 (중요)
     populateRecommendations(); // ★ 글쓰기 모달 내 추천 나라 리스트 생성 (중요)
-    initDateConstraints(); // 날짜 120일 제한
+
+    // 추가/수정: 페이지 로드 시 날짜 제한 초기화 및 이벤트 연결
+    initDateConstraints(); 
+    const categorySelect = document.getElementById('formCategory');
+    if (categorySelect) {
+        categorySelect.addEventListener('change', initDateConstraints);
+    }
+
     lucide.createIcons();
-    // 시작 날짜 변경 시 종료 날짜 최소값 자동 업데이트 이벤트 연결
     const startInput = document.getElementById("formDateStart");
     if (startInput) {
         startInput.addEventListener("change", updateMinEndDate);
@@ -170,10 +196,22 @@ function renderPosts(page = 1) {
                 </div>
             </div>
 
-            <button class="card-wish-btn ${post.wish ? 'active' : ''}" onclick="toggleWish(event, ${post.id})">
+            <button class="card-wish-btn ${post.wish ? 'active' : ''}" type="button">
                 <i data-lucide="heart" width="20" ${post.wish ? 'fill="currentColor"' : 'fill="none"'}></i>
             </button>
         `;
+        // 찜 버튼에 로그인 체크 이벤트 바인딩
+        const wishBtn = card.querySelector('.card-wish-btn');
+        if (wishBtn) {
+            wishBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (!isLoggedIn()) {
+                    alert('로그인 후 이용 가능합니다.');
+                    return false;
+                }
+                toggleWish(e, post.id);
+            });
+        }
         listContainer.appendChild(card);
     });
 
@@ -238,13 +276,13 @@ function showDetail(id) {
     const privacyCheck = document.getElementById("privacyCheck");
     if (privacyCheck) privacyCheck.checked = false;
 
-  // 헤더 반영
+    // 헤더 반영
     document.getElementById("detailHeader").innerHTML = `
         <div style="font-size:13px; color:var(--primary-color); font-weight:700; margin-bottom:4px;">${p.cat || "공동예매"}</div>
         <h2 style="font-size:22px;">${p.title}</h2>
     `;
 
-  // 바디 그리드 반영
+    // 바디 그리드 반영
     document.getElementById("detailBody").innerHTML = `
         <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap: 15px; margin-bottom:20px;">
             <div style="background:#f0faff; padding:15px; border-radius:12px;">
@@ -262,14 +300,38 @@ function showDetail(id) {
         </div>
     `;
 
-  // 하단 버튼 영역 (찜하기 + 신청하기)
+    // showDetail 함수 내부의 하단 버튼 영역 부분
     const actions = document.getElementById("detailActions");
     actions.innerHTML = `
-        <button class="btn-detail-wish ${p.wish ? "active" : ""}" onclick="toggleWish(event, ${p.id})">
+        <button id="detailWishBtn" class="btn-detail-wish ${p.wish ? "active" : ""}" type="button">
             <i data-lucide="heart" width="24" ${p.wish ? 'fill="currentColor"' : 'fill="none"'}></i>
         </button>
-        <button class="btn-detail-apply" onclick="handleApply()">지금 신청하기</button>
+        <button class="btn-detail-apply" type="button">지금 신청하기</button>
     `;
+
+    // 찜 버튼에 로그인 체크 이벤트 바인딩
+    const detailWishBtn = document.getElementById("detailWishBtn");
+    if (detailWishBtn) {
+        detailWishBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (!isLoggedIn()) {
+                alert('로그인 후 이용 가능합니다.');
+                return false;
+            }
+            toggleWish(e, p.id);
+        });
+    }
+    // 신청하기 버튼에 로그인 체크 이벤트 바인딩
+    const applyBtn = actions.querySelector('.btn-detail-apply');
+    if (applyBtn) {
+        applyBtn.addEventListener('click', function(e) {
+            if (!isLoggedIn()) {
+                alert('로그인 후 이용 가능합니다.');
+                return false;
+            }
+            handleApply();
+        });
+    }
 
     lucide.createIcons();
     openModal("detailModal");
@@ -291,12 +353,13 @@ function toggleWish(e, id) {
   // 만약 상세 모달이 열려있다면 모달 안의 하트도 업데이트
     const detailModal = document.getElementById("detailModal");
     const detailWishBtn = document.getElementById("detailWishBtn");
-    if (
-        detailWishBtn &&
-        document.getElementById("detailModal").style.display === "flex"
-    ) {
+    // 상세 모달이 눈에 보이는 상태일 때만 실행
+    if (detailWishBtn && document.getElementById("detailModal").style.display === "flex") {
+        // 클래스 토글 (배경색 변경)
         detailWishBtn.classList.toggle("active", post.wish);
+        // 아이콘 색상 채우기 변경
         detailWishBtn.innerHTML = `<i data-lucide="heart" width="24" ${post.wish ? 'fill="currentColor"' : 'fill="none"'}></i>`;
+        // Lucide 아이콘 다시 그리기
         lucide.createIcons();
     }
 
@@ -355,10 +418,10 @@ function updateMinEndDate() {
     const endInput = document.getElementById('formDateEnd');
     
     if (startInput && endInput && startInput.value) {
-        // 종료 날짜는 시작 날짜 이후여야 하므로 min 속성을 업데이트
+        // 도착일의 최소값(min)을 출발일로 설정 (출발일보다 이전 선택 불가)
         endInput.setAttribute('min', startInput.value);
         
-        // 만약 기존에 선택된 종료 날짜가 새 시작 날짜보다 빠르면 초기화
+        // 만약 기존에 선택된 도착일이 새 출발일보다 빠르면 도착일 초기화
         if (endInput.value && endInput.value < startInput.value) {
             endInput.value = '';
         }
@@ -425,16 +488,89 @@ function handleApply() {
 
 // 나머지 모달 제어 및 기본 인터랙션은 유지
 function openModal(id) {
-    document.getElementById(id).style.display = "flex";
+    const modal = document.getElementById(id);
+    if (!modal) return;
+
+    modal.style.display = "flex";
+
+    // 배경 스크롤 차단 클래스 추가
+    document.body.classList.add("modal-open");
 }
 function closeModal(id) {
-    document.getElementById(id).style.display = "none";
+    const modal = document.getElementById(id);
+    if (!modal) return;
+
+    // 1. 모달 숨기기
+    modal.style.display = "none";
+
+    // 배경 스크롤 차단 해제
+    // (열려있는 다른 모달이 없을 때만 클래스를 제거해야 안전합니다)
+    const openModals = document.querySelectorAll('.modal[style*="display: flex"]');
+    if (openModals.length === 0) {
+        document.body.classList.remove("modal-open");
+    }
+    
+    // 2. 만약 닫는 모달이 '글쓰기 모달(writeModal)'이라면 내용 리셋
+    if (id === 'writeModal') {
+        const writeForm = document.getElementById('writeForm');
+        if (writeForm) {
+            writeForm.reset(); // 모든 input, textarea 초기화
+        }
+
+        // 3. 커스텀 디스플레이 요소들 초기화 (나라/도시 선택창)
+        const countryDisplay = document.getElementById('formCountryDisplay');
+        const cityDisplay = document.getElementById('formCityDisplay');
+        
+        if (countryDisplay) countryDisplay.innerText = "나라 선택";
+        if (cityDisplay) {
+            cityDisplay.innerText = "도시 선택";
+            // 도시 선택 버튼을 다시 비활성화 상태로 되돌리고 싶다면 아래 추가
+            document.getElementById('formCityTrigger')?.classList.add('disabled');
+        }
+
+        // 4. 종료 날짜 영역 보이기/숨기기 상태 초기화 (필요 시)
+        const endDateWrapper = document.getElementById('formEndDateWrapper');
+        if (endDateWrapper) {
+            endDateWrapper.style.display = 'block'; // 기본 상태로 복구
+        }
+    }
 }
 function showToast(msg) {
   /* 토스트 로직 */
 }
+
+/**
+ * 날짜 선택 제한 설정 (항공권은 오늘부터, 그 외는 120일 이후부터)
+ */
 function initDateConstraints() {
-  /* 날짜 제한 로직 */
+    const startInput = document.getElementById("formDateStart");
+    const categorySelect = document.getElementById('formCategory'); // 여기서 변수를 정의해줘야 합니다.
+    
+    if (!startInput) return;
+
+    const now = new Date();
+
+    // 항공권(flight)이 아닐 때만 120일 제한 적용
+    if (categorySelect && categorySelect.value !== 'flight') {
+        now.setDate(now.getDate() + 120);
+    } else {
+        // 항공권일 때는 오늘 날짜 이후로 설정
+        now.setDate(now.getDate());
+    }
+
+    // YYYY-MM-DD 형식으로 변환 (KST 기준 처리를 위해 로컬 날짜 사용 권장)
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const minDate = `${year}-${month}-${day}`;
+
+    // 출발일 input의 최소 날짜(min) 설정
+    startInput.setAttribute("min", minDate);
+
+    // 만약 현재 입력된 날짜가 바뀐 최소 날짜보다 이전이라면 초기화
+    if (startInput.value && startInput.value < minDate) {
+        startInput.value = "";
+    }
 }
 
 function setupInteractions() {
@@ -459,15 +595,21 @@ function toggleFormDates() {
     if (!categorySelect || !endDateWrapper || !endDateInput) return;
 
     if (categorySelect.value === 'flight') {
-        // 항공권일 때: 숨기고 필수 입력 해제
+        // 항공권(편도)일 때: 도착일 숨기고 필수 입력 해제
         endDateWrapper.style.display = 'none';
-        endDateInput.removeAttribute('required'); 
-        endDateInput.value = ''; // 값도 비워줌
+        endDateInput.removeAttribute('required');
+        endDateInput.value = '';
+    } else if (categorySelect.value === 'roundtrip') {
+        // 왕복 항공권: 출발일/도착일 모두 보이고 필수
+        endDateWrapper.style.display = 'block';
+        endDateInput.setAttribute('required', 'required');
     } else {
-        // 그 외(호텔, 패키지 등): 보이고 필수 입력 설정
+        // 호텔, 패키지 등: 출발/도착일 모두 보이고 필수
         endDateWrapper.style.display = 'block';
         endDateInput.setAttribute('required', 'required');
     }
+
+    initDateConstraints();
 }
 
 /**
@@ -477,46 +619,65 @@ function handleFormSubmit(e) {
     e.preventDefault();
 
     // 폼 데이터 가져오기
-    const title = document.getElementById('formTitle').value;
-    const country = document.getElementById('formCountryDisplay').innerText;
-    const city = document.getElementById('formCityDisplay').innerText;
-    const start = document.getElementById('formDateStart').value;
-    const budget = document.getElementById('formBudget').value;
-    const desc = document.getElementById('formDesc').value;
+    const titleInput = document.getElementById("formTitle");
+    const categorySelect = document.getElementById("formCategory");
+    const dateStart = document.getElementById("formDateStart").value;
+    const countryText = document.getElementById("formCountryDisplay").innerText;
+    const descText = document.getElementById("formDesc").value;
 
-    if (country === "나라 선택") return alert("나라를 선택해주세요.");
+    // 예산(budget) input이 있는지 확인 후 가져오기 (없으면 기본값)
+    const budgetInput = document.getElementById('formBudget');
+    const budgetValue = budgetInput ? budgetInput.value : "협의 후 결정";
 
+    // 2. 유효성 검사
+    if (countryText === "나라 선택") return alert("나라를 선택해주세요.");
+    if (!titleInput.value.trim()) return alert("제목을 입력해주세요.");
+
+    // 3. 새 게시글 객체 생성
     const newPost = {
-        id: Date.now(),
-        title: title,
-        country: country,
-        city: city,
-        start: start,
-        departure: "인천", // 기본값
-        budget: budget,
-        desc: desc,
+        id: Date.now(), // 고유 ID (삭제 시 사용)
+        title: titleInput.value,
+        country: countryText,
+        start: dateStart,
+        budget: budgetValue,
+        desc: descText,
+        category: categorySelect ? categorySelect.value : 'etc',
         current: 1,
-        max: 4,
+        max: '명 참여 중',
         status: 'open',
-        wish: false,
-        isMine: true // 내가 쓴 글 표시
+        wish: false
     };
 
-    // 1. 전체 목록 맨 앞에 추가
-    posts.unshift(newPost);
-    filteredPosts = [...posts];
-
-    // 2. 로컬 스토리지 저장 (마이페이지 연동용)
+    // 4. 로컬 스토리지에 저장 (마이페이지 연동의 핵심)
     saveToLocalStorage(newPost);
 
-    // 3. 화면 갱신 및 모달 닫기
+    // 5. 현재 페이지 리스트에도 즉시 반영
+    posts.unshift(newPost);
+    filteredPosts = [...posts];
     renderPosts(1);
+
+    // 6. UI 정리 및 모달 닫기
     closeModal('writeModal');
     e.target.reset(); // 폼 초기화
-    
-    // 선택 디스플레이 초기화
     document.getElementById('formCountryDisplay').innerText = "나라 선택";
     document.getElementById('formCityDisplay').innerText = "도시 선택";
+}
+
+/**
+ * 숫자에 콤마를 찍고 숫자 이외의 문자를 제거하는 함수
+ */
+function formatCurrency(input) {
+    // 1. 숫자 이외의 문자 제거
+    let value = input.value.replace(/[^0-9]/g, "");
+    
+    // 2. 숫자가 없으면 빈값 처리
+    if (!value) {
+        input.value = "";
+        return;
+    }
+
+    // 3. 세 자리마다 콤마 추가 (Intl.NumberFormat 사용)
+    input.value = new Intl.NumberFormat().format(value);
 }
 
 /**
