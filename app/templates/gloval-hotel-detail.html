@@ -135,7 +135,14 @@
         <div class="container header-inner">
             <h1 class="logo"><a href="/">DESTINO</a></h1>
             <nav class="header-nav">
+                {% if nickname %}
+                <a href="/mypage"><span style="font-weight: 700; color: #00aaff">{{ nickname }}</span></a>
+                <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
+                {% endif %}
                 <a href="/gloval-hotel?city={{ city or '' }}&country={{ country or '' }}&checkin={{ checkin or '' }}&checkout={{ checkout or '' }}">검색 결과</a>
+                {% if not nickname %}
+                <a href="/login">로그인</a>
+                {% endif %}
             </nav>
         </div>
     </header>

@@ -1,6 +1,6 @@
 ﻿/**
  * DESTINO 마이페이지 동적 로직
- * (로그인 유지 및 찜, 쿠폰, 마일리지, 고객센터 탭 확장 포함)
+ * (로그인 유지 및 찜/장바구니/고객센터 탭 포함)
  */
 
 // --- 초기 기본 데이터 설정 ---
@@ -31,23 +31,11 @@ let user = (SERVER_USER.isLoggedIn ? SERVER_USER : (JSON.parse(localStorage.getI
 // 예약 데이터 (빈 배열로 초기화)
 const bookings = [];
 
-// 찜 데이터 관리 (초기 샘플 데이터)
-let wishlist = JSON.parse(localStorage.getItem('destino_wishlist')) || [
-    {
-        id: 1,
-        category: '파리 · 항공/호텔',
-        name: '에펠탑 뷰 5성급 호텔 패키지',
-        price: '1,250,000원~',
-        color: 'bg-gray-200',
-    },
-    {
-        id: 2,
-        category: '도쿄 · 투어/티켓',
-        name: '시부야 스카이 전망대 입장권',
-        price: '22,000원~',
-        color: 'bg-blue-100',
-    },
-];
+// DB 저장 항목 (위시리스트/장바구니)
+let savedItemsState = {
+    wishlist: [],
+    cart: [],
+};
 
 /**
  * 탭 전환 함수
@@ -243,7 +231,6 @@ function saveUserInfo() {
 function handleLogout() {
     if (confirm('로그아웃 하시겠습니까?')) {
         localStorage.removeItem('destino_user');
-        localStorage.removeItem('destino_wishlist');
         fetch('/logout', { method: 'GET', credentials: 'include' })
             .catch(() => {})
             .finally(() => {
@@ -253,56 +240,169 @@ function handleLogout() {
 }
 
 /**
- * 찜 삭제 함수
+ * 저장 항목 삭제 함수 (위시리스트/장바구니 공통)
  */
-function removeWishItem(id) {
-    wishlist = wishlist.filter((item) => item.id !== id);
-    localStorage.setItem('destino_wishlist', JSON.stringify(wishlist));
-    renderWishlist();
-    updateDisplay(); // 상단 요약 카드의 찜 개수 업데이트를 위해 호출
+async function removeSavedItem(id) {
+    try {
+        const res = await fetch(`/api/saved-items/${id}`, {
+            method: 'DELETE',
+            credentials: 'include',
+        });
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+        savedItemsState.wishlist = savedItemsState.wishlist.filter((item) => item.id !== id);
+        savedItemsState.cart = savedItemsState.cart.filter((item) => item.id !== id);
+        renderSavedItems();
+        updateDisplay();
+    } catch (e) {
+        alert('삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    }
 }
 
-/**
- * 찜 목록 렌더링
- */
-function renderWishlist() {
-    const wishContainer = document.querySelector('#content-wishlist .grid');
-    const wishTitle = document.querySelector('#content-wishlist .card-title');
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
-    if (!wishContainer) return;
+function getFlightAirlineLogoUrl(code) {
+    if (!code) return '';
+    return `https://images.kiwi.com/airlines/64x64/${encodeURIComponent(String(code).toUpperCase())}.png`;
+}
 
-    if (wishTitle) {
-        wishTitle.innerText = `찜한 여행지 (${wishlist.length})`;
+function getSavedItemImageUrl(item) {
+    const payload = item?.payload || {};
+    if (item?.item_type === 'flight') {
+        return getFlightAirlineLogoUrl(payload?.airline_code || '');
     }
+    return (
+        payload?.image_url ||
+        payload?.image ||
+        payload?.thumbnail ||
+        payload?.photo ||
+        (Array.isArray(payload?.images) ? payload.images[0] : '') ||
+        (Array.isArray(payload?.photos) ? payload.photos[0] : '') ||
+        ''
+    );
+}
 
-    if (wishlist.length === 0) {
-        wishContainer.innerHTML = `
+function formatSavedItemMeta(item) {
+    const raw = String(item?.meta || '').trim();
+    if (!raw) return { price: '', details: [] };
+    const parts = raw.split('|').map((v) => v.trim()).filter(Boolean);
+    return {
+        price: parts[0] || '',
+        details: parts.slice(1, 3),
+    };
+}
+
+async function loadSavedItems() {
+    try {
+        const res = await fetch('/api/saved-items', { credentials: 'include' });
+        if (res.status === 401) {
+            savedItemsState = { wishlist: [], cart: [] };
+            renderSavedItems();
+            updateDisplay();
+            return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        savedItemsState = {
+            wishlist: Array.isArray(data?.wishlist) ? data.wishlist : [],
+            cart: Array.isArray(data?.cart) ? data.cart : [],
+        };
+    } catch (e) {
+        savedItemsState = { wishlist: [], cart: [] };
+    }
+    renderSavedItems();
+    updateDisplay();
+}
+
+function buildSavedItemCard(item, listType) {
+    const category = item?.item_type ? `${String(item.item_type).toUpperCase()} · ${item.source || 'saved-item'}` : (item.source || 'saved-item');
+    const title = item?.name || '(이름 없음)';
+    const metaData = formatSavedItemMeta(item);
+    const iconHtml = listType === 'wishlist'
+        ? '<i data-lucide="heart" class="fill-current text-red-500" size="18"></i>'
+        : '<i data-lucide="x" size="18"></i>';
+    const colorClass = listType === 'cart' ? 'bg-blue-100' : '';
+    const imageUrl = getSavedItemImageUrl(item);
+    const imageHtml = imageUrl
+        ? `<img class="wish-thumb-img" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(title)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('no-image')">`
+        : '';
+    const detailLines = (metaData.details || []).map((line) => `<p class="wish-meta-line">${escapeHtml(line)}</p>`).join('');
+
+    return `
+        <div class="wish-item">
+            <div class="wish-img-placeholder ${colorClass} ${imageUrl ? '' : 'no-image'}">${imageHtml}</div>
+            <div class="wish-info">
+                <p class="wish-category">${escapeHtml(category)}</p>
+                <h5 class="wish-name">${escapeHtml(title)}</h5>
+                <p class="wish-price">${escapeHtml(metaData.price || '저장된 항목')}</p>
+                ${detailLines}
+            </div>
+            <button class="wish-remove-btn" onclick="removeSavedItem(${Number(item.id)})" title="삭제">
+                ${iconHtml}
+            </button>
+        </div>
+    `;
+}
+
+function renderSavedItemsList(container, listType, items) {
+    if (!container) return;
+    if (!items.length) {
+        container.innerHTML = `
             <div class="col-span-full flex flex-col items-center justify-center py-12">
-                <p class="text-gray-400 text-sm">찜한 내역이 없습니다.</p>
+                <p class="text-gray-400 text-sm">${listType === 'wishlist' ? '찜한 내역이 없습니다.' : '장바구니가 비어 있습니다.'}</p>
+            </div>
+        `;
+        return;
+    }
+    container.innerHTML = items.map((item) => buildSavedItemCard(item, listType)).join('');
+}
+
+function renderSavedItems() {
+    const wishContainer = document.getElementById('mypage-wishlist-list');
+    const cartContainer = document.getElementById('mypage-cart-list');
+    const wishTitle = document.getElementById('mypage-wishlist-title');
+    const cartTitle = document.getElementById('mypage-cart-title');
+
+    if (wishTitle) wishTitle.innerText = `찜한 여행지 (${savedItemsState.wishlist.length})`;
+    if (cartTitle) cartTitle.innerText = `장바구니 (${savedItemsState.cart.length})`;
+
+    renderSavedItemsList(wishContainer, 'wishlist', savedItemsState.wishlist);
+    renderSavedItemsList(cartContainer, 'cart', savedItemsState.cart);
+    renderRecentCartPreview();
+    lucide.createIcons();
+}
+
+function renderRecentCartPreview() {
+    const container = document.getElementById('recent-cart-list');
+    if (!container) return;
+
+    const items = (savedItemsState.cart || []).slice(0, 3);
+    if (!items.length) {
+        container.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-10 bg-white rounded-3xl border border-dashed border-gray-200 shadow-sm">
+                <p class="text-gray-500 font-medium">장바구니에 담긴 항목이 없습니다.</p>
+                <p class="text-gray-400 text-sm mt-1">항공/숙소/렌터카를 담아 비교해보세요.</p>
             </div>
         `;
         return;
     }
 
-    wishContainer.innerHTML = wishlist
-        .map(
-            (item) => `
-        <div class="wish-item">
-            <div class="wish-img-placeholder ${item.color}"></div>
-            <div class="wish-info">
-                <p class="wish-category">${item.category}</p>
-                <h5 class="wish-name">${item.name}</h5>
-                <p class="wish-price">${item.price}</p>
-            </div>
-            <button class="wish-remove-btn" onclick="removeWishItem(${item.id})">
-                <i data-lucide="heart" class="fill-current text-red-500" size="18"></i>
-            </button>
+    container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${items.map((item) => buildSavedItemCard(item, 'cart')).join('')}
         </div>
-    `
-        )
-        .join('');
-
-    lucide.createIcons();
+        <div class="mt-3 text-right">
+            <button onclick="switchTab('cart')" class="view-all-btn">장바구니 전체보기 <i data-lucide="chevron-right" size="16"></i></button>
+        </div>
+    `;
 }
 
 /**
@@ -319,9 +419,14 @@ function updateDisplay() {
     const infoId = document.getElementById('info-id');
     if (infoId) infoId.innerText = user.name || user.id || 'destino_traveler';
 
-    // 상단 요약 카드의 찜 개수 실시간 반영
-    const wishStat = document.querySelector('.stat-box[onclick*="wishlist"] .stat-value');
-    if (wishStat) wishStat.innerText = `${wishlist.length}개`;
+    const bookingStat = document.getElementById('mypage-booking-count');
+    if (bookingStat) bookingStat.innerText = `${bookings.length}건`;
+
+    const wishStat = document.getElementById('mypage-wishlist-count');
+    if (wishStat) wishStat.innerText = `${savedItemsState.wishlist.length}개`;
+
+    const cartStat = document.getElementById('mypage-cart-count');
+    if (cartStat) cartStat.innerText = `${savedItemsState.cart.length}개`;
 }
 
 /**
@@ -417,7 +522,7 @@ function deleteMyPost(postId) {
 window.onload = () => {
     updateDisplay();
     renderBookings();
-    renderWishlist();
+    loadSavedItems();
     renderMyTripPosts();
 
     const logoutBtn = document.querySelector('.logout-btn');
@@ -431,7 +536,6 @@ window.onload = () => {
     lucide.createIcons();
 };
 
-
-
-
-
+window.addEventListener('focus', () => {
+    loadSavedItems();
+});

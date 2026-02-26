@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DESTINO - 투어 상세</title>
+    
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="../static/tour-detail.css">
+</head>
+<body class="bg-white text-gray-800 antialiased font-sans">
+
+    <header class="border-b border-gray-200 bg-white sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <a href="/" class="text-3xl font-black text-brand-blue tracking-tighter italic">DESTINO</a>
+            <nav class="hidden md:flex items-center space-x-8 text-sm font-medium text-gray-600">
+                <a href="#" class="hover:text-brand-blue transition">로그인</a>
+                <a href="#" class="hover:text-brand-blue transition">이용안내</a>
+                <a href="#" class="hover:text-brand-blue transition">고객센터</a>
+                <div class="flex items-center border border-gray-300 rounded-full px-4 py-1.5 text-xs cursor-pointer hover:bg-gray-50 transition">
+                    KOR <i class="fa-solid fa-chevron-down ml-2 text-[10px]"></i>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main class="pb-20">
+        <section class="max-w-7xl mx-auto px-6 pt-6">
+            <div class="text-xs text-gray-400 mb-6 flex items-center space-x-2">
+                <a href="/" class="hover:text-gray-900">홈</a>
+                <i class="fa-solid fa-chevron-right text-[8px]"></i>
+                <a href="#" class="hover:text-gray-900">해외투어</a>
+                <i class="fa-solid fa-chevron-right text-[8px]"></i>
+                <span id="breadcrumbLoc" class="text-gray-900 font-semibold">여행지</span>
+            </div>
+
+            <div class="flex flex-col lg:flex-row gap-12 items-start relative">
+                
+                <div class="w-full lg:w-[63%]">
+                    <div class="mb-12">
+                        <div class="relative w-full aspect-[16/10] rounded-3xl overflow-hidden mb-4 bg-gray-100 shadow-sm">
+                            <img id="mainImage" src="" alt="투어 메인 이미지" class="w-full h-full object-cover transition-all duration-500">
+                            <div class="absolute top-6 left-6 flex gap-2">
+                                <span id="detailBadge" class="bg-gray-900/90 text-white text-[11px] font-bold px-4 py-2 rounded-full backdrop-blur-md uppercase">BEST</span>
+                                <span class="bg-brand-blue text-white text-[11px] font-bold px-4 py-2 rounded-full shadow-lg">즉시확정</span>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-5 gap-3" id="thumbnailContainer">
+                            </div>
+                    </div>
+
+                    <div class="sticky top-20 z-40 bg-white border-b border-gray-100 -mx-6 px-6 lg:mx-0 lg:px-0" id="tabNav">
+                        <ul class="flex">
+                            <li class="flex-1 text-center"><a href="#section-intro" class="block py-5 text-gray-400 text-sm font-medium tab-link tab-active">상품소개</a></li>
+                            <li class="flex-1 text-center"><a href="#section-course" class="block py-5 text-gray-400 text-sm font-medium tab-link">코스안내</a></li>
+                            <li class="flex-1 text-center"><a href="#section-info" class="block py-5 text-gray-400 text-sm font-medium tab-link">이용/유의사항</a></li>
+                            <li class="flex-1 text-center"><a href="#section-reviews" class="block py-5 text-gray-400 text-sm font-medium tab-link">생생후기 <span class="text-brand-blue text-[10px]">1,245</span></a></li>
+                        </ul>
+                    </div>
+
+                    <div class="mt-16 space-y-32">
+                        <section id="section-intro" class="scroll-mt-40">
+                            <h2 class="text-2xl font-black text-gray-900 mb-8 flex items-center gap-3">
+                                <span class="w-1.5 h-8 bg-brand-blue rounded-full"></span> 상품소개
+                            </h2>
+                            <div class="prose max-w-none text-gray-700 leading-relaxed">
+                                <p id="introText" class="text-xl font-light text-gray-500 mb-10 leading-relaxed">
+                                    지중해의 푸른 보석이라 불리는 곳을 가장 여유롭고 깊이 있게 만나는 방법. DESTINO와 함께 인생 최고의 여행을 설계하세요.
+                                </p>
+                                <img id="contentImage" src="" class="w-full rounded-3xl mb-12 shadow-xl" alt="풍경">
+                            </div>
+                        </section>
+                        <section id="section-course">
+                            <!-- 코스 안내 내용이 JS로 렌더링됩니다 -->
+                        </section>
+                        <section id="section-info">
+                            <!-- 이용/유의사항 내용이 JS로 렌더링됩니다 -->
+                        </section>
+                        <section id="section-reviews">
+                            <!-- 생생후기 내용이 JS로 렌더링됩니다 -->
+                        </section>
+                </div>
+
+                <div class="w-full lg:w-[37%] lg:sticky lg:top-24 z-30">
+                    <div class="sticky-container bg-white border border-gray-100 rounded-[32px] shadow-2xl p-8 border-t-4 border-t-brand-blue">
+                        <div class="mb-8">
+                            <span class="inline-block bg-blue-50 text-brand-blue text-[10px] font-black px-3 py-1 rounded-md mb-4 uppercase tracking-widest">Premium Tour</span>
+                            <h1 id="detailTitle" class="text-2xl font-black text-gray-900 leading-tight mb-4">투어 제목 로딩중...</h1>
+                            <div class="flex items-center gap-3 text-xs text-gray-400">
+                                <span class="flex items-center text-yellow-400 font-bold"><i class="fa-solid fa-star mr-1"></i> 4.8</span>
+                                <span class="w-1 h-1 bg-gray-300 rounded-full"></span>
+                                <span>누적예약 3.5만+</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 mb-8">
+                            <div class="flex items-center gap-2.5 bg-gray-50 p-3 rounded-2xl">
+                                <i class="fa-regular fa-clock text-gray-400 text-sm"></i>
+                                <span class="text-[11px] font-bold text-gray-600">일정 소요</span>
+                            </div>
+                            <div class="flex items-center gap-2.5 bg-gray-50 p-3 rounded-2xl">
+                                <i class="fa-solid fa-language text-gray-400 text-sm"></i>
+                                <span class="text-[11px] font-bold text-gray-600">한국어 가이드</span>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-gray-100 my-8"></div>
+
+                        <div class="mb-8">
+                            <span class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Starting from</span>
+                            <div class="flex items-baseline gap-1 mt-1">
+                                <span id="basePrice" class="text-3xl font-black text-brand-red">0</span>
+                                <span class="text-lg font-bold text-gray-900">원</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 mb-10">
+                            <div>
+                                <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">Select Date</label>
+                                <div class="relative group">
+                                    <i class="fa-regular fa-calendar absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand-blue transition"></i>
+                                    <input type="date" id="tourDate" class="w-full border border-gray-100 bg-gray-50 rounded-2xl pl-12 pr-5 py-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-blue/10 focus:bg-white transition">
+                                </div>
+                            </div>
+
+                            <div class="bg-gray-50 rounded-2xl p-5 flex items-center justify-between border border-transparent hover:border-gray-100 transition">
+                                <div>
+                                    <div class="text-sm font-bold text-gray-900">성인</div>
+                                    <div class="text-[10px] text-gray-400 mt-0.5">만 12세 이상</div>
+                                </div>
+                                <div class="flex items-center bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                                    <button id="minusQty" class="w-10 h-10 flex items-center justify-center hover:bg-gray-50 text-gray-400 transition">-</button>
+                                    <span class="w-10 text-center text-sm font-black text-gray-900" id="qtyDisplay">1</span>
+                                    <button id="plusQty" class="w-10 h-10 flex items-center justify-center hover:bg-gray-50 text-gray-400 transition">+</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-center mb-6">
+                                <span class="text-xs font-bold text-gray-400 uppercase tracking-widest">Total Price</span>
+                                <div class="text-2xl font-black text-brand-red" id="totalPriceDisplay">0<span class="text-sm font-bold text-gray-900 ml-1">원</span></div>
+                            </div>
+                            <div class="flex gap-3">
+                                <button class="flex-1 py-5 border border-gray-200 text-gray-400 rounded-2xl font-bold text-sm hover:border-brand-blue hover:text-brand-blue hover:bg-blue-50 transition flex items-center justify-center">
+                                    <i class="fa-solid fa-heart"></i>
+                                </button>
+                                <button class="flex-[4] py-5 bg-brand-blue text-white rounded-2xl font-bold text-sm hover:bg-brand-blueHover shadow-xl shadow-blue-200 transition-all hover:-translate-y-1 active:translate-y-0">
+                                    투어 예약하기
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="../static/tour-detail.js"></script>
+</body>
+</html>

@@ -105,14 +105,6 @@ a { text-decoration: none; color: inherit; }
 .section-title { font-size: 22px; font-weight: 800; margin: 0; }
 .btn-write { padding: 10px 20px; background: var(--text-main); color: #fff; border-radius: 30px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
 .board-list { display: flex; flex-direction: column; gap: 15px; min-height: 400px; }
-/* .board-card {
-    background: #fff; border: 1px solid var(--border-color);
-    border-radius: var(--radius-md); padding: 20px;
-    display: grid; grid-template-columns: 100px 1fr 180px 120px;
-    align-items: center; transition: transform 0.2s, box-shadow 0.2s;
-    cursor: pointer;
-}
-.board-card:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.05); } */
 
 /* --- Board Card 디자인 업그레이드 --- */
 .board-list { display: flex; flex-direction: column; gap: 16px; }
@@ -185,13 +177,6 @@ a { text-decoration: none; color: inherit; }
 }
 
 /* ******************************* */
-
-/* .board-country { font-weight: 800; color: var(--primary-color); font-size: 15px; }
-.board-info { padding: 0 20px; }
-.board-title { font-size: 17px; font-weight: 700; margin-bottom: 5px; }
-.board-date { font-size: 13px; color: var(--text-sub); display: flex; align-items: center; gap: 5px; }
-.board-participants { font-size: 14px; color: var(--text-main); text-align: center; }
-.status-badge { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; text-align: center; } */
 .status-open { background: #e6f7ff; color: var(--primary-color); }
 .status-closed { background: #f5f5f5; color: #999; }
 
@@ -216,6 +201,13 @@ a { text-decoration: none; color: inherit; }
 .theme-box { background: #f0f7ff; border-radius: var(--radius-lg); padding: 30px; }
 
 /* Modal Layout */
+
+/* 모달이 열렸을 때 배경 스크롤 방지 클래스 */
+body.modal-open {
+    overflow: hidden;
+    /* 스크롤바가 사라지면서 화면이 옆으로 튀는 현상을 방지하려면 아래 추가 */
+    padding-right: var(--scrollbar-width, 0px); 
+}
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
 .modal-content { background: #fff; border-radius: 24px; width: 100%; max-width: 600px; position: relative; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; }
 .modal-header { padding: 30px 30px 20px; border-bottom: 1px solid #f0f0f0; }
@@ -242,10 +234,22 @@ a { text-decoration: none; color: inherit; }
 /* Detail Actions */
 .detail-actions { display: flex; gap: 12px; margin-top: 30px; }
 .btn-detail-wish { 
-    width: 54px; height: 54px; border: 1px solid var(--border-color); border-radius: 12px;
-    display: flex; align-items: center; justify-content: center; transition: 0.2s; color: #ccc;
+    width: 54px; height: 54px; border: none;
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s; color: #ccc;
+    border: 1px solid var(--border-color); 
+    border-radius: 50%;
 }
-.btn-detail-wish.active { background: #fff0f0; border-color: #ffcccc; color: var(--danger); }
+.btn-detail-wish.active {border-color: #ff4d4d;}
+.btn-detail-wish.active i,
+.btn-detail-wish.active svg {
+    color: #ff4d4d !important;
+    fill: #ff4d4d !important;
+}
+.card-wish-btn.active i, .btn-detail-wish.active i,
+.card-wish-btn.active svg, .btn-detail-wish.active svg {
+    color: #ff4d4d !important;
+    fill: #ff4d4d !important;
+}
 .btn-detail-apply { flex: 1; background: var(--primary-color); color: #fff; border-radius: 12px; font-weight: 700; height: 54px; font-size: 16px; transition: 0.2s; }
 .btn-detail-apply:hover { background: var(--primary-hover); }
 

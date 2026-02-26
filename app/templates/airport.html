@@ -14,7 +14,7 @@
             <h1 class="logo"><a href="/">DESTINO</a></h1>
             <nav class="header-nav">
                 {% if nickname %}
-                <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                <a href="/mypage"><span style="font-weight: 700; color: #00aaff">{{ nickname }}</span></a>
                 <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
                 {% else %}
                 <a href="/login">로그인</a>
@@ -123,6 +123,27 @@
 
             <div id="flightResultsMount"></div>
         </section>
+
+        <button id="flightSavedFab" class="flight-saved-fab" type="button" aria-expanded="false" aria-controls="flightSavedDrawer" title="장바구니 열기">
+            <span class="flight-saved-fab__icon">🧺</span>
+            <span class="flight-saved-fab__label">장바구니</span>
+            <span id="flightSavedFabCount" class="flight-saved-fab__count" hidden>0</span>
+        </button>
+        <div id="flightSavedDrawer" class="flight-saved-drawer" aria-hidden="true">
+            <div class="flight-saved-drawer__backdrop" data-flight-saved-close></div>
+            <section class="flight-saved-drawer__panel">
+                <div class="flight-saved-drawer__grab"></div>
+                <div class="flight-saved-drawer__header">
+                    <div class="flight-saved-tabs" role="tablist" aria-label="저장 항목 탭">
+                        <button type="button" class="flight-saved-tab is-active" data-flight-saved-tab="cart" aria-selected="true">장바구니</button>
+                        <button type="button" class="flight-saved-tab" data-flight-saved-tab="wishlist" aria-selected="false">위시리스트</button>
+                    </div>
+                    <button type="button" class="flight-saved-drawer__close" data-flight-saved-close>닫기</button>
+                </div>
+                <ul id="flightSavedList" class="flight-saved-list"></ul>
+                <div id="flightSavedEmpty" class="flight-saved-empty">저장된 항목이 없습니다.</div>
+            </section>
+        </div>
     </main>
 
     <footer class="footer">

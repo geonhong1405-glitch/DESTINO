@@ -89,3 +89,31 @@ function handleSearch() {
     // 실제 서비스에서는 검색 결과 페이지로 이동 로직이 들어갑니다.
     alert(`'${query}' 상품 정보를 불러오고 있습니다.`);
 }
+
+// 메인 페이지에서 카드를 클릭했을 때 실행될 함수
+document.addEventListener('DOMContentLoaded', () => {
+    const tourCards = document.querySelectorAll('.tour-card');
+
+    tourCards.forEach((card, index) => {
+        card.addEventListener('click', (e) => {
+            e.preventDefault(); // 기본 이동 막기
+
+            // 1. 클릭한 카드의 정보 추출
+            const tourData = {
+                id: index,
+                // 배경 이미지 URL 추출 (CSS 클래스 tImg1, tImg2 등에서 가져오거나 computedStyle 사용)
+                image: getComputedStyle(card.querySelector('.tour-image')).backgroundImage.replace(/url\((['"])?(.*?)\1\)/, '$2'),
+                location: card.querySelector('.tour-loc').innerText,
+                title: card.querySelector('.tour-name').innerText,
+                price: card.querySelector('.price-val').innerText.replace(/,/g, ''), // 숫자만 추출
+                badge: card.querySelector('.badge').innerText
+            };
+
+            // 2. 브라우저 저장소(localStorage)에 저장
+            localStorage.setItem('selectedTour', JSON.stringify(tourData));
+
+            // 3. 상세페이지로 이동 (FastAPI 라우터로 연결)
+            window.location.href = '/tdetail';
+        });
+    });
+});

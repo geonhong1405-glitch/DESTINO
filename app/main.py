@@ -15,6 +15,7 @@ from app.endpoints.routes import router as main_router
 from app.endpoints.rag_api import router as rag_router
 from app.endpoints.flight_chat import router as flight_chat_router
 from app.endpoints.rental import router as rental_router
+from app.endpoints.saved_items import router as saved_items_router
 from app.api.amadeus_api import (
     search_hotels as amadeus_search_hotels,
     resolve_location_to_iata as amadeus_resolve_location_to_iata,
@@ -1210,6 +1211,7 @@ app.include_router(main_router)
 app.include_router(rag_router)
 app.include_router(flight_chat_router)
 app.include_router(rental_router)
+app.include_router(saved_items_router)
 
 
 
@@ -1349,8 +1351,6 @@ def airport(request: Request):
     nickname = get_nickname_from_request(request)
     return templates.TemplateResponse("airport.html", {"request": request, "nickname": nickname})
 
-
-
 @app.get("/find-id", response_class=HTMLResponse)
 def find_id_get(request: Request):
     return templates.TemplateResponse("find_id.html", {"request": request})
@@ -1426,6 +1426,12 @@ def home_page(request: Request):
         if user:
             nickname = user.nickname
     return templates.TemplateResponse("home.html", {"request": request, "nickname": nickname})
+
+
+@app.get("/tdetail", response_class=HTMLResponse)
+def tdetail(request: Request):
+    nickname = get_nickname_from_request(request)
+    return templates.TemplateResponse("tour-detail.html", {"request": request, "nickname": nickname})
 
 @app.get("/planner", response_class=HTMLResponse)
 def planner(request: Request):
@@ -1863,7 +1869,6 @@ def create_user(
     db.commit()
     db.refresh(user)
     return RedirectResponse(url="/login", status_code=302)
-
 
 
 
