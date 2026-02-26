@@ -68,6 +68,7 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     max-width: 1100px;
     box-shadow: 0 15px 40px rgba(0,0,0,0.2);
     position: relative;
+    z-index: 950;
     padding: 20px;
 }
 
@@ -148,6 +149,7 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
     margin-top: 10px;
 }
 .add-segment-btn {
@@ -156,6 +158,36 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     align-items: center; gap: 5px;
 }
 .add-segment-btn:hover { text-decoration: underline; }
+
+.flight-sortbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.flight-sort-btn {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid #d5dde6;
+    background: #fff;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 700;
+    transition: 0.15s ease;
+}
+
+.flight-sort-btn:hover {
+    border-color: #93c5fd;
+    background: #eff6ff;
+}
+
+.flight-sort-btn.is-active {
+    border-color: #1d4ed8;
+    background: #1d4ed8;
+    color: #fff;
+}
 
 .btn-search {
     background: var(--primary-color); color: var(--white);
@@ -167,7 +199,7 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 .btn-search:hover { background: var(--primary-hover); }
 
 /* Popover 공통 */
-.overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 150; display: none; }
+.overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 900; display: none; }
 .overlay.active { display: block; }
 
 .popover {
@@ -175,7 +207,7 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     margin-top: 15px; background: var(--white);
     border-radius: var(--radius-md); 
     box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-    border: 1px solid var(--border-color); z-index: 200; 
+    border: 1px solid var(--border-color); z-index: 1000; 
     display: none; overflow: hidden;
 }
 .popover.active { display: flex; }
@@ -623,6 +655,17 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 
 /* 반응형 모바일 대응 */
 @media (max-width: 768px) {
+    .action-bar {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    .flight-sortbar {
+        order: 2;
+        width: 100%;
+        margin-left: 0;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
     .footer-top {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
@@ -640,6 +683,13 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 }
 
 /* Flight search result */
+#flightResultsMount {
+    width: 100%;
+    max-width: 1100px;
+    position: relative;
+    z-index: 1;
+}
+
 #flightResultArea {
     margin-top: 16px;
 }
@@ -669,6 +719,32 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     background: #fff;
     border-radius: 14px;
     overflow: hidden;
+}
+
+.flight-card--single .flight-card-main {
+    align-items: center;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.flight-card--single .flight-leg-list {
+    justify-content: center;
+    gap: 0;
+}
+
+.flight-card--single .flight-card-price {
+    width: 220px;
+    padding: 10px 14px;
+    gap: 4px;
+}
+
+.flight-card--single .flight-price-main {
+    font-size: 28px;
+}
+
+.flight-card--single .flight-select-btn {
+    height: 40px;
+    font-size: 16px;
 }
 
 .flight-card-main {
@@ -766,7 +842,7 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
 }
 
 .flight-leg-duration {
@@ -779,24 +855,30 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     width: 100%;
     border-top: 1px solid #c6d3df;
     position: relative;
+    min-height: 1px;
 }
 
 .flight-leg-line::after {
-    content: "?";
-    position: absolute;
-    top: -11px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 12px;
-    color: #64748b;
-    background: #fff;
-    padding: 0 5px;
+    content: "";
+    display: none;
 }
 
 .flight-leg-stop {
     font-size: 12px;
     font-weight: 700;
     color: #0f766e;
+}
+
+.flight-leg-path {
+    font-size: 11px;
+    font-weight: 700;
+    color: #475569;
+    line-height: 1.2;
+    max-width: 100%;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .flight-card-price {

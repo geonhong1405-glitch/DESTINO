@@ -6,7 +6,8 @@ load_dotenv()
 GEOAPIFY_API_KEY = os.getenv("GEOAPIFY_API_KEY")
 
 # Example function to fetch attractions from Geoapify
-def get_attractions(lat, lon, radius=5000, kind="tourist_attraction"):
+# Geoapify uses category strings like "tourism.sights", "catering.cafe", etc.
+def get_attractions(lat, lon, radius=5000, kind="tourism.sights"):
     url = f"https://api.geoapify.com/v2/places"
     params = {
         "categories": kind,

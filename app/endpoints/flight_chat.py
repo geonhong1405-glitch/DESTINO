@@ -3,6 +3,7 @@ import os
 import re
 from datetime import datetime, timedelta
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 import requests
 
 from dotenv import load_dotenv
@@ -21,7 +22,7 @@ from app.api.booking_hotel_flight_api import (
     search_hotels_by_dest_id,
 )
 from app.api.exchange_rate import get_exchange_rate
-from app.api.google_places import get_google_places
+from app.api.google_places import get_google_places, google_place_details, _google_photo_url
 from app.api.geoapify import get_attractions
 from app.endpoints.rag_api import answer_rag_question
 
@@ -40,6 +41,7 @@ PINECONE_NAMESPACE = os.getenv("PINECONE_NAMESPACE", "travel-knowledge")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 RAG_TOP_K = int(os.getenv("RAG_TOP_K", "5"))
 GEOAPIFY_API_KEY = os.getenv("GEOAPIFY_API_KEY")
+GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
 
 SESSION_STATE: dict[str, dict[str, Any]] = {}
 SESSION_HISTORY: dict[str, list[dict[str, str]]] = {}
@@ -252,73 +254,293 @@ def _contains(text: str, kws: list[str]) -> bool:
 
 
 def _parse_rel_date(text: str):
+    """
+    Returns a date (datetime.date) for relative-date expressions, else None.
+    NOTE: Uses only unicode-escaped Korean tokens to avoid encoding issues.
+    """
     t = re.sub(r"\s+", "", (text or "").lower())
-    t = t.replace("\ub0b4\uc77c\ubaa8\ub798", "\ub0b4\uc77c\ubaa8\ub808")
     now = datetime.now()
+
+    # today: \uc624\ub298
     if "\uc624\ub298" in t:
         return now.date()
-    if "\ub0b4\uc77c\ubaa8\ub808" in t or "\ubaa8\ub808" in t:
+
+    # tomorrow: \ub0b4\uc77c
+    # avoid false match when phrase contains "tomorrow+day-after-tomorrow"
+    if "\ub0b4\uc77c" in t and ("\ub0b4\uc77c\ubaa8\ub808" not in t) and ("\ub0b4\uc77c\ubaa8\ub798" not in t):
+        return (now + timedelta(days=1)).date()
+
+    # day after tomorrow:
+    # \ubaa8\ub808, \ub0b4\uc77c\ubaa8\ub808, \ub0b4\uc77c\ubaa8\ub798
+    if ("\ub0b4\uc77c\ubaa8\ub808" in t) or ("\ub0b4\uc77c\ubaa8\ub798" in t) or ("\ubaa8\ub808" in t):
         return (now + timedelta(days=2)).date()
+
+    # 3 days later: \uae00\ud53c
     if "\uae00\ud53c" in t:
         return (now + timedelta(days=3)).date()
-    if "\ub0b4\uc77c" in t:
-        return (now + timedelta(days=1)).date()
+
+    # 1 week later patterns:
+    # \uc77c\uc8fc\uc77c\ub4a4 / \uc77c\uc8fc\uc77c\ud6c4 / 1\uc8fc\uc77c\ub4a4 / 1\uc8fc\uc77c\ud6c4
     if any(x in t for x in ["\uc77c\uc8fc\uc77c\ub4a4", "\uc77c\uc8fc\uc77c\ud6c4", "1\uc8fc\uc77c\ub4a4", "1\uc8fc\uc77c\ud6c4"]):
         return (now + timedelta(days=7)).date()
-    if any(x in t for x in ["\ub2e4\uc74c\uc8fc", "\ucc28\uc8fc"]):
+
+    # next week / week after next:
+    # \ub2e4\uc74c\uc8fc, \ucc28\uc8fc, \ub2e4\ub2e4\uc74c\uc8fc
+    if ("\ub2e4\uc74c\uc8fc" in t) or ("\ucc28\uc8fc" in t):
         return (now + timedelta(days=7)).date()
-    if any(x in t for x in ["\ub2e4\ub2e4\uc74c\uc8fc", "\ub2e4\ub2e4\uc74c\uc8fc\uc5d0"]):
+    if "\ub2e4\ub2e4\uc74c\uc8fc" in t:
         return (now + timedelta(days=14)).date()
-    m = re.search(r"(\d+)\uc77c\ud6c4", t)
+
+    # N days later: (\d+)\uc77c(\ub4a4|\ud6c4)
+    m = re.search(r"(\d+)\uc77c(?:\ub4a4|\ud6c4)", t)
     if m:
         return (now + timedelta(days=int(m.group(1)))).date()
-    m = re.search(r"(\\d+)\\uc77c(?:\\ub4a4|\\ud6c4)", t)
-    if m:
-        return (now + timedelta(days=int(m.group(1)))).date()
-    m = re.search(r"(\\d+)\\uc8fc\\uc77c?(?:\\ub4a4|\\ud6c4)", t)
+
+    # N weeks later: (\d+)\uc8fc(\uc77c)?(\ub4a4|\ud6c4)
+    m = re.search(r"(\d+)\uc8fc(?:\uc77c)?(?:\ub4a4|\ud6c4)", t)
     if m:
         return (now + timedelta(days=int(m.group(1)) * 7)).date()
+
     return None
 
 def _has_date_signal(text: str) -> bool:
+    """
+    Detects if text contains an absolute or relative date signal.
+    """
     t = text or ""
+
+    # absolute date: 20YY-MM-DD
     if re.search(r"\b20\d{2}-\d{2}-\d{2}\b", t):
         return True
-    # compact/spacing variants like "2일뒤", "3일 후", "2주뒤", "1주 후"
+    # Korean month/day absolute date: 3월 1일, 03월01일
+    if re.search(r"\d{1,2}\s*월\s*\d{1,2}\s*일", t):
+        return True
+    # short slash dates: 3/1, 03-01 (without year)
+    if re.search(r"\b\d{1,2}[/-]\d{1,2}\b", t):
+        return True
+
+    # compact/spacing variants like "2\uc77c\ub4a4", "3\uc77c \ud6c4", "2\uc8fc\ub4a4", "1\uc8fc \ud6c4"
     if re.search(r"\d+\s*\uc77c\s*(?:\ub4a4|\ud6c4)", t):
         return True
     if re.search(r"\d+\s*\uc8fc(?:\uc77c)?\s*(?:\ub4a4|\ud6c4)", t):
         return True
-    return _contains(t, ["\uc624\ub298", "\ub0b4\uc77c", "\ubaa8\ub808", "\uae00\ud53c", "\ub2e4\uc74c\uc8fc", "\ub2e4\ub2e4\uc74c\uc8fc", "\uc774\ubc88\uc8fc", "\uc8fc\ub9d0", "\uc77c\uc8fc\uc77c \ub4a4", "\uc77c\uc8fc\uc77c \ud6c4"])
 
+    # keyword signals (include BOTH spaced and unspaced "one week later")
+    return _contains(
+        t,
+        [
+            "\uc624\ub298",  # today
+            "\ub0b4\uc77c",  # tomorrow
+            "\ubaa8\ub808",  # day after tomorrow
+            "\uae00\ud53c",  # 3 days later
+            "\ub2e4\uc74c\uc8fc",  # next week
+            "\ub2e4\ub2e4\uc74c\uc8fc",  # week after next
+            "\uc774\ubc88\uc8fc",  # this week (signal only)
+            "\uc8fc\ub9d0",  # weekend (signal only)
+            "\uc77c\uc8fc\uc77c\ub4a4",  # one week later (no space)
+            "\uc77c\uc8fc\uc77c\ud6c4",  # one week after (no space)
+            "\uc77c\uc8fc\uc77c \ub4a4",  # one week later (spaced)
+            "\uc77c\uc8fc\uc77c \ud6c4",  # one week after (spaced)
+        ],
+    )
+
+
+def _parse_abs_monthday_range(text: str, now_dt: Optional[datetime] = None) -> dict[str, Optional[str]]:
+    """
+    Best-effort parser for Korean absolute month/day expressions.
+    Examples:
+    - 3월1일
+    - 3월1일 ~ 3월2일
+    - 3월1일에서 2일
+    - 2026-03-01 ~ 2026-03-02 (already mostly handled elsewhere, but harmless)
+    Returns {"departure_date": ..., "return_date": ...}
+    """
+    s = str(text or "")
+    if not s.strip():
+        return {"departure_date": None, "return_date": None}
+
+    now_dt = now_dt or datetime.now(KST)
+    now_date = now_dt.date()
+
+    def _infer_year(month: int, day: int, year: Optional[int] = None) -> Optional[int]:
+        y = int(year) if year else now_date.year
+        try:
+            cand = datetime(y, month, day).date()
+        except Exception:
+            return None
+        # If parsed month/day is already long past, assume next year.
+        if year is None and cand < (now_date - timedelta(days=1)):
+            try:
+                cand2 = datetime(y + 1, month, day).date()
+            except Exception:
+                return None
+            return cand2.year
+        return cand.year
+
+    def _to_iso(year: Optional[int], month: Optional[int], day: Optional[int]) -> Optional[str]:
+        if not year or not month or not day:
+            return None
+        try:
+            return datetime(year, month, day).strftime("%Y-%m-%d")
+        except Exception:
+            return None
+
+    compact = re.sub(r"\s+", "", s)
+
+    # First, support explicit YYYY-MM-DD/ YYYY.MM.DD ranges if present.
+    m_iso_range = re.search(
+        r"(20\d{2})[./-](\d{1,2})[./-](\d{1,2}).{0,6}?(20\d{2})[./-](\d{1,2})[./-](\d{1,2})",
+        compact,
+    )
+    if m_iso_range:
+        dep = _to_iso(int(m_iso_range.group(1)), int(m_iso_range.group(2)), int(m_iso_range.group(3)))
+        ret = _to_iso(int(m_iso_range.group(4)), int(m_iso_range.group(5)), int(m_iso_range.group(6)))
+        return {"departure_date": dep, "return_date": ret}
+
+    # Korean month/day range, allowing omitted month in second date.
+    m_range = re.search(
+        r"(?:(20\d{2})년?)?(\d{1,2})월(\d{1,2})일(?:부터|에서|~|-|—|–|to)(?:(?:(20\d{2})년?)?(\d{1,2})월)?(\d{1,2})일",
+        compact,
+    )
+    if m_range:
+        y1 = _infer_year(int(m_range.group(2)), int(m_range.group(3)), int(m_range.group(1)) if m_range.group(1) else None)
+        m1 = int(m_range.group(2))
+        d1 = int(m_range.group(3))
+        m2 = int(m_range.group(5)) if m_range.group(5) else m1
+        d2 = int(m_range.group(6))
+        y2_hint = int(m_range.group(4)) if m_range.group(4) else None
+        y2 = _infer_year(m2, d2, y2_hint or y1)
+        dep = _to_iso(y1, m1, d1)
+        ret = _to_iso(y2, m2, d2)
+        return {"departure_date": dep, "return_date": ret}
+
+    # Single Korean month/day.
+    m_single = re.search(r"(?:(20\d{2})년?)?(\d{1,2})월(\d{1,2})일", compact)
+    if m_single:
+        m1 = int(m_single.group(2))
+        d1 = int(m_single.group(3))
+        y1 = _infer_year(m1, d1, int(m_single.group(1)) if m_single.group(1) else None)
+        dep = _to_iso(y1, m1, d1)
+        return {"departure_date": dep, "return_date": None}
+
+    # Short slash forms, e.g. 3/1~3/2, 3-1~3-2
+    m_short_range = re.search(r"(\d{1,2})[/-](\d{1,2}).{0,4}?(?:~|-|—|–|to)(\d{1,2})[/-](\d{1,2})", compact)
+    if m_short_range:
+        m1, d1 = int(m_short_range.group(1)), int(m_short_range.group(2))
+        m2, d2 = int(m_short_range.group(3)), int(m_short_range.group(4))
+        y1 = _infer_year(m1, d1, None)
+        y2 = _infer_year(m2, d2, y1)
+        return {"departure_date": _to_iso(y1, m1, d1), "return_date": _to_iso(y2, m2, d2)}
+
+    return {"departure_date": None, "return_date": None}
 
 def _is_date_correction_message(text: str) -> bool:
+    """
+    Detects corrections like: "\ub0b4\uc77c \ub9d0\uace0 3\uc77c \ub4a4"
+    """
     t = text or ""
-    has_correction = _contains(t, ["\uc544\ub2c8\ub2e4", "\uc544\ub2c8", "\ucde8\uc18c", "\ubcc0\uacbd", "\ub9d0\uace0"])
-    return has_correction and _has_date_signal(t)
-
+    has_correction = _contains(
+        t,
+        [
+            "\uc544\ub2c8\ub2e4",  # 아니다
+            "\uc544\ub2c8",        # 아니
+            "\ucde8\uc18c",        # 취소
+            "\ubcc0\uacbd",        # 변경
+            "\ub9d0\uace0",        # 말고
+        ],
+    )
+    return bool(has_correction and _has_date_signal(t))
 
 def _parse_rel_date_for_correction(text: str):
+    """
+    In correction utterances like "\ub0b4\uc77c \ub9d0\uace0 3\uc77c \ub4a4\ub85c",
+    prefer the tail phrase after the correction marker.
+    """
     t = text or ""
-    # In correction utterances like "내일 말고 3일 뒤로", prefer the tail phrase after the correction marker.
-    for marker in ["말고", "아니다", "아니", "변경", "취소"]:
+
+    # correction markers in unicode-escape (no raw Korean literals)
+    markers = [
+        "\ub9d0\uace0",        # 말고
+        "\uc544\ub2c8\ub2e4",  # 아니다
+        "\uc544\ub2c8",        # 아니
+        "\ubcc0\uacbd",        # 변경
+        "\ucde8\uc18c",        # 취소
+    ]
+
+    for marker in markers:
         if marker in t:
             tail = t.split(marker)[-1].strip()
             d = _parse_rel_date(tail)
             if d:
                 return d
+
     return _parse_rel_date(t)
 
 
 def _has_location_signal(text: str) -> bool:
+    """
+    Broad location hints; if absent on correction utterance, keep existing route slots unchanged.
+    """
     t = text or ""
-    # broad location hints; if absent on correction utterance, keep existing route slots unchanged
+
+    # keywords: \ucd9c\ubc1c\uc9c0, \ub3c4\ucc29\uc9c0, \uacf5\ud56d
     if _contains(t, ["\ucd9c\ubc1c\uc9c0", "\ub3c4\ucc29\uc9c0", "\uacf5\ud56d", "from", "to"]):
         return True
+
     compact = re.sub(r"\s+", "", t)
+
     if compact in LOCATION_ALIASES or compact in COUNTRY_ALIASES:
         return True
+
+    # NOTE: this can over-match if you have very short english keys.
+    # If that becomes an issue, add word-boundary matching for short alpha keys.
     return any(name in t for name in list(LOCATION_ALIASES.keys()) + list(COUNTRY_ALIASES.keys()))
+
+
+def _should_show_place_distance(message: str, location_query: Optional[str], city_name: Optional[str]) -> bool:
+    """
+    거리 표시는 '근처/역/주변' 같은 근접 탐색 의도가 분명할 때만 노출한다.
+    도시 전체 질의(예: 파리 맛집)에서 도시 중심점 기준 직선거리를 보여주면 오해를 줄 수 있다.
+    """
+    msg = message or ""
+    lq = (location_query or "").strip().lower()
+    city = (city_name or "").strip().lower()
+
+    # Explicit proximity intent from user utterance.
+    if _contains(msg, ["근처", "주변", "근방", "역", "앞", "도보", "걸어서"]):
+        return True
+
+    # If the extracted location itself contains a proximity/landmark cue, distance is still useful.
+    if any(k in lq for k in ["station", " st.", "역", "near", "nearby", "공항", "airport"]):
+        return True
+
+    # Broad city-level queries should not show center-point straight-line distance.
+    if lq and city and (lq == city or lq in city or city in lq):
+        return False
+
+    return False
+
+
+def _is_landmark_like_location_query(location_query: Optional[str]) -> bool:
+    q = (location_query or "").strip().lower()
+    if not q:
+        return False
+    return any(k in q for k in ["station", "역", "airport", "공항", "terminal", "터미널"])
+
+
+def _place_search_radius_m(message: str, location_query: Optional[str] = None) -> int:
+    """
+    사용자 질의의 근접 의도를 반영해 장소 검색 반경을 조절한다.
+    - 근처/역/도보/주변: 좁은 반경
+    - 일반 도시 추천: 넓은 반경
+    """
+    msg = message or ""
+    lq = (location_query or "").lower()
+    if _contains(msg, ["근처", "주변", "근방", "역", "도보", "걸어서", "근접"]):
+        return 2000
+    if any(k in lq for k in ["station", "역", "tower", "탑", "airport", "공항"]):
+        return 2500
+    return 7000
 
 def _build_context(history: list[dict[str, str]], max_items: int = 16) -> str:
     return "\n".join(f"{x.get('role')}: {x.get('text')}" for x in history[-max_items:])
@@ -355,11 +577,85 @@ def _llm_json(system: str, prompt: str) -> dict[str, Any]:
         return {}
 
 
+KST = ZoneInfo("Asia/Seoul")
+
+# assumes you already have:
+# - _llm_json(system: str, prompt: str) -> dict[str, Any]
+# - _parse_rel_date(text: str) -> Optional[date]
+# - _normalize_rag_country_code(v: Any) -> Optional[str]
+
+def _today_kst_str() -> str:
+    return datetime.now(KST).strftime("%Y-%m-%d")
+
+
+def _coerce_int(v: Any, default: int = 0, lo: int = 0, hi: int = 365) -> int:
+    try:
+        n = int(v)
+    except Exception:
+        return default
+    if n < lo:
+        return lo
+    if n > hi:
+        return hi
+    return n
+
+
+def _normalize_date_semantics(parsed: Any) -> dict[str, Any]:
+    """
+    Force a stable schema:
+    {
+      "departure": {"kind":..., "date":..., "unit":..., "value":..., "raw":...} | None,
+      "return":    {"kind":..., "date":..., "unit":..., "value":..., "raw":...} | None,
+      "stay_nights": int | 0
+    }
+    """
+    if not isinstance(parsed, dict):
+        return {"departure": None, "return": None, "stay_nights": 0}
+
+    def norm_one(x: Any) -> Optional[dict[str, Any]]:
+        if not isinstance(x, dict):
+            return None
+        kind = (str(x.get("kind") or "").strip().lower()) or None
+        date = (str(x.get("date") or "").strip()) or None
+        unit = (str(x.get("unit") or "").strip().lower()) or None
+        raw  = (str(x.get("raw")  or "").strip()) or None
+        value = _coerce_int(x.get("value"), default=0, lo=0, hi=365)
+
+        if kind not in {"absolute", "relative_offset"}:
+            # allow None-kind but keep raw for fallback parsing
+            kind = None
+
+        if unit not in {"day", "week"}:
+            unit = None
+
+        # If absolute, keep only valid date format
+        if kind == "absolute":
+            if not (date and re.fullmatch(r"20\d{2}-\d{2}-\d{2}", date)):
+                date = None
+
+        # If relative, unit/value should be meaningful
+        if kind == "relative_offset":
+            if unit is None:
+                # allow raw fallback
+                pass
+
+        return {"kind": kind, "date": date, "unit": unit, "value": value, "raw": raw}
+
+    dep = norm_one(parsed.get("departure"))
+    ret = norm_one(parsed.get("return"))
+    stay = _coerce_int(parsed.get("stay_nights"), default=0, lo=0, hi=365)
+
+    return {"departure": dep, "return": ret, "stay_nights": stay}
+
+
 def _extract_date_expr_with_llm(message: str, context: str = "") -> dict[str, Any]:
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = _today_kst_str()
+
+    # Keep prompt English-only to avoid encoding issues and ambiguity.
     prompt = (
-        f"Today is {today}.\n"
-        "Extract only date semantics from the user input and output JSON only (no explanation).\n"
+        f"Today is {today} (Asia/Seoul).\n"
+        "Extract ONLY date semantics from the user input and output JSON ONLY (no extra text).\n"
+        "Schema:\n"
         "{"
         "\"departure\": {\"kind\":\"absolute|relative_offset|null\",\"date\":\"YYYY-MM-DD|null\",\"unit\":\"day|week|null\",\"value\":0,\"raw\":\"string|null\"},"
         "\"return\": {\"kind\":\"absolute|relative_offset|null\",\"date\":\"YYYY-MM-DD|null\",\"unit\":\"day|week|null\",\"value\":0,\"raw\":\"string|null\"},"
@@ -367,133 +663,161 @@ def _extract_date_expr_with_llm(message: str, context: str = "") -> dict[str, An
         "}\n"
         "Rules:\n"
         "- absolute date => kind=absolute and set date\n"
-        "- relative date (e.g., tomorrow, in 3 days, next week) => kind=relative_offset, set unit/value/raw\n"
+        "- relative date (e.g., tomorrow, in 3 days, next week) => kind=relative_offset, set unit/value/raw when possible\n"
         "- if missing, set null-like fields (kind can be null)\n"
-        "- if phrase includes stay length (e.g., from tomorrow for 3 days / 2 nights 3 days), set stay_nights\n\n"
+        "- if phrase includes stay length (e.g., for 3 days / 2 nights), set stay_nights\n\n"
         f"Recent conversation:\n{context}\n\n"
-        f"User input:\n{message}"
+        f"User input:\n{message}\n"
+        "Return ONLY the JSON object."
     )
-    parsed = _llm_json("Output only JSON for date semantics", prompt)
-    if not isinstance(parsed, dict):
-        return {"departure": None, "return": None, "stay_nights": None}
-    dep = parsed.get("departure")
-    ret = parsed.get("return")
-    return {
-        "departure": dep if isinstance(dep, dict) else None,
-        "return": ret if isinstance(ret, dict) else None,
-        "stay_nights": parsed.get("stay_nights"),
-    }
+
+    parsed = _llm_json("Return ONLY JSON for date semantics.", prompt)
+    return _normalize_date_semantics(parsed)
 
 
 def _resolve_date_expr(expr: Any, now_dt: Optional[datetime] = None) -> Optional[str]:
+    """
+    Resolve normalized date semantics (dict or string) to YYYY-MM-DD, or None.
+    Reject dates too far in the past (older than yesterday).
+    """
     if not expr:
         return None
-    now_dt = now_dt or datetime.now()
+
+    now_dt = now_dt or datetime.now(KST)
     now_date = now_dt.date()
 
+    # dict form (preferred)
     if isinstance(expr, dict):
-        kind = str(expr.get("kind") or "").strip().lower() or None
+        kind = (str(expr.get("kind") or "").strip().lower()) or None
+
         if kind == "absolute":
-            s_abs = str(expr.get("date") or "").strip()
+            s_abs = (str(expr.get("date") or "").strip()) or ""
             if re.fullmatch(r"20\d{2}-\d{2}-\d{2}", s_abs):
                 try:
                     d_abs = datetime.strptime(s_abs, "%Y-%m-%d").date()
-                    if d_abs < now_date - timedelta(days=1):
-                        return None
-                    return d_abs.strftime("%Y-%m-%d")
                 except Exception:
                     return None
+                if d_abs < now_date - timedelta(days=1):
+                    return None
+                return d_abs.strftime("%Y-%m-%d")
             return None
+
         if kind == "relative_offset":
-            unit = str(expr.get("unit") or "").strip().lower()
-            raw = str(expr.get("raw") or "").strip()
+            unit = (str(expr.get("unit") or "").strip().lower()) or None
+            raw = (str(expr.get("raw") or "").strip()) or ""
             try:
                 value = int(expr.get("value"))
             except Exception:
                 value = None
-            if unit not in {"day", "week"}:
-                unit = None
-            if value is None or value < 0 or value > 365:
-                value = None
-            if unit and value is not None:
+
+            if unit in {"day", "week"} and value is not None and 0 <= value <= 365:
                 days = value if unit == "day" else value * 7
                 return (now_date + timedelta(days=days)).strftime("%Y-%m-%d")
+
+            # fallback: try raw phrase with deterministic parser
             if raw:
                 d_raw = _parse_rel_date(raw)
-                if d_raw:
+                if d_raw and (d_raw >= now_date - timedelta(days=1)):
                     return d_raw.strftime("%Y-%m-%d")
             return None
-        raw = str(expr.get("raw") or "").strip()
+
+        # kind is null/unknown: try raw fallback
+        raw = (str(expr.get("raw") or "").strip()) if isinstance(expr, dict) else ""
         if raw:
             d_raw = _parse_rel_date(raw)
-            if d_raw:
+            if d_raw and (d_raw >= now_date - timedelta(days=1)):
                 return d_raw.strftime("%Y-%m-%d")
         return None
 
+    # string form fallback
     s_expr = str(expr).strip()
     if not s_expr:
         return None
     if re.fullmatch(r"20\d{2}-\d{2}-\d{2}", s_expr):
         try:
             d = datetime.strptime(s_expr, "%Y-%m-%d").date()
-            if d < now_date - timedelta(days=1):
-                return None
-            return d.strftime("%Y-%m-%d")
         except Exception:
             return None
+        if d < now_date - timedelta(days=1):
+            return None
+        return d.strftime("%Y-%m-%d")
+
     d = _parse_rel_date(s_expr)
-    if not d:
-        return None
-    if d < now_date - timedelta(days=1):
+    if not d or d < now_date - timedelta(days=1):
         return None
     return d.strftime("%Y-%m-%d")
 
 
-def _resolve_knowledge_context_with_llm(message: str, context: str, prev_state: Optional[dict[str, Any]] = None) -> dict[str, Any]:
-    today = datetime.now().strftime("%Y-%m-%d")
+def _resolve_knowledge_context_with_llm(
+    message: str,
+    context: str,
+    prev_state: Optional[dict[str, Any]] = None
+) -> dict[str, Any]:
+    """
+    Extract knowledge-Q context: intent/country/city/topic/subtopic/exclude_topics.
+    Uses English-only prompt to avoid encoding issues, but allows Korean input.
+    """
+    today = _today_kst_str()
     prev_k = (prev_state or {}).get("knowledge_state", {}) if isinstance(prev_state, dict) else {}
+
     prompt = (
-        f"오늘 날짜는 {today}.\n"
-        "너는 여행 지식 질문 문맥 해석기다. 아래 JSON만 출력해라.\n"
-        '{'
-        '"intent":"knowledge|unknown",'
-        '"country_code":"JP|KR|... 또는 null",'
-        '"city_name":"Tokyo|Osaka|... 또는 null",'
-        '"topic":"safety|culture|visa|transport|money|health|emergency|connectivity 또는 null",'
-        '"subtopic":"문자열 또는 null",'
-        '"exclude_topics":["topic", "..."],'
-        '"needs_context_carry":true'
-        '}\n'
-        "규칙:\n"
-        "- 후속 질문(예: '말고는\ud68c', '그건\ud68c', '어떻게 이용해\ud68c')이면 이전 대화 문맥을 적극 반영\n"
-        "- '지하철/전철/교통카드/패스'는 topic=transport\n"
-        "- '팁/예절/문화'는 topic=culture\n"
-        "- '긴급/경찰/119/110'은 topic=emergency 또는 safety\n"
-        "- 한국어 질문이면 city_name은 영문 표준명으로 출력 (예: 도쿄->Tokyo, 오사카->Osaka)\n"
-        "- 모르면 null\n\n"
-        f"이전 지식 상태(있으면 참고): {json.dumps(prev_k, ensure_ascii=False)}\n"
-        f"최근 대화:\n{context}\n\n"
-        f"사용자 질문:\n{message}"
+        f"Today is {today} (Asia/Seoul).\n"
+        "You are a travel knowledge context interpreter.\n"
+        "Return ONLY JSON with this schema:\n"
+        "{"
+        "\"intent\":\"knowledge|unknown\","
+        "\"country_code\":\"ISO2 like JP|KR|US|GB|FR|TH|VN|SG|MY|PH|AU|IN or null\","
+        "\"city_name\":\"English standard city name or null\","
+        "\"topic\":\"safety|culture|visa|transport|money|health|emergency|connectivity or null\","
+        "\"subtopic\":\"string or null\","
+        "\"exclude_topics\":[\"topic\", \"...\"]"
+        "}\n"
+        "Rules:\n"
+        "- If it's a follow-up (e.g. user says 'then what about...'), use conversation context.\n"
+        "- subway/train/transport card/pass => topic=transport\n"
+        "- etiquette/tips/culture => topic=culture\n"
+        "- emergency/police/ambulance/fire => topic=emergency or safety\n"
+        "- If user asks in Korean, still output city_name in English.\n"
+        "- If unknown, use null.\n\n"
+        f"Previous knowledge state (reference): {json.dumps(prev_k, ensure_ascii=False)}\n"
+        f"Recent conversation:\n{context}\n\n"
+        f"User input:\n{message}\n"
+        "Return ONLY the JSON object."
     )
-    parsed = _llm_json("여행 지식 문맥 JSON만 출력", prompt)
+
+    parsed = _llm_json("Return ONLY JSON for travel knowledge context.", prompt)
+    if not isinstance(parsed, dict):
+        parsed = {}
+
     out = {
         "intent": parsed.get("intent") or "unknown",
-        "country_code": (parsed.get("country_code") or None),
-        "city_name": (parsed.get("city_name") or None),
-        "topic": (parsed.get("topic") or None),
-        "subtopic": (parsed.get("subtopic") or None),
+        "country_code": parsed.get("country_code") or None,
+        "city_name": parsed.get("city_name") or None,
+        "topic": parsed.get("topic") or None,
+        "subtopic": parsed.get("subtopic") or None,
         "exclude_topics": parsed.get("exclude_topics") or [],
     }
+
     if isinstance(out["country_code"], str):
         out["country_code"] = _normalize_rag_country_code(out["country_code"])
+
     if isinstance(out["city_name"], str):
         out["city_name"] = out["city_name"].strip() or None
+
     if isinstance(out["topic"], str):
-        out["topic"] = out["topic"].strip() or None
+        out["topic"] = out["topic"].strip().lower() or None
+
     if isinstance(out["subtopic"], str):
         out["subtopic"] = out["subtopic"].strip() or None
+
     if not isinstance(out["exclude_topics"], list):
         out["exclude_topics"] = []
+
+    # Final sanity: only allow known topics
+    allowed_topics = {"safety", "culture", "visa", "transport", "money", "health", "emergency", "connectivity"}
+    if out["topic"] not in allowed_topics:
+        out["topic"] = None
+
     return out
 
 
@@ -569,6 +893,16 @@ def _parse_flight_slots(message: str, context: str) -> dict[str, Any]:
         d = _parse_rel_date(message)
         if d:
             parsed["departure_date"] = d.strftime("%Y-%m-%d")
+
+    # Deterministic fallback for compact Korean absolute dates/ranges
+    # (e.g. "3월1일에서 3월2일", "3/1~3/2").
+    abs_md = _parse_abs_monthday_range(message)
+    if not parsed.get("departure_date") and abs_md.get("departure_date"):
+        parsed["departure_date"] = abs_md["departure_date"]
+    if not parsed.get("return_date") and abs_md.get("return_date"):
+        parsed["return_date"] = abs_md["return_date"]
+    if parsed.get("return_date"):
+        parsed["trip_type"] = parsed.get("trip_type") or "round"
 
     if "\uc778\ub3c4" in (message or "") or "india" in msg_l:
         if (parsed.get("destination") or "").upper() in {"", "IND", "IN"}:
@@ -1068,6 +1402,8 @@ def _simplify(raw: dict[str, Any]) -> list[dict[str, Any]]:
                 segs.append(
                     {
                         "airline": seg.get("carrierCode", "-"),
+                        "departure_iata": (seg.get("departure") or {}).get("iataCode", "-"),
+                        "arrival_iata": (seg.get("arrival") or {}).get("iataCode", "-"),
                         "departure": (seg.get("departure") or {}).get("at", "-"),
                         "arrival": (seg.get("arrival") or {}).get("at", "-"),
                         "duration": seg.get("duration", "-"),
@@ -1078,6 +1414,7 @@ def _simplify(raw: dict[str, Any]) -> list[dict[str, Any]]:
             {
                 "price": (offer.get("price") or {}).get("total"),
                 "price_value": _to_float((offer.get("price") or {}).get("total")) or float("inf"),
+                "price_krw": (offer.get("price") or {}).get("krwTotal"),
                 "currency": (offer.get("price") or {}).get("currency"),
                 "segments": segs,
                 "itinerary_duration": dur,
@@ -1126,11 +1463,16 @@ def _flight_html_intro(state: dict[str, Any], rows: list[dict[str, Any]]) -> str
         return "<p>조건에 맞는 항공편을 찾지 못했어요.</p><p>원하면 날짜를 하루 앞뒤로 넓혀서 다시 찾아볼까요\ud68c</p>"
     top = rows[0]
     s0 = top["segments"][0] if top.get("segments") else {}
+    top_price = (
+        f"{int(top.get('price_krw')):,} KRW"
+        if isinstance(top.get("price_krw"), (int, float))
+        else f"{top.get('price')} {top.get('currency')}"
+    )
     return (
         "<div style='margin-bottom:10px;padding:10px;border:1px solid #dbeafe;background:#eff6ff;'>"
         f"<b>요청 이해</b>: {state.get('origin')} → {state.get('destination')} 항공편을 찾았어요.<br>"
         f"<b>추천 1순위</b>: {s0.get('departure','-')} 출발 / {s0.get('arrival','-')} 도착 / "
-        f"{top.get('itinerary_duration') or s0.get('duration','-')} / {top.get('price')} {top.get('currency')}"
+        f"{top.get('itinerary_duration') or s0.get('duration','-')} / {top_price}"
         "</div>"
     )
 
@@ -1153,10 +1495,18 @@ def _flight_html_table(rows: list[dict[str, Any]], meta: dict[str, Any]) -> str:
     def _segment_summary(row: dict[str, Any]) -> str:
         parts = []
         for i, seg in enumerate(row.get("segments") or [], 1):
+            dep_code = seg.get("departure_iata", "-")
+            arr_code = seg.get("arrival_iata", "-")
             parts.append(
-                f"{i}) {seg.get('airline','-')} | {_fmt_dt(seg.get('departure'))} -> {_fmt_dt(seg.get('arrival'))} | {seg.get('duration','-')}"
+                f"{i}) {seg.get('airline','-')} | {dep_code} {_fmt_dt(seg.get('departure'))} -> {arr_code} {_fmt_dt(seg.get('arrival'))} | {seg.get('duration','-')}"
             )
         return "<br>".join(parts) if parts else "-"
+
+    def _price_label(row: dict[str, Any]) -> str:
+        krw = row.get("price_krw")
+        if isinstance(krw, (int, float)):
+            return f"{int(krw):,} KRW"
+        return f"{row.get('price')} {row.get('currency')}"
 
     html = (
         "<div style='margin-bottom:10px;padding:8px;background:#f7f7f7;border:1px solid #ddd;'>"
@@ -1177,7 +1527,7 @@ def _flight_html_table(rows: list[dict[str, Any]], meta: dict[str, Any]) -> str:
             f"<td>{_fmt_dt(_last_arrival(row))}</td>"
             f"<td>{route_badge}</td>"
             f"<td>{row.get('itinerary_duration') or '-'}</td>"
-            f"<td>{row['price']} {row['currency']}</td>"
+            f"<td>{_price_label(row)}</td>"
             "</tr>"
         )
         html += (
@@ -1291,7 +1641,7 @@ def _build_knowledge_retrieval_query(
 
 def _is_food_place_followup(message: str, prev_state: Optional[dict[str, Any]] = None) -> bool:
     m = (message or "")
-    if not _contains(m, ["맛집", "식당", "레스토랑", "restaurant"]):
+    if not _contains(m, ["맛집", "식당", "레스토랑", "라멘집", "국밥집", "밥집", "restaurant"]):
         return False
     # "그 음식 맛집" 같은 후속질문 또는 도시+음식+맛집 직접 질문
     if _contains(m, ["그 음식", "그거", "어디", "근처", "추천"]):
@@ -1303,10 +1653,21 @@ def _is_food_place_followup(message: str, prev_state: Optional[dict[str, Any]] =
 
 def _is_local_place_followup(message: str, prev_state: Optional[dict[str, Any]] = None) -> bool:
     m = message or ""
-    # 맛집/식당 계열도 포함하고, 명소/놀거리/가볼만한 곳까지 확장
-    place_kws = ["맛집", "식당", "레스토랑", "명소", "관광지", "놀거리", "가볼만", "즐길만", "핫플", "카페", "restaurant", "attraction", "things to do"]
+    # 장소 추천 전반: 맛집/명소/놀거리/카페/쇼핑
+    place_kws = [
+        "맛집", "식당", "레스토랑", "라멘집", "밥집", "먹을만한", "먹을 만한",
+        "명소", "관광지", "놀거리", "가볼만", "즐길만", "핫플",
+        "카페",
+        "쇼핑", "쇼핑몰", "백화점", "마켓", "시장",
+        "restaurant", "attraction", "things to do", "cafe", "shopping", "mall", "market",
+    ]
     if not _contains(m, place_kws):
-        return False
+        brand_shop = (
+            _contains(m, ["브랜드", "매장", "파는곳", "파는 곳", "판매처", "편집샵", "셀렉트샵", "brand", "store", "shop"])
+            and _contains(m, ["어디", "추천", "알려", "파는", "구할", "살"])
+        )
+        if not brand_shop:
+            return False
     if _contains(m, ["어디", "근처", "추천", "찾아", "알려"]):
         return True
     if prev_state and prev_state.get("last_intent") == "knowledge":
@@ -1322,12 +1683,14 @@ def _extract_local_place_request_with_llm(message: str, context: str, prev_state
         '"city_name":"영문 도시명 또는 null",'
         '"location_query":"사용자가 말한 위치 원문(지역/동네/랜드마크 포함) 또는 null",'
         '"keyword":"장소/음식/주제 키워드 또는 null",'
-        '"category":"restaurant|attraction|cafe|generic"'
+        '"brand_or_theme":"brand name/theme or null",'
+        '"category":"restaurant|attraction|cafe|shopping|generic"'
         '}\n'
         "규칙:\n"
         "- 맛집/식당/레스토랑 질문은 category=restaurant\n"
         "- 명소/관광지/놀거리/가볼만한 곳 질문은 category=attraction\n"
         "- 카페 질문은 category=cafe\n"
+        "- 쇼핑/쇼핑몰/백화점/시장 질문은 category=shopping\n"
         "- city_name은 영문 표준명 (Tokyo, Osaka, Busan, Berlin 등)\n"
         "- '그 음식/그거' 같은 표현이면 최근 대화 문맥에서 keyword 추론\n\n"
         f"이전 지식 상태: {json.dumps(prev_k, ensure_ascii=False)}\n"
@@ -1339,6 +1702,7 @@ def _extract_local_place_request_with_llm(message: str, context: str, prev_state
         "city_name": (parsed.get("city_name") if isinstance(parsed, dict) else None) or None,
         "location_query": (parsed.get("location_query") if isinstance(parsed, dict) else None) or None,
         "keyword": (parsed.get("keyword") if isinstance(parsed, dict) else None) or None,
+        "brand_or_theme": (parsed.get("brand_or_theme") if isinstance(parsed, dict) else None) or None,
         "category": (parsed.get("category") if isinstance(parsed, dict) else None) or "generic",
     }
     if isinstance(out["city_name"], str):
@@ -1347,8 +1711,10 @@ def _extract_local_place_request_with_llm(message: str, context: str, prev_state
         out["location_query"] = out["location_query"].strip() or None
     if isinstance(out["keyword"], str):
         out["keyword"] = out["keyword"].strip() or None
+    if isinstance(out["brand_or_theme"], str):
+        out["brand_or_theme"] = out["brand_or_theme"].strip() or None
     out["category"] = str(out["category"]).strip().lower()
-    if out["category"] not in {"restaurant", "attraction", "cafe", "generic"}:
+    if out["category"] not in {"restaurant", "attraction", "cafe", "shopping", "generic"}:
         out["category"] = "generic"
     return out
 
@@ -1417,34 +1783,230 @@ def _geocode_place_center_geoapify(location_query: str, country_code: Optional[s
     return None
 
 
+def _geocode_place_center_google_textsearch(location_query: str, country_code: Optional[str] = None, city_name: Optional[str] = None) -> Optional[tuple[float, float]]:
+    if not GOOGLE_PLACES_API_KEY or not location_query:
+        return None
+    q = location_query
+    extras = []
+    if city_name and city_name.lower() not in q.lower():
+        extras.append(city_name)
+    if country_code and country_code.lower() not in q.lower():
+        extras.append(country_code)
+    if extras:
+        q = f"{location_query}, {', '.join(extras)}"
+    try:
+        r = requests.get(
+            "https://maps.googleapis.com/maps/api/place/textsearch/json",
+            params={"query": q, "key": GOOGLE_PLACES_API_KEY, "language": "ko"},
+            timeout=15,
+        )
+        if r.status_code != 200:
+            return None
+        data = r.json() or {}
+        rows = data.get("results") or []
+        if not rows:
+            return None
+        loc = (((rows[0] or {}).get("geometry") or {}).get("location") or {})
+        lat = loc.get("lat")
+        lon = loc.get("lng")
+        if lat is None or lon is None:
+            return None
+        return (float(lat), float(lon))
+    except Exception:
+        return None
+
+
+def _google_maps_search_url(name: Optional[str], address: Optional[str] = None) -> Optional[str]:
+    q = " ".join([x for x in [str(name or "").strip(), str(address or "").strip()] if x]).strip()
+    if not q:
+        return None
+    try:
+        return f"https://www.google.com/maps/search/?api=1&query={requests.utils.quote(q)}"
+    except Exception:
+        return None
+
+
+def _google_places_text_search(query: str) -> list[dict[str, Any]]:
+    if not GOOGLE_PLACES_API_KEY or not query:
+        return []
+    try:
+        r = requests.get(
+            "https://maps.googleapis.com/maps/api/place/textsearch/json",
+            params={"query": query, "key": GOOGLE_PLACES_API_KEY, "language": "ko"},
+            timeout=15,
+        )
+        if r.status_code != 200:
+            return []
+        data = r.json() or {}
+        return data.get("results") or []
+    except Exception:
+        return []
+
+
+def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    from math import radians, sin, cos, asin, sqrt
+    r = 6371000.0
+    p1, p2 = radians(lat1), radians(lat2)
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat / 2) ** 2 + cos(p1) * cos(p2) * sin(dlon / 2) ** 2
+    return 2 * r * asin(sqrt(a))
+
+
+def _price_level_text(v: Any) -> Optional[str]:
+    try:
+        n = int(v)
+    except Exception:
+        return None
+    if n <= 0:
+        return None
+    n = max(1, min(n, 4))
+    return "₩" * n
+
+
+def _rank_place_items(items: list[dict[str, Any]], center: tuple[float, float], category: str) -> list[dict[str, Any]]:
+    c_lat, c_lon = center
+    for x in items:
+        lat = x.get("lat")
+        lon = x.get("lon")
+        try:
+            if lat is not None and lon is not None:
+                x["distance_m"] = int(round(_haversine_m(c_lat, c_lon, float(lat), float(lon))))
+            else:
+                x["distance_m"] = None
+        except Exception:
+            x["distance_m"] = None
+
+    distances = [x["distance_m"] for x in items if isinstance(x.get("distance_m"), int)]
+    max_d = max(distances) if distances else 1
+
+    def _score(x: dict[str, Any]) -> float:
+        rating = float(x.get("rating") or 0.0)
+        reviews = int(x.get("reviews") or 0)
+        d = x.get("distance_m")
+        dist_score = 0.5 if d is None else max(0.0, 1.0 - (float(d) / max(1.0, float(max_d))))
+        review_score = min(reviews, 500) / 500.0
+        rating_score = rating / 5.0
+        if category == "restaurant":
+            return 0.45 * rating_score + 0.25 * review_score + 0.30 * dist_score
+        if category == "shopping":
+            return 0.35 * rating_score + 0.20 * review_score + 0.45 * dist_score
+        return 0.40 * rating_score + 0.20 * review_score + 0.40 * dist_score
+
+    return sorted(items, key=_score, reverse=True)
+
+
+def _enrich_google_place_items(results: list[dict[str, Any]], center: tuple[float, float], category: str, top_k: int) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for p in results[: max(top_k * 2, top_k)]:
+        loc = (((p.get("geometry") or {}).get("location")) or {})
+        photos = p.get("photos") or []
+        photo_url = None
+        if photos and isinstance(photos, list):
+            ref = (photos[0] or {}).get("photo_reference")
+            if ref:
+                photo_url = _google_photo_url(ref, maxwidth=800)
+        items.append(
+            {
+                "name": p.get("name"),
+                "address": p.get("vicinity") or p.get("formatted_address"),
+                "rating": p.get("rating"),
+                "reviews": p.get("user_ratings_total"),
+                "source": "google_places",
+                "place_id": p.get("place_id"),
+                "lat": loc.get("lat"),
+                "lon": loc.get("lng"),
+                "photo_url": photo_url,
+                "types": p.get("types") or [],
+            }
+        )
+
+    items = _rank_place_items(items, center=center, category=category)[:top_k]
+
+    # Details for top candidates only (price level / opening / urls)
+    for x in items:
+        pid = x.get("place_id")
+        if not pid:
+            continue
+        try:
+            d = google_place_details(pid, language="ko") or {}
+            result = d.get("result") or {}
+            x["price_level"] = result.get("price_level")
+            x["price_level_text"] = _price_level_text(result.get("price_level"))
+            x["maps_url"] = result.get("url")
+            x["website"] = result.get("website")
+            oh = result.get("opening_hours") or {}
+            if isinstance(oh, dict):
+                x["open_now"] = oh.get("open_now")
+            x["editorial_summary"] = ((result.get("editorial_summary") or {}).get("overview")) if isinstance(result.get("editorial_summary"), dict) else None
+            if not x.get("photo_url"):
+                photos = result.get("photos") or []
+                if photos and isinstance(photos, list):
+                    ref = (photos[0] or {}).get("photo_reference")
+                    if ref:
+                        x["photo_url"] = _google_photo_url(ref, maxwidth=800)
+        except Exception:
+            continue
+    return items
+
+
 def _search_food_places(
     city_name: str,
     food_keyword: Optional[str],
     country_code: Optional[str] = None,
     top_k: int = 5,
     location_query: Optional[str] = None,
+    radius_m: int = 5000,
 ) -> dict[str, Any]:
+    def _normalize_food_keyword(raw_keyword: Optional[str]) -> Optional[str]:
+        if not raw_keyword:
+            return None
+        k = str(raw_keyword).strip()
+        if not k:
+            return None
+        k_l = k.lower()
+        generic_food = {
+            "맛집", "식당", "레스토랑", "밥집", "먹을만한", "먹을 만한", "추천",
+            "restaurant", "restaurants", "food", "eat", "dining", "best",
+        }
+        compact = re.sub(r"\s+", "", k_l)
+        if k in generic_food or k_l in generic_food or compact in {"맛집추천", "식당추천", "레스토랑추천"}:
+            return None
+        return k
+
     search_loc = location_query or city_name
-    center = _geocode_place_center_geoapify(search_loc, country_code=country_code, city_name=city_name)
+    if _is_landmark_like_location_query(location_query):
+        center = _geocode_place_center_google_textsearch(search_loc, country_code=country_code, city_name=city_name)
+        if not center:
+            center = _geocode_place_center_geoapify(search_loc, country_code=country_code, city_name=city_name)
+    else:
+        center = _geocode_place_center_geoapify(search_loc, country_code=country_code, city_name=city_name)
+        if not center:
+            center = _geocode_place_center_google_textsearch(search_loc, country_code=country_code, city_name=city_name)
     if not center:
         return {"error": "geocode_failed", "city_name": city_name, "items": []}
     lat, lon = center
+    food_keyword = _normalize_food_keyword(food_keyword)
+
+    radius_m = max(800, min(int(radius_m or 5000), 15000))
 
     # 1) Google Places nearby (preferred for restaurant search)
     try:
         keyword_parts = [x for x in [location_query, food_keyword, "맛집"] if x]
         keyword = " ".join(keyword_parts) if keyword_parts else None
-        g = get_google_places(lat, lon, radius=5000, keyword=keyword, type="restaurant")
-        items = []
-        for p in (g.get("results") or [])[: max(1, min(top_k, 10))]:
-            items.append(
-                {
-                    "name": p.get("name"),
-                    "address": p.get("vicinity") or p.get("formatted_address"),
-                    "rating": p.get("rating"),
-                    "source": "google_places",
-                }
-            )
+        g = get_google_places(lat, lon, radius=radius_m, keyword=keyword, type="restaurant")
+        items = _enrich_google_place_items((g.get("results") or []), center=(lat, lon), category="restaurant", top_k=max(1, min(top_k, 10)))
+        if items:
+            return {"city_name": city_name, "food_keyword": food_keyword, "location_query": location_query, "items": items}
+    except Exception:
+        pass
+
+    # 1.5) Google Places text search (better for landmark/brand/city-level queries than nearby)
+    try:
+        q_parts = [x for x in [location_query, city_name, food_keyword, "restaurant"] if x]
+        q = " ".join(dict.fromkeys(q_parts))  # preserve order, dedupe
+        rows = _google_places_text_search(q)
+        items = _enrich_google_place_items(rows, center=(lat, lon), category="restaurant", top_k=max(1, min(top_k, 10)))
         if items:
             return {"city_name": city_name, "food_keyword": food_keyword, "location_query": location_query, "items": items}
     except Exception:
@@ -1452,7 +2014,7 @@ def _search_food_places(
 
     # 2) Geoapify fallback
     try:
-        gg = get_attractions(lat, lon, radius=5000, kind="catering.restaurant")
+        gg = get_attractions(lat, lon, radius=radius_m, kind="catering.restaurant")
         feats = gg.get("features") or []
         items = []
         fk = (food_keyword or "").lower().strip()
@@ -1469,13 +2031,18 @@ def _search_food_places(
                     "name": name,
                     "address": props.get("formatted"),
                     "rating": props.get("rating"),
+                    "reviews": props.get("datasource", {}).get("raw", {}).get("ratings_total") if isinstance(props.get("datasource"), dict) else None,
                     "source": "geoapify",
+                    "lat": props.get("lat"),
+                    "lon": props.get("lon"),
+                    "maps_url": _google_maps_search_url(name, props.get("formatted")),
                 }
             )
             if len(items) >= max(1, min(top_k, 10)):
                 break
         if items:
-            return {"city_name": city_name, "food_keyword": food_keyword, "items": items}
+            items = _rank_place_items(items, center=(lat, lon), category="restaurant")[: max(1, min(top_k, 10))]
+            return {"city_name": city_name, "food_keyword": food_keyword, "location_query": location_query, "items": items}
     except Exception:
         pass
 
@@ -1489,6 +2056,7 @@ def _search_local_places(
     country_code: Optional[str] = None,
     top_k: int = 5,
     location_query: Optional[str] = None,
+    radius_m: int = 7000,
 ) -> dict[str, Any]:
     def _normalize_place_keyword(raw_keyword: Optional[str], cat: str) -> Optional[str]:
         if not raw_keyword:
@@ -1500,9 +2068,9 @@ def _search_local_places(
         generic_tokens = {
             "추천", "추천좀", "추천해줘", "추천해 줘", "어디", "어디가 좋아", "좋은곳", "좋은 곳",
             "명소", "관광지", "놀거리", "가볼만한곳", "가볼만한 곳", "즐길만한곳", "즐길만한 곳",
-            "맛집", "식당", "레스토랑", "카페", "장소",
+            "맛집", "식당", "레스토랑", "카페", "장소", "쇼핑", "쇼핑몰", "백화점", "시장", "마켓",
             "recommend", "recommended", "best", "place", "places", "attraction", "attractions",
-            "restaurant", "restaurants", "cafe", "cafes", "things to do",
+            "restaurant", "restaurants", "cafe", "cafes", "things to do", "shopping", "mall", "market",
         }
         # For category searches, generic category words should not be used as a hard keyword filter.
         if k in generic_tokens or k_l in generic_tokens:
@@ -1510,8 +2078,8 @@ def _search_local_places(
         # If the keyword is mostly generic filler, drop it.
         compact = re.sub(r"\s+", "", k_l)
         if compact in {
-            "명소추천", "명소추천좀", "관광지추천", "놀거리추천", "맛집추천", "카페추천",
-            "attractionrecommend", "restaurantrecommend", "caferecommend",
+            "명소추천", "명소추천좀", "관광지추천", "놀거리추천", "맛집추천", "카페추천", "쇼핑추천", "쇼핑몰추천",
+            "attractionrecommend", "restaurantrecommend", "caferecommend", "shoppingrecommend",
         }:
             return None
         return k
@@ -1523,37 +2091,61 @@ def _search_local_places(
             country_code=country_code,
             top_k=top_k,
             location_query=location_query,
+            radius_m=radius_m,
         )
 
     search_loc = location_query or city_name
-    center = _geocode_place_center_geoapify(search_loc, country_code=country_code, city_name=city_name)
+    if _is_landmark_like_location_query(location_query):
+        center = _geocode_place_center_google_textsearch(search_loc, country_code=country_code, city_name=city_name)
+        if not center:
+            center = _geocode_place_center_geoapify(search_loc, country_code=country_code, city_name=city_name)
+    else:
+        center = _geocode_place_center_geoapify(search_loc, country_code=country_code, city_name=city_name)
+        if not center:
+            center = _geocode_place_center_google_textsearch(search_loc, country_code=country_code, city_name=city_name)
     if not center:
         return {"error": "geocode_failed", "city_name": city_name, "items": []}
     lat, lon = center
     top_k = max(1, min(top_k, 10))
+    radius_m = max(1000, min(int(radius_m or 7000), 20000))
 
     google_type = None
     if category == "attraction":
         google_type = "tourist_attraction"
     elif category == "cafe":
         google_type = "cafe"
+    elif category == "shopping":
+        google_type = "shopping_mall"
 
     keyword = _normalize_place_keyword(keyword, category)
 
     # Google Places first
     try:
         place_keyword = " ".join([x for x in [location_query, keyword] if x]) or None
-        g = get_google_places(lat, lon, radius=7000, keyword=place_keyword, type=google_type)
-        items = []
-        for p in (g.get("results") or [])[:top_k]:
-            items.append(
-                {
-                    "name": p.get("name"),
-                    "address": p.get("vicinity") or p.get("formatted_address"),
-                    "rating": p.get("rating"),
-                    "source": "google_places",
-                }
-            )
+        g = get_google_places(lat, lon, radius=radius_m, keyword=place_keyword, type=google_type)
+        items = _enrich_google_place_items((g.get("results") or []), center=(lat, lon), category=category, top_k=top_k)
+        # Brand shopping queries often don't show up under shopping_mall.
+        # Retry without a strict type filter when shopping has a keyword.
+        if not items and category == "shopping" and place_keyword:
+            g2 = get_google_places(lat, lon, radius=radius_m, keyword=place_keyword, type=None)
+            items = _enrich_google_place_items((g2.get("results") or []), center=(lat, lon), category=category, top_k=top_k)
+        if items:
+            return {"city_name": city_name, "keyword": keyword, "category": category, "items": items}
+    except Exception:
+        pass
+
+    # Google Places text search fallback before Geoapify (works better for landmark/brand queries)
+    try:
+        category_q = {
+            "attraction": "tourist attraction",
+            "cafe": "cafe",
+            "shopping": "shopping",
+            "generic": "things to do",
+        }.get(category, "")
+        q_parts = [x for x in [location_query, city_name, keyword, category_q] if x]
+        q = " ".join(dict.fromkeys(q_parts))
+        rows = _google_places_text_search(q)
+        items = _enrich_google_place_items(rows, center=(lat, lon), category=category, top_k=top_k)
         if items:
             return {"city_name": city_name, "keyword": keyword, "category": category, "items": items}
     except Exception:
@@ -1561,12 +2153,14 @@ def _search_local_places(
 
     # Geoapify fallback
     try:
-        kind = "tourist_attraction"
+        kind = "tourism.sights"
         if category == "cafe":
             kind = "catering.cafe"
+        elif category == "shopping":
+            kind = "commercial.shopping_mall"
         elif category == "generic":
             kind = "tourism.sights"
-        gg = get_attractions(lat, lon, radius=7000, kind=kind)
+        gg = get_attractions(lat, lon, radius=radius_m, kind=kind)
         feats = gg.get("features") or []
         items = []
         kw = (keyword or "").strip().lower()
@@ -1582,13 +2176,18 @@ def _search_local_places(
                     "name": name,
                     "address": props.get("formatted"),
                     "rating": props.get("rating"),
+                    "reviews": props.get("datasource", {}).get("raw", {}).get("ratings_total") if isinstance(props.get("datasource"), dict) else None,
                     "source": "geoapify",
+                    "lat": props.get("lat"),
+                    "lon": props.get("lon"),
+                    "maps_url": _google_maps_search_url(name, props.get("formatted")),
                 }
             )
             if len(items) >= top_k:
                 break
         if items:
-            return {"city_name": city_name, "keyword": keyword, "category": category, "items": items}
+            items = _rank_place_items(items, center=(lat, lon), category=category)[:top_k]
+            return {"city_name": city_name, "keyword": keyword, "category": category, "location_query": location_query, "items": items}
     except Exception:
         pass
 
@@ -1608,26 +2207,102 @@ def _answer_food_place_followup(message: str, context: str, prev_state: Optional
             {"knowledge_state": {**(prev_k or {}), "topic": "culture", "subtopic": "dining"}},
         )
 
-    result = _search_food_places(city_name=city_name, food_keyword=food_keyword, country_code=country_code, top_k=5)
+    result = _search_food_places(
+        city_name=city_name,
+        food_keyword=food_keyword,
+        country_code=country_code,
+        top_k=5,
+        location_query=location_query,
+        radius_m=_place_search_radius_m(message, location_query),
+    )
     items = result.get("items") or []
     if not items:
+        fallback = _rewrite_place_recommendation_fallback(
+            city_name=city_name,
+            category="restaurant",
+            keyword=food_keyword,
+            message=message,
+            context=context,
+        )
+        if fallback:
+            return (
+                fallback,
+                {"knowledge_state": {**(prev_k or {}), "city_name": city_name, "country_code": country_code, "topic": "culture", "subtopic": "dining"}},
+            )
         q = f"{food_keyword} " if food_keyword else ""
         return (
-            f"<div>{city_name}에서 {q}맛집 후보를 찾지 못했습니다. 음식명이나 지역(예: 신주쿠/강남)을 더 구체적으로 알려주세요.</div>",
+            f"<div>{city_name}에서 {q}맛집 후보를 찾지 못했습니다. 음식명이나 지역명을 더 구체적으로 알려주세요.</div>",
             {"knowledge_state": {**(prev_k or {}), "city_name": city_name, "topic": "culture", "subtopic": "dining"}},
         )
 
     title_kw = f"{food_keyword} " if food_keyword else ""
-    lines = []
-    for i, x in enumerate(items, 1):
-        line = f"{i}) {x.get('name') or '-'}"
+    show_distance = _should_show_place_distance(message, location_query, city_name)
+
+    def _food_summary(x: dict[str, Any]) -> str:
+        parts = []
         if x.get("rating") is not None:
-            line += f" | 평점: {x.get('rating')}"
+            parts.append(f"평점 {x.get('rating')} 확인")
+        if x.get("reviews"):
+            parts.append(f"리뷰 {x.get('reviews')}개")
+        if show_distance and x.get("distance_m") is not None:
+            parts.append(f"약 {int(x.get('distance_m'))}m")
+        if x.get("price_level_text"):
+            parts.append(f"가격대 {x.get('price_level_text')}")
         if x.get("address"):
-            line += f" | 주소: {x.get('address')}"
-        line += f" | 출처: {x.get('source')}"
-        lines.append(line)
-    html = f"<div><b>{city_name} {title_kw}맛집 추천</b><br>{'<br>'.join(lines)}</div>"
+            parts.append("주소 확인 가능")
+        src = x.get("source")
+        if src == "google_places":
+            parts.append("Google Places 기준")
+        elif src == "geoapify":
+            parts.append("Geoapify 기준(거리/주소 오차 가능)")
+        return " · ".join(parts) if parts else "현지 식사 후보"
+
+    def _menu_hint() -> str:
+        if food_keyword:
+            return f"{food_keyword} 중심으로 찾아본 후보예요."
+        return "대표 메뉴는 매장마다 달라서 방문 전 메뉴판/리뷰 확인을 권장해요."
+
+    blocks = []
+    for i, x in enumerate(items, 1):
+        name = x.get("name") or "-"
+        rating = x.get("rating")
+        address = x.get("address") or "-"
+        source = x.get("source") or "-"
+        block = [
+            f"<div style='margin:10px 0 14px 0;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;'>",
+            f"<div><b>{i}. {name}</b></div>",
+        ]
+        if x.get("photo_url"):
+            block.append(
+                f"<div style='margin-top:8px;'><img src=\"{x.get('photo_url')}\" alt=\"\" "
+                "style='width:100%;max-width:360px;height:160px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;'></div>"
+            )
+        block += [
+            f"<div style='margin-top:6px;color:#374151;'>{_food_summary(x)}</div>",
+            f"<div style='margin-top:6px;color:#4b5563;'>대표 메뉴/포인트: {_menu_hint()}</div>",
+            f"<div style='margin-top:6px;color:#4b5563;'>주소: {address}</div>",
+        ]
+        if rating is not None:
+            block.append(f"<div style='color:#4b5563;'>평점: {rating}</div>")
+        if x.get("reviews"):
+            block.append(f"<div style='color:#4b5563;'>리뷰 수: {x.get('reviews')}</div>")
+        if x.get("price_level_text"):
+            block.append(f"<div style='color:#4b5563;'>가격대: {x.get('price_level_text')}</div>")
+        if x.get("open_now") is True:
+            block.append("<div style='color:#047857;'>현재 영업 중</div>")
+        elif x.get("open_now") is False:
+            block.append("<div style='color:#b45309;'>현재 영업 여부 확인 필요(비영업 시간일 수 있음)</div>")
+        block.append(f"<div style='color:#6b7280;font-size:12px;'>출처: {source}</div>")
+        if x.get("maps_url"):
+            block.append(f"<div style='font-size:12px;'><a href=\"{x.get('maps_url')}\" target='_blank' rel='noopener'>지도에서 보기</a></div>")
+        block.append("</div>")
+        blocks.append("".join(block))
+
+    html = (
+        f"<div><b>{city_name} {title_kw}맛집 추천</b>"
+        f"<div style='margin-top:6px;color:#4b5563;'>위치/평점/데이터 출처를 기준으로 보기 쉽게 정리했어요.</div>"
+        f"{''.join(blocks)}</div>"
+    )
     return html, {"knowledge_state": {**(prev_k or {}), "city_name": city_name, "country_code": country_code, "topic": "culture", "subtopic": "dining"}}
 
 
@@ -1638,6 +2313,7 @@ def _answer_local_place_followup(message: str, context: str, prev_state: Optiona
     location_query = parsed.get("location_query")
     country_code = _normalize_rag_country_code(prev_k.get("country_code"))
     keyword = parsed.get("keyword")
+    brand_or_theme = parsed.get("brand_or_theme")
     category = parsed.get("category") or "generic"
 
     # direct keyword fallback when LLM misses
@@ -1648,6 +2324,52 @@ def _answer_local_place_followup(message: str, context: str, prev_state: Optiona
             category = "attraction"
         elif _contains(message or "", ["카페"]):
             category = "cafe"
+        elif _contains(message or "", ["쇼핑", "쇼핑몰", "백화점", "시장", "마켓"]):
+            category = "shopping"
+
+    # LLM이 generic으로 뽑아도 브랜드/매장/판매처 의도면 쇼핑으로 승격
+    if category == "generic":
+        msg_norm = (message or "").lower()
+        if any(tok in msg_norm for tok in ["브랜드", "매장", "파는곳", "파는 곳", "판매처", "편집샵", "셀렉트샵", "brand", "store", "shop"]):
+            category = "shopping"
+
+    # LLM이 generic으로 뽑아도 브랜드/매장/판매처 의도면 쇼핑으로 승격
+    if category == "generic" and brand_or_theme:
+        category = "shopping"
+
+    # LLM brand/theme is preferred for shopping keyword when available.
+    if category == "shopping" and not keyword and brand_or_theme:
+        keyword = brand_or_theme
+
+    # Server-side fallback extraction for location/keyword when LLM parsing misses.
+    if not location_query:
+        m_loc = re.search(r"(.{1,30}?)(?:\uc5d0\uc11c|\uadfc\ucc98)\s*", message or "")
+        if m_loc:
+            candidate = m_loc.group(1).strip(" ,.?")
+            if candidate and not _contains(candidate, ["??", "??", "???", "??", "??", "??"]):
+                location_query = candidate
+    if category == "restaurant" and not keyword:
+        cuisine_kws = ["??", "??", "??", "??", "??", "???", "???", "????", "????", "??????", "???"]
+        for ck in cuisine_kws:
+            if ck in (message or ""):
+                keyword = ck
+                break
+        if not keyword:
+            m_food = re.search(r"([A-Za-z?-?0-9]{1,20})\s*?", message or "")
+            if m_food:
+                keyword = m_food.group(1).strip()
+    # 브랜드 쇼핑 질의에서 keyword가 비면 브랜드명 후보 추출
+    if category == "shopping" and not keyword:
+        msg_raw = message or ""
+        m_brand = re.search(r"([A-Za-z0-9가-힣·&'\\-]{1,30})\s*(?:브랜드|매장|파는곳|파는 곳|판매처)", msg_raw)
+        if m_brand:
+            cand = m_brand.group(1).strip(" ,.?")
+            cand = re.sub(r".*(?:\uc5d0\uc11c|\uadfc\ucc98)\s*", "", cand).strip()
+            if cand:
+                keyword = cand
+
+    if not city_name and location_query:
+        city_name = location_query
 
     if not city_name:
         return (
@@ -1662,30 +2384,156 @@ def _answer_local_place_followup(message: str, context: str, prev_state: Optiona
         country_code=country_code,
         top_k=5,
         location_query=location_query,
+        radius_m=_place_search_radius_m(message, location_query),
     )
     items = result.get("items") or []
     if not items:
-        label = {"restaurant": "맛집", "attraction": "명소/놀거리", "cafe": "카페", "generic": "장소"}.get(category, "장소")
+        label = {"restaurant": "맛집", "attraction": "명소/놀거리", "cafe": "카페", "shopping": "쇼핑 장소", "generic": "장소"}.get(category, "장소")
+        fallback = _rewrite_place_recommendation_fallback(
+            city_name=city_name,
+            category=category,
+            keyword=keyword,
+            message=message,
+            context=context,
+        )
+        if fallback:
+            return (
+                fallback,
+                {"knowledge_state": {**(prev_k or {}), "city_name": city_name, "country_code": country_code, "topic": "culture", "subtopic": "dining" if category == "restaurant" else category}},
+            )
         return (
-            f"<div>{city_name}에서 {label} 후보를 찾지 못했습니다. 지역(예: 신주쿠/미테)이나 키워드를 더 구체적으로 알려주세요.</div>",
+            f"<div>{city_name}에서 {label} 후보를 찾지 못했습니다. 지역명이나 키워드를 더 구체적으로 알려주세요.</div>",
             {"knowledge_state": {**(prev_k or {}), "city_name": city_name, "country_code": country_code}},
         )
 
-    title = {"restaurant": "맛집 추천", "attraction": "명소/놀거리 추천", "cafe": "카페 추천", "generic": "장소 추천"}.get(category, "장소 추천")
+    title = {"restaurant": "맛집 추천", "attraction": "명소/놀거리 추천", "cafe": "카페 추천", "shopping": "쇼핑 장소 추천", "generic": "장소 추천"}.get(category, "장소 추천")
     title_kw = f"{keyword} " if keyword else ""
-    lines = []
-    for i, x in enumerate(items, 1):
-        line = f"{i}) {x.get('name') or '-'}"
-        if x.get('rating') is not None:
-            line += f" | 평점: {x.get('rating')}"
-        if x.get('address'):
-            line += f" | 주소: {x.get('address')}"
-        line += f" | 출처: {x.get('source')}"
-        lines.append(line)
     title_loc = location_query or city_name
-    html = f"<div><b>{title_loc} {title_kw}{title}</b><br>{'<br>'.join(lines)}</div>"
-    next_subtopic = "dining" if category == "restaurant" else "general"
-    return html, {"knowledge_state": {**(prev_k or {}), "city_name": city_name, "country_code": country_code, "topic": "culture", "subtopic": next_subtopic, "location_query": location_query or prev_k.get("location_query")}}
+    show_distance = _should_show_place_distance(message, location_query, city_name)
+
+    category_label = {
+        "restaurant": "식사/현지 음식",
+        "attraction": "관광/볼거리",
+        "cafe": "휴식/카페",
+        "shopping": "쇼핑/구매",
+        "generic": "여행 장소",
+    }.get(category, "여행 장소")
+
+    def _place_summary(x: dict[str, Any]) -> str:
+        reasons = [category_label]
+        if x.get("rating") is not None:
+            reasons.append(f"평점 {x.get('rating')}")
+        if x.get("reviews"):
+            reasons.append(f"리뷰 {x.get('reviews')}개")
+        if show_distance and x.get("distance_m") is not None:
+            reasons.append(f"약 {int(x.get('distance_m'))}m")
+        if x.get("price_level_text"):
+            reasons.append(f"가격대 {x.get('price_level_text')}")
+        if x.get("address"):
+            reasons.append("주소 확인 가능")
+        src = x.get("source")
+        if src:
+            if str(src) == "geoapify":
+                reasons.append("Geoapify 기준(거리/주소 오차 가능)")
+            else:
+                reasons.append(f"{src} 기준")
+        return " · ".join(reasons)
+
+    blocks = []
+    for i, x in enumerate(items, 1):
+        name = x.get("name") or "-"
+        rating = x.get("rating")
+        address = x.get("address") or "-"
+        source = x.get("source") or "-"
+        block = [
+            f"<div style='margin:10px 0 14px 0;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;'>",
+            f"<div><b>{i}. {name}</b></div>",
+        ]
+        if x.get("photo_url"):
+            block.append(
+                f"<div style='margin-top:8px;'><img src=\"{x.get('photo_url')}\" alt=\"\" "
+                "style='width:100%;max-width:360px;height:160px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;'></div>"
+            )
+        block += [
+            f"<div style='margin-top:6px;color:#374151;'>{_place_summary(x)}</div>",
+            f"<div style='margin-top:6px;color:#4b5563;'>주소: {address}</div>",
+        ]
+        if rating is not None:
+            block.append(f"<div style='color:#4b5563;'>평점: {rating}</div>")
+        if x.get("reviews"):
+            block.append(f"<div style='color:#4b5563;'>리뷰 수: {x.get('reviews')}</div>")
+        if x.get("price_level_text"):
+            block.append(f"<div style='color:#4b5563;'>가격대: {x.get('price_level_text')}</div>")
+        block.append(f"<div style='color:#6b7280;font-size:12px;'>출처: {source}</div>")
+        if x.get("maps_url"):
+            block.append(f"<div style='font-size:12px;'><a href=\"{x.get('maps_url')}\" target='_blank' rel='noopener'>지도에서 보기</a></div>")
+        block.append("</div>")
+        blocks.append("".join(block))
+
+    html = (
+        f"<div><b>{title_loc} {title_kw}{title}</b>"
+        f"<div style='margin-top:6px;color:#4b5563;'>후보별 핵심 정보만 빠르게 비교할 수 있게 정리했어요.</div>"
+        f"{''.join(blocks)}</div>"
+    )
+    next_subtopic = "dining" if category == "restaurant" else ("shopping" if category == "shopping" else "general")
+    next_topic = "money" if category == "shopping" else "culture"
+    return html, {"knowledge_state": {**(prev_k or {}), "city_name": city_name, "country_code": country_code, "topic": next_topic, "subtopic": next_subtopic, "location_query": location_query or prev_k.get("location_query")}}
+
+
+def _rewrite_place_recommendation_fallback(
+    city_name: str,
+    category: str,
+    keyword: Optional[str],
+    message: str,
+    context: str,
+) -> Optional[str]:
+    """
+    API 후보를 못 찾았을 때도 사용자가 끊기지 않도록, 도시/카테고리/키워드 기준의
+    일반 여행지식 추천을 LLM으로 생성한다. (실시간 재고/운영정보는 단정 금지)
+    """
+    try:
+        category_ko = {
+            "restaurant": "맛집",
+            "attraction": "명소/놀거리",
+            "cafe": "카페",
+            "shopping": "쇼핑",
+            "generic": "추천 장소",
+        }.get(category, "추천 장소")
+        kw = (keyword or "").strip()
+        q_hint = f"{city_name} {kw} {category_ko}".strip()
+        prompt = (
+            "You are a travel recommendation assistant.\n"
+            "The place APIs returned no reliable candidates, so provide a helpful fallback answer in Korean.\n"
+            "Requirements:\n"
+            "- Answer in Korean.\n"
+            "- Do NOT pretend you found exact API results.\n"
+            "- Give 3-5 practical area/store-type recommendations for the city and query intent.\n"
+            "- If query is brand shopping, suggest neighborhoods/department stores/select shops to check.\n"
+            "- Keep it readable for customers (short sections/bullets, no markdown ### or **).\n"
+            "- Include a short note to verify current availability/hours before visiting.\n\n"
+            f"City: {city_name}\n"
+            f"Category: {category}\n"
+            f"Keyword: {kw or '(none)'}\n"
+            f"Query intent hint: {q_hint}\n"
+            f"Recent context:\n{context}\n\n"
+            f"User message:\n{message}\n"
+        )
+        r = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Travel recommendation fallback writer. Output customer-friendly Korean only."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.4,
+        )
+        out = (r.choices[0].message.content or "").strip()
+        if not out:
+            return None
+        # strip markdown decorations for UI consistency
+        out = out.replace("###", "").replace("**", "").replace("`", "")
+        return f"<div>{out}</div>"
+    except Exception:
+        return None
 
 
 def _knowledge_top_k(message: str, topic: Optional[str], subtopic: Optional[str]) -> int:
@@ -2029,11 +2877,22 @@ def chat(req: ChatRequest):
         if intent == "flight" and _should_keep_knowledge_followup(req.message, prev_state):
             intent = "knowledge"
 
+        # Local recommendation queries (shopping/spots/food/cafe) should not fall into flight search.
+        if intent == "flight" and _is_local_place_followup(req.message, prev_state):
+            intent = "knowledge"
+
         # Route place-to-place guidance questions to travel info (transport) unless flights are explicit.
         if intent == "flight" and _is_route_guidance_query(req.message):
             intent = "knowledge"
 
-        if llm_intent is None and rule_intent == "flight" and _should_ask_intent_clarification(req.message, prev_state):
+        if (
+            not _is_local_place_followup(req.message, prev_state)
+            and _should_ask_intent_clarification(req.message, prev_state)
+            and (
+                (llm_intent is None and rule_intent == "flight")
+                or (intent == "knowledge" and not _contains((req.message or "").lower(), ["치안", "비자", "교통", "환율", "환전", "맛집", "명소", "카페", "쇼핑", "일정"]))
+            )
+        ):
             state = dict(prev_state)
             state["last_intent"] = "knowledge"
             SESSION_STATE[sid] = state
@@ -2093,6 +2952,7 @@ def chat(req: ChatRequest):
             max_price=state.get("max_price"),
             max_results=30,
         )
+        _attach_krw(raw)
         rows = _filter_pref(_simplify(raw), state)
         rows = _sort_flights_for_recommendation(rows, state)
         limit = state.get("limit")
