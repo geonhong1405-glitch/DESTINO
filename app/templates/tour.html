@@ -12,24 +12,24 @@
 <body>
 
     <!-- Header -->
-        <header class="header">
-            <div class="container header-inner">
-                <h1 class="logo"><a href="/">DESTINO</a></h1>
-                <nav class="header-nav">
-                    {% if nickname %}
-                    <a href="/mypage">
-                        <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
-                    </a>
-                    <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
-                    {% else %}
-                    <a href="/login">로그인</a>
-                    {% endif %}
-                    <a href="#">이용안내</a>
-                    <a href="#">고객센터</a>
-                    <a href="#">KOR</a>
-                </nav>
-            </div>
-        </header>
+    <header class="header">
+        <div class="container header-inner">
+            <h1 class="logo"><a href="/">DESTINO</a></h1>
+            <nav class="header-nav">
+                {% if nickname %}
+                <a href="/mypage">
+                    <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                </a>
+                <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
+                {% else %}
+                <a href="/login">로그인</a>
+                {% endif %}
+                <a href="#">이용안내</a>
+                <a href="#">고객센터</a>
+                <a href="#">KOR</a>
+            </nav>
+        </div>
+    </header>
 
     <!-- Hero Section -->
     <section class="hero-section">
@@ -80,209 +80,280 @@
         </div>
     </section>
 
-    <!-- Content Sample -->
-    <section class="container">
-        <!-- 할인 이벤트 배너 -->
-        <div class="event-banner">
-            <div class="event-content">
-                <h3>첫 구매 한정 30,000원 할인 쿠폰 🎁</h3>
-                <p>지금 바로 회원가입하고 전 세계 인기 투어 할인 혜택을 받으세요.</p>
-            </div>
-            <button class="event-btn">쿠폰 받기</button>
-        </div>
-
-        <!-- 지금 가장 핫한 상품 -->
-        <div class="section-header">
-            <div>
-                <h2 class="section-title">지금 가장 핫한 상품 🔥</h2>
-                <p class="section-subtext">최근 일주일간 가장 많은 예약이 발생한 상품들입니다.</p>
-            </div>
-            <a href="#" class="view-all">전체보기 ></a>
-        </div>
-
-        <div class="card-grid">
-            <div class="card">
-                <div class="card-img-box">
-                    <img src="https://images.unsplash.com/photo-1513407030348-c983a97b98d8?q=80&w=600" class="card-img" alt="도쿄 시부야 스카이">
-                    <div class="badge">E-티켓</div>
+    <!-- tour Grid -->
+    <section class="container" style="padding-bottom: 60px;">
+        <h2 class="section-title">지금 가장 인기있는 <span>투어</span></h2>
+        <div class="tour-grid">
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg1">
+                    <div class="badge">BEST</div>
                 </div>
-                <div class="card-body">
-                    <div class="card-loc">일본 · 도쿄</div>
-                    <h3 class="card-title">도쿄 시부야 스카이 전망대 입장권</h3>
-                    <div class="sale-price">18,500<span>원</span></div>
+                <div class="tour-body">
+                    <p class="tour-loc">오스트리아 • 비엔나</p>
+                    <h3 class="tour-name">[음악의 도시] 비엔나 필하모닉 공연&궁전 투어 6일 #모차르트카페</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">2,950,000</span>
+                    </div>
                 </div>
-            </div>
-            <div class="card">
-                <div class="card-img-box">
-                    <img src="https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=600" class="card-img" alt="유니버셜 스튜디오 재팬">
-                    <div class="badge">당일예약</div>
+            </a>
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg2">
+                    <div class="badge">오늘마감</div>
                 </div>
-                <div class="card-body">
-                    <div class="card-loc">일본 · 오사카</div>
-                    <h3 class="card-title">유니버셜 스튜디오 재팬 1일권</h3>
-                    <div class="sale-price">78,500<span>원</span></div>
+                <div class="tour-body">
+                    <p class="tour-loc">노르웨이 • 오슬로</p>
+                    <h3 class="tour-name">피오르드 대자연 탐험 8일 #플롬열차 #베르겐크루즈</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">4,580,000</span>
+                    </div>
                 </div>
-            </div>
-            <div class="card">
-                <div class="card-img-box">
-                    <img src="https://cdn.pixabay.com/photo/2016/07/26/21/47/vienna-1544022_1280.jpg" class="card-img" alt="루브르 박물관">
-                    <div class="badge">우선입장</div>
+            </a>
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg3">
+                    <div class="badge">슈퍼특가</div>
                 </div>
-                <div class="card-body">
-                    <div class="card-loc">프랑스 · 파리</div>
-                    <h3 class="card-title">루브르 박물관 우선 입장권</h3>
-                    <div class="sale-price">29,800<span>원</span></div>
+                <div class="tour-body">
+                    <p class="tour-loc">네덜란드 • 암스테르담</p>
+                    <h3 class="tour-name">튤립 축제와 풍차 마을 7일 #운하크루즈 #고흐미술관</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">2,850,000</span>
+                    </div>
                 </div>
-            </div>
-            <div class="card">
-                <div class="card-img-box">
-                    <img src="https://cdn.pixabay.com/photo/2016/07/17/19/36/train-1524598_1280.jpg" class="card-img" alt="바나힐 썬월드">
-                    <div class="badge">한국어 가이드</div>
+            </a>
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg4">
+                    <div class="badge">MD추천</div>
                 </div>
-                <div class="card-body">
-                    <div class="card-loc">베트남 · 다낭</div>
-                    <h3 class="card-title">바나힐 썬월드 일일 투어</h3>
-                    <div class="sale-price">42,900<span>원</span></div>
+                <div class="tour-body">
+                    <p class="tour-loc">체코 • 프라하</p>
+                    <h3 class="tour-name">중세의 낭만 프라하 산책 6일 #체스키크룸로프 #야경투어</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">2,350,000</span>
+                    </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- 이색 체험 상품 섹션 -->
-        <div class="section-header">
-            <div>
-                <h2 class="section-title">잊지 못할 이색 체험 ✨</h2>
-                <p class="section-subtext">평범한 여행은 지루해! 특별한 경험을 선사하는 체험형 투어</p>
-            </div>
-            <a href="#" class="view-all">전체보기 ></a>
-        </div>
-
-        <div class="card-grid">
-            <div class="card">
-                <div class="card-img-box">
-                    <img src="https://images.unsplash.com/photo-1516738901171-8eb4fc13bd20?q=80&w=600" class="card-img" alt="카파도키아 열기구">
-                    <div class="badge">열기구</div>
+            </a>
+            <!-- 추가 -->
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg5">
+                    <div class="badge">BEST</div>
                 </div>
-                <div class="card-body">
-                    <div class="card-loc">튀르키예 · 카파도키아</div>
-                    <h3 class="card-title">카파도키아 일출 열기구 프리미엄 투어</h3>
-                    <div class="sale-price">245,000<span>원</span></div>
+                <div class="tour-body">
+                    <p class="tour-loc">벨기에 • 브뤼헤</p>
+                    <h3 class="tour-name">초콜릿과 맥주의 나라 5일 #그랑플라스 #안트베르펜코스</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">2,150,000</span>
+                    </div>
                 </div>
-            </div>
-            <div class="card">
-                <div class="card-img-box">
-                    <img src="https://images.unsplash.com/photo-1534067783941-51c9c23ecefd?q=80&w=600" class="card-img" alt="오로라 헌팅">
-                    <div class="badge">오로라</div>
+            </a>
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg6">
+                    <div class="badge">오늘마감</div>
                 </div>
-                <div class="card-body">
-                    <div class="card-loc">아이슬란드 · 레이캬비크</div>
-                    <h3 class="card-title">전문 가이드와 함께하는 오로라 헌팅 투어</h3>
-                    <div class="sale-price">112,000<span>원</span></div>
+                <div class="tour-body">
+                    <p class="tour-loc">뉴질랜드 • 퀸스타운</p>
+                    <h3 class="tour-name">남섬 액티비티 천국 8일 #밀포드사운드 #와카티푸호수</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">3,890,000</span>
+                    </div>
                 </div>
-            </div>
-            <div class="card">
-                <div class="card-img-box">
-                    <img src="https://cdn.pixabay.com/photo/2023/03/19/19/38/mountain-7863224_1280.jpg" class="card-img" alt="스카이다이빙">
-                    <div class="badge">스카이다이빙</div>
+            </a>
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg7">
+                    <div class="badge">MD추천</div>
                 </div>
-                <div class="card-body">
-                    <div class="card-loc">스위스 · 인터라켄</div>
-                    <h3 class="card-title">알프스 영봉을 보며 즐기는 스카이다이빙</h3>
-                    <div class="sale-price">450,000<span>원</span></div>
+                <div class="tour-body">
+                    <p class="tour-loc">핀란드 • 로바니에미</p>
+                    <h3 class="tour-name">산타마을 공식 방문 7일 #허스키썰매 #이글루호텔체험</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">4,250,000</span>
+                    </div>
                 </div>
-            </div>
-            <div class="card">
-                <div class="card-img-box">
-                    <img src="https://cdn.pixabay.com/photo/2020/06/07/10/59/desert-5269853_1280.jpg" class="card-img" alt="사막투어">
-                    <div class="badge">사막투어</div>
+            </a>
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg8">
+                    <div class="badge">슈퍼특가</div>
                 </div>
-                <div class="card-body">
-                    <div class="card-loc">아랍에미리트 · 두바이</div>
-                    <h3 class="card-title">두바이 이브닝 사막 사파리 & 디너</h3>
-                    <div class="sale-price">65,000<span>원</span></div>
+                <div class="tour-body">
+                    <p class="tour-loc">아르헨티나 • 부에노스아이레스</p>
+                    <h3 class="tour-name">남미의 파리 탱고 여행 10일 #이구아수폭포 #파타고니아</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">6,100,000</span>
+                    </div>
                 </div>
-            </div>
+            </a>
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg9">
+                    <div class="badge">MD추천</div>
+                </div>
+                <div class="tour-body">
+                    <p class="tour-loc">헝가리 • 부다페스트</p>
+                    <h3 class="tour-name">다뉴브강의 진주 6일 #세체니온천 #국회의사당야경</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">2,280,000</span>
+                    </div>
+                </div>
+            </a>
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg10">
+                    <div class="badge">BEST</div>
+                </div>
+                <div class="tour-body">
+                    <p class="tour-loc">아일랜드 • 더블린</p>
+                    <h3 class="tour-name">기네스의 고향 아일랜드 7일 #모허절벽 #아이리쉬펍투어</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">3,250,000</span>
+                    </div>
+                </div>
+            </a>
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg11">
+                    <div class="badge">오늘마감</div>
+                </div>
+                <div class="tour-body">
+                    <p class="tour-loc">남아공 • 케이프타운</p>
+                    <h3 class="tour-name">희망봉 아프리카 대륙 투어 9일 #테이블마운틴 #펭귄비치</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">4,980,000</span>
+                    </div>
+                </div>
+            </a>
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg12">
+                    <div class="badge">슈퍼특가</div>
+                </div>
+                <div class="tour-body">
+                    <p class="tour-loc">페루 • 쿠스코</p>
+                    <h3 class="tour-name">잉카 문명 마추픽추 탐험 11일 #성스러운계곡 #쿠스코시티</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">5,850,000</span>
+                    </div>
+                </div>
+            </a>
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg13">
+                    <div class="badge">MD추천</div>
+                </div>
+                <div class="tour-body">
+                    <p class="tour-loc">브라질 • 리우데자네이루</p>
+                    <h3 class="tour-name">삼바의 열정 속으로 10일 #예수동상 #코파카바나해변</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">5,500,000</span>
+                    </div>
+                </div>
+            </a>
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg14">
+                    <div class="badge">BEST</div>
+                </div>
+                <div class="tour-body">
+                    <p class="tour-loc">멕시코 • 칸쿤</p>
+                    <h3 class="tour-name">카리브해의 지상낙원 6일 #올인클루시브 #치첸이사투어</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">3,450,000</span>
+                    </div>
+                </div>
+            </a>
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg15">
+                    <div class="badge">오늘마감</div>
+                </div>
+                <div class="tour-body">
+                    <p class="tour-loc">덴마크 • 코펜하겐</p>
+                    <h3 class="tour-name">휘게 라이프 감성 7일 #니하운운하 #안데르센인어공주</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">3,180,000</span>
+                    </div>
+                </div>
+            </a>
+            <a href="#" class="tour-card">
+                <div class="tour-image tImg16">
+                    <div class="badge">슈퍼특가</div>
+                </div>
+                <div class="tour-body">
+                    <p class="tour-loc">우즈베키스탄 • 사마르칸트</p>
+                    <h3 class="tour-name">실크로드의 푸른 도시 6일 #레기스탄광장 #전통시장투어</h3>
+                    <div class="tour-price">
+                        <span style="font-size:12px; color:#999;">1인 기준</span>
+                        <span class="price-val">1,450,000</span>
+                    </div>
+                </div>
+            </a>
         </div>
     </section>
 
-    <footer class="footer">
-        <div class="footer-container">
-            <div class="footer-top">
-                <div class="footer-column">
-                    <h3>고객센터</h3>
-                    <p>오전 9시 ~ 새벽 3시 운영</p>
-                    <p>채팅 상담 문의: 24시간 운영</p>
-                    <div class="cs-buttons">
-                        <a href="tel:1670-0000" class="btn-cs">
-                            <span class="icon">📞</span>
-                            <div class="text">
-                                <strong>1670-0000</strong>
-                            </div>
-                        </a>
-                        <a href="#" class="btn-cs">
-                            <span class="icon">💬</span>
-                            <div class="text">
-                                <strong>채팅 상담</strong>
-                            </div>
-                        </a>
-                    </div>
-                </div>
-                <div class="footer-column">
-                    <h3>회사</h3>
-                    <ul>
-                        <li><a href="#">회사소개</a></li>
-                        <li><a href="#">채용정보</a></li>
-                        <li><a href="#">제휴문의</a></li>
-                    </ul>
-                </div>
-                <div class="footer-column">
-                    <h3>서비스</h3>
-                    <ul>
-                        <li><a href="#">공지사항</a></li>
-                        <li><a href="#">자주 묻는 질문</a></li>
-                        <li><a href="#">여행 매거진</a></li>
-                    </ul>
-                </div>
-                <div class="footer-column">
-                    <h3>혜택</h3>
-                    <ul>
-                        <li><a href="#">멤버십 안내</a></li>
-                        <li><a href="#">공동예매 가이드</a></li>
-                        <li><a href="#">포인트 정책</a></li>
-                    </ul>
-                </div>
-                <div class="footer-column">
-                    <h3>모든 여행</h3>
-                    <ul>
-                        <li><a href="#">국내 숙소</a></li>
-                        <li><a href="#">해외 숙소</a></li>
-                        <li><a href="#">항공권</a></li>
-                        <li><a href="#">렌터카</a></li>
-                    </ul>
+   <footer class="footer">
+    <div class="footer-container">
+        <div class="footer-top">
+
+            <h2>Destino</h2>
+            
+            <div class="footer-column cs-center">
+                <h3>고객센터</h3>
+                <p class="cs-number">1588-0000</p>
+                <p class="cs-hours">
+                    평일 09:00 ~ 18:00<br />
+                    <span class="sub-text">(주말 및 공휴일 휴무)</span>
+                </p>
+                <div class="cs-buttons">
+                    <a href="#" class="btn-cs">1:1 문의</a>
+                    <a href="#" class="btn-cs">
+                        <i data-lucide="message-circle" class="icon"></i> 카카오톡 상담
+                    </a>
                 </div>
             </div>
-            <hr class="footer-divider" />
-            <div class="footer-bottom">
-                <div class="company-info">
-                    <p>(주)데스티노 컴퍼니 | 대표이사: 김여행 | 사업자등록번호: 000-00-00000</p>
-                    <p>주소: 서울특별시 강남구 테헤란로 123 | 이메일: help@destino.com</p>
-                    <p class="disclaimer">
-                        데스티노는 통신판매중개자로서 통신판매의 당사자가 아니며, 상품의 예약, 이용 및 환불 등과
-                        관련한 의무와 책임은 각 판매자에게 있습니다.
-                    </p>
-                    <div class="footer-policy">
-                        <a href="#">이용약관</a>
-                        <a href="#"><strong>개인정보처리방침</strong></a>
-                        <a href="#">소비자 분쟁해결 기준</a>
-                    </div>
-                </div>
-                <div class="social-links">
-                    <a href="#" class="social-icon">YouTube</a>
-                    <a href="#" class="social-icon">Instagram</a>
-                    <a href="#" class="social-icon">Facebook</a>
-                </div>
+
+            <div class="footer-column">
+                <h3>DESTINO</h3>
+                <ul>
+                    <li><a href="#">회사소개</a></li>
+                    <li><a href="#">이용약관</a></li>
+                    <li><a href="#" class="policy-highlight">개인정보처리방침</a></li>
+                    <li><a href="#">여행약관</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-col">
+                <h3>제휴 및 문의</h3>
+                <ul>
+                    <li><a href="#">파트너 제휴 문의</a></li>
+                    <li><a href="#">광고/마케팅 문의</a></li>
+                    <li><a href="#">기업용(B2B) 서비스</a></li>
+                </ul>
+            </div>
+
+        </div>
+
+        <hr class="footer-divider">
+
+        <div class="footer-bottom">
+            <div class="company-info">
+                <p>
+                    <strong>상호명:</strong> (주)데스티노 | <strong>대표:</strong> 홍길동 | 
+                    <strong>사업자등록번호:</strong> 123-45-67890 
+                    <a href="#" class="btn-verify">사업자정보확인</a>
+                </p>
+                <p>통신판매업신고번호: 2026-서울강남-0000 | 관광사업자 등록번호: 제2026-00호</p>
+                <p>주소: 서울특별시 강남구 테헤란로 123, 데스티노 타워 10층 | 개인정보보호책임자: 김철수 (privacy@destino.com)</p>
+                <p class="copyright">&copy; 2026 DESTINO. All rights reserved.</p>
             </div>
         </div>
-    </footer>
+    </div>
+</footer>
 
     <script src="../static/tour.js"></script>
 </body>
