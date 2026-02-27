@@ -53,3 +53,12 @@ def delete_session(session_token: str):
         db.commit()
     finally:
         db.close()
+
+
+def clear_all_sessions():
+    db = SessionLocal()
+    try:
+        db.query(UserSession).delete()
+        db.commit()
+    finally:
+        db.close()

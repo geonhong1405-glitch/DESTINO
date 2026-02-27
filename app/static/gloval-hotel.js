@@ -290,8 +290,10 @@ async function isHotelLoggedIn(force = false) {
     if (!force && now - Number(hotelAuthState.checkedAt || 0) < 5000) return !!hotelAuthState.loggedIn;
     try {
         const res = await fetch('/api/me', { credentials: 'include' });
-        hotelAuthState = { checkedAt: now, loggedIn: res.ok };
-        return res.ok;
+        const data = await res.json().catch(() => ({}));
+        const loggedIn = !!(res.ok && data && data.ok === true && data.user);
+        hotelAuthState = { checkedAt: now, loggedIn };
+        return loggedIn;
     } catch (_e) {
         hotelAuthState = { checkedAt: now, loggedIn: false };
         return false;
