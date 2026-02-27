@@ -42,6 +42,7 @@
                     <div class="ai-cart-tabs" role="tablist" aria-label="저장 항목 탭">
                         <button type="button" class="ai-cart-tab is-active" data-cart-tab="cart" role="tab" aria-selected="true">장바구니</button>
                         <button type="button" class="ai-cart-tab" data-cart-tab="wishlist" role="tab" aria-selected="false">위시리스트</button>
+                        <button type="button" class="ai-cart-tab" data-cart-tab="alerts" role="tab" aria-selected="false">알림</button>
                     </div>
                     <button type="button" class="ai-cart-drawer__close" data-cart-close>닫기</button>
                 </div>
@@ -69,6 +70,7 @@
     }
     let cartTab = "cart";
     let savedItems = { cart: [], wishlist: [] };
+    let alertItems = [];
 
     function isNearBottom() {
         const threshold = 80;
@@ -88,6 +90,67 @@
             .replace(/>/g, "&gt;")
             .replace(/\"/g, "&quot;")
             .replace(/'/g, "&#39;");
+    }
+
+    const SAVED_COUNTRY_IMAGE = {
+        japan: "https://images.unsplash.com/photo-1492571350019-22de08371fd3?auto=format&fit=crop&w=400&q=80",
+        vietnam: "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=400&q=80",
+        thailand: "https://images.unsplash.com/photo-1508009603885-50cf7c579365?auto=format&fit=crop&w=400&q=80",
+        france: "https://images.unsplash.com/photo-1499856871958-5b9357976b82?auto=format&fit=crop&w=400&q=80",
+        usa: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=400&q=80",
+        italy: "https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=400&q=80",
+        spain: "https://images.unsplash.com/photo-1543783207-ec64e4d95325?auto=format&fit=crop&w=400&q=80",
+        uk: "https://images.unsplash.com/photo-1486299267070-83823f5448dd?auto=format&fit=crop&w=400&q=80",
+        default: "https://images.unsplash.com/photo-1488085061387-422e29b40080?auto=format&fit=crop&w=400&q=80",
+    };
+
+    function savedTypeLabel(itemType) {
+        const type = String(itemType || "").toLowerCase();
+        if (type === "flight") return "항공";
+        if (type === "hotel" || type === "stay" || type === "accommodation") return "숙박";
+        if (type === "groupbuy" || type === "travel-group") return "공동구매";
+        return type ? type.toUpperCase() : "ITEM";
+    }
+
+    function savedCountryKey(country) {
+        const c = String(country || "").toLowerCase();
+        if (c.includes("일본") || c.includes("japan")) return "japan";
+        if (c.includes("베트남") || c.includes("vietnam")) return "vietnam";
+        if (c.includes("태국") || c.includes("thailand")) return "thailand";
+        if (c.includes("프랑스") || c.includes("france")) return "france";
+        if (c.includes("미국") || c.includes("usa") || c.includes("united states")) return "usa";
+        if (c.includes("이탈리아") || c.includes("italy")) return "italy";
+        if (c.includes("스페인") || c.includes("spain")) return "spain";
+        if (c.includes("영국") || c.includes("uk") || c.includes("united kingdom")) return "uk";
+        return "default";
+    }
+
+    function savedAirlineLogo(code) {
+        if (!code) return "";
+        return `https://images.kiwi.com/airlines/64x64/${encodeURIComponent(String(code).toUpperCase())}.png`;
+    }
+
+    function savedImageUrl(item) {
+        const payload = item?.payload || {};
+        const type = String(item?.item_type || item?.type || "").toLowerCase();
+        if (type === "flight") {
+            return savedAirlineLogo(payload?.airline_code || payload?.airline || "");
+        }
+        const direct = payload?.image_url || payload?.image || payload?.thumbnail || payload?.photo || (Array.isArray(payload?.images) ? payload.images[0] : "");
+        if (direct) return direct;
+        if (type === "groupbuy" || type === "travel-group") {
+            return SAVED_COUNTRY_IMAGE[savedCountryKey(payload?.country)] || SAVED_COUNTRY_IMAGE.default;
+        }
+        return "";
+    }
+
+    function savedMetaParts(item) {
+        const raw = String(item?.meta || "").trim();
+        const parts = raw.split("|").map((x) => x.trim()).filter(Boolean);
+        return {
+            price: parts[0] || "",
+            lines: parts.slice(1, 3),
+        };
     }
 
     function appendUserMessage(text) {
@@ -166,6 +229,34 @@
         renderCart();
     }
 
+    async function refreshAlertItems() {
+        try {
+            const res = await fetch("/api/group-buy/join-requests/inbox", { credentials: "same-origin" });
+            if (res.status === 401) {
+                alertItems = [];
+                return;
+            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            alertItems = Array.isArray(data) ? data : [];
+        } catch (_e) {
+            alertItems = [];
+        }
+    }
+
+    async function decideAlertItem(requestId, action) {
+        const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}/decision`, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action }),
+        });
+        if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            throw new Error(d?.detail || `HTTP ${res.status}`);
+        }
+    }
+
     function setCartDrawer(open) {
         if (!cartDrawer || !cartFab) return;
         cartDrawer.classList.toggle("is-open", !!open);
@@ -175,6 +266,48 @@
 
     function renderCart() {
         if (!cartList || !cartEmpty) return;
+        if (cartTab === "alerts") {
+            cartList.innerHTML = "";
+            cartEmpty.style.display = alertItems.length ? "none" : "block";
+            cartEmpty.textContent = "도착한 참여 요청 알림이 없습니다.";
+            alertItems.forEach((item) => {
+                const status = String(item.status || "pending");
+                const statusLabel = status === "accepted" ? "수락됨" : (status === "rejected" ? "거절됨" : "대기중");
+                const incoming = String(item.direction || "incoming") !== "mine";
+                const reqTitle = incoming
+                    ? `${escapeHtml(item.requester_name || "-")}님이 요청했습니다`
+                    : `${escapeHtml(item.requester_name || "작성자")}님의 응답`;
+                const li = document.createElement("li");
+                li.className = "ai-cart-item";
+                li.innerHTML = `
+                    <div class="ai-cart-item__content" style="grid-column:1 / -1;">
+                        <div class="ai-cart-item__type">공동구매 · 참여요청</div>
+                        <div class="ai-cart-item__name">${escapeHtml(item.post_title || "-")}</div>
+                        <div class="ai-cart-item__line">${reqTitle}</div>
+                        ${item.requester_email ? `<div class="ai-cart-item__line">이메일: ${escapeHtml(item.requester_email || "")}</div>` : ""}
+                        <div class="ai-cart-item__line">${statusLabel}${item.message ? ` · ${escapeHtml(item.message || "")}` : ""}</div>
+                        ${
+                            incoming && status === "pending"
+                                ? `<div class="ai-cart-item__line">
+                                    <button type="button" data-alert-action="accept" data-alert-id="${Number(item.id)}" style="margin-right:6px;padding:4px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;">수락</button>
+                                    <button type="button" data-alert-action="reject" data-alert-id="${Number(item.id)}" style="padding:4px 8px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700;">거절</button>
+                                </div>`
+                                : ""
+                        }
+                        ${
+                            status !== "pending"
+                                ? `<div class="ai-cart-item__line">
+                                    <button type="button" data-alert-remove="${Number(item.id)}" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#475569;font-size:12px;font-weight:700;">알림 삭제</button>
+                                </div>`
+                                : ""
+                        }
+                    </div>
+                `;
+                cartList.appendChild(li);
+            });
+            return;
+        }
+
         const items = Array.isArray(savedItems[cartTab]) ? savedItems[cartTab] : [];
         cartList.innerHTML = "";
         cartEmpty.style.display = items.length ? "none" : "block";
@@ -185,17 +318,27 @@
             btn.setAttribute("aria-selected", active ? "true" : "false");
         });
         if (cartCount) {
-            const totalCount = (savedItems.cart?.length || 0) + (savedItems.wishlist?.length || 0);
+            const totalCount = (savedItems.cart?.length || 0) + (savedItems.wishlist?.length || 0) + (alertItems?.length || 0);
             cartCount.hidden = totalCount === 0;
             cartCount.textContent = String(totalCount || 0);
         }
         items.forEach((item) => {
             const li = document.createElement("li");
             li.className = "ai-cart-item";
+            const imageUrl = savedImageUrl(item);
+            const meta = savedMetaParts(item);
+            const kind = `${savedTypeLabel(item.item_type || item.type)} · ${item.source || "saved-item"}`;
+            const lines = (meta.lines || []).map((line) => `<div class="ai-cart-item__line">${escapeHtml(line)}</div>`).join("");
             li.innerHTML = `
-                <div class="ai-cart-item__type">${escapeHtml(item.item_type || item.type || "항목")}</div>
-                <div class="ai-cart-item__name">${escapeHtml(item.name || "-")}</div>
-                ${item.meta ? `<div class="ai-cart-item__meta">${escapeHtml(item.meta)}</div>` : ""}
+                <div class="ai-cart-item__thumb">
+                    ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.name || "")}" loading="lazy" onerror="this.remove()">` : ""}
+                </div>
+                <div class="ai-cart-item__content">
+                    <div class="ai-cart-item__type">${escapeHtml(kind)}</div>
+                    <div class="ai-cart-item__name">${escapeHtml(item.name || "-")}</div>
+                    ${meta.price ? `<div class="ai-cart-item__line ai-cart-item__price">${escapeHtml(meta.price)}</div>` : ""}
+                    ${lines}
+                </div>
                 <button type="button" class="ai-cart-item__remove" data-cart-remove="${item.id}" title="삭제">×</button>
             `;
             cartList.appendChild(li);
@@ -235,13 +378,57 @@
         }
     }
 
-    cartFab?.addEventListener("click", () => setCartDrawer(!cartDrawer?.classList.contains("is-open")));
+    cartFab?.addEventListener("click", () => {
+        setCartDrawer(!cartDrawer?.classList.contains("is-open"));
+        if (cartDrawer?.classList.contains("is-open")) {
+            refreshAlertItems().then(renderCart);
+        }
+    });
     shell.querySelectorAll("[data-cart-close]").forEach((el) => el.addEventListener("click", () => setCartDrawer(false)));
     cartTabs.forEach((btn) => btn.addEventListener("click", () => {
         cartTab = btn.getAttribute("data-cart-tab") || "cart";
+        if (cartTab === "alerts") {
+            refreshAlertItems().then(renderCart);
+            return;
+        }
         renderCart();
     }));
     cartList?.addEventListener("click", (e) => {
+        const alertBtn = e.target.closest("[data-alert-action]");
+        if (alertBtn) {
+            const requestId = Number(alertBtn.getAttribute("data-alert-id"));
+            const action = String(alertBtn.getAttribute("data-alert-action") || "");
+            if (!requestId || !action) return;
+            (async () => {
+                try {
+                    await decideAlertItem(requestId, action);
+                    await refreshAlertItems();
+                    renderCart();
+                } catch (err) {
+                    alert(err?.message || "요청 처리 중 오류가 발생했습니다.");
+                }
+            })();
+            return;
+        }
+        const alertRemoveBtn = e.target.closest("[data-alert-remove]");
+        if (alertRemoveBtn) {
+            const requestId = Number(alertRemoveBtn.getAttribute("data-alert-remove"));
+            if (!requestId) return;
+            (async () => {
+                try {
+                    const res = await fetch(`/api/group-buy/join-requests/${requestId}`, { method: "DELETE", credentials: "same-origin" });
+                    if (!res.ok) {
+                        const d = await res.json().catch(() => ({}));
+                        throw new Error(d?.detail || `HTTP ${res.status}`);
+                    }
+                    await refreshAlertItems();
+                    renderCart();
+                } catch (err) {
+                    alert(err?.message || "알림 삭제 중 오류가 발생했습니다.");
+                }
+            })();
+            return;
+        }
         const btn = e.target.closest("[data-cart-remove]");
         if (!btn) return;
         const itemId = Number(btn.getAttribute("data-cart-remove"));
@@ -261,6 +448,7 @@
         })();
     });
     refreshSavedItems();
+    refreshAlertItems().then(renderCart);
 
     function parseFlightTableCards(rawHtml) {
         const html = String(rawHtml || "");

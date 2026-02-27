@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DESTINO - 렌터카 예약</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
-    <link rel="stylesheet" href="../static/rental.css">
+    <link rel="stylesheet" href="/static/rental.css?v=20260227b">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -200,9 +200,30 @@
             </div>
             <div class="car-grid">
                 {% for car in rental_cars %}
-                <div class="car-card">
+                {% set rental_payload = {
+                    "name": car.name,
+                    "supplier": car.supplier,
+                    "price": car.price,
+                    "currency": car.currency,
+                    "image": car.image,
+                    "specs": car.specs,
+                    "pickup_name": pickup_name,
+                    "dropoff_name": dropoff_name,
+                    "pickup_at": pickup_at,
+                    "dropoff_at": dropoff_at
+                } %}
+                <div class="car-card" data-rental-card data-rental-key="{{ (car.name or '') ~ '|' ~ (car.supplier or '') ~ '|' ~ (car.price or '') ~ '|' ~ (car.currency or '') }}">
                     <div class="car-img-box">
                         <img src="{{ car.image if car.image else 'https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?q=80&w=400&auto=format&fit=crop' }}" class="car-img" alt="{{ car.name }}">
+                        <button
+                            type="button"
+                            class="rental-card-wish-btn"
+                            data-rental-wish='{{ rental_payload|tojson|e }}'
+                            aria-label="위시리스트"
+                            title="위시리스트"
+                        >
+                            <i data-lucide="heart" width="18" height="18"></i>
+                        </button>
                     </div>
                     <div class="car-info">
                         <h3 class="car-name">{{ car.name }}</h3>
@@ -222,6 +243,18 @@
                         {% if car.price_per_day %}
                         <div class="rental-price-sub">1일당 약 {{ '{:,}'.format(car.price_per_day|int) }} {{ car.currency or 'KRW' }}</div>
                         {% endif %}
+                        <div class="rental-card-actions">
+                            <button
+                                type="button"
+                                class="rental-card-cart-btn"
+                                data-rental-cart='{{ rental_payload|tojson|e }}'
+                            >장바구니</button>
+                            <button
+                                type="button"
+                                class="rental-card-book-btn"
+                                data-rental-reserve='{{ rental_payload|tojson|e }}'
+                            >예약하기</button>
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
@@ -233,12 +266,34 @@
                     <div class="car-info">
                         <h3 class="car-name">대여/반납 장소와 시간을 선택하면 실시간 차량을 조회합니다</h3>
                         <div class="car-specs"><span>도시/공항/역 검색</span>|<span>필터/정렬 지원</span></div>
-                        <div class="car-price-row"><div class="car-price">실시간 조회<span>Booking API</span></div></div>
+                        <div class="car-price-row"><div class="car-price">실시간 조회<span>Sky Cars</span></div></div>
                     </div>
                 </div>
             </div>
             {% endif %}
         </section>
+
+        <button id="rentalSavedFab" class="rental-saved-fab" type="button" aria-expanded="false" aria-controls="rentalSavedDrawer" title="장바구니 열기">
+            <span class="rental-saved-fab__icon">🧺</span>
+            <span class="rental-saved-fab__label">장바구니</span>
+            <span id="rentalSavedFabCount" class="rental-saved-fab__count" hidden>0</span>
+        </button>
+        <div id="rentalSavedDrawer" class="rental-saved-drawer" aria-hidden="true">
+            <div class="rental-saved-drawer__backdrop" data-rental-saved-close></div>
+            <section class="rental-saved-drawer__panel">
+                <div class="rental-saved-drawer__grab"></div>
+                <div class="rental-saved-drawer__header">
+                    <div class="rental-saved-tabs" role="tablist" aria-label="저장 항목 탭">
+                        <button type="button" class="rental-saved-tab is-active" data-rental-saved-tab="cart" aria-selected="true">장바구니</button>
+                        <button type="button" class="rental-saved-tab" data-rental-saved-tab="wishlist" aria-selected="false">위시리스트</button>
+                        <button type="button" class="rental-saved-tab" data-rental-saved-tab="alerts" aria-selected="false">알림</button>
+                    </div>
+                    <button type="button" class="rental-saved-drawer__close" data-rental-saved-close>닫기</button>
+                </div>
+                <ul id="rentalSavedList" class="rental-saved-list"></ul>
+                <div id="rentalSavedEmpty" class="rental-saved-empty">저장된 항목이 없습니다.</div>
+            </section>
+        </div>
     </main>
 
     <script>
@@ -256,6 +311,6 @@
             dropoffAt: {{ (dropoff_at or '')|tojson }}
         };
     </script>
-    <script src="../static/rental.js"></script>
+    <script src="/static/rental.js?v=20260227b"></script>
 </body>
 </html>

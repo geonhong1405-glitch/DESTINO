@@ -1061,17 +1061,18 @@ ul {
 
 .ai-cart-fab {
     position: fixed;
-    right: 18px;
-    bottom: 18px;
+    right: 20px;
+    bottom: 20px;
     z-index: 1200;
     display: inline-flex;
     align-items: center;
     gap: 8px;
     border: 0;
     border-radius: 999px;
-    padding: 10px 12px;
     background: linear-gradient(135deg, #0ea5e9, #2563eb);
     color: #fff;
+    padding: 10px 12px;
+    font-weight: 700;
     box-shadow: 0 12px 28px rgba(37, 99, 235, 0.28);
     cursor: pointer;
 }
@@ -1102,54 +1103,40 @@ ul {
 
 .ai-cart-drawer {
     position: fixed;
-    inset: 0;
-    z-index: 1190;
-    pointer-events: none;
-}
-
-.ai-cart-drawer.is-open {
-    pointer-events: auto;
-}
-
-.ai-cart-drawer__backdrop {
-    position: absolute;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.22);
-    opacity: 0;
-    transition: opacity 0.2s ease;
-}
-
-.ai-cart-drawer.is-open .ai-cart-drawer__backdrop {
-    opacity: 1;
+    right: 20px;
+    bottom: 78px;
+    z-index: 1199;
+    width: min(420px, calc(100vw - 24px));
+    max-height: min(56vh, 480px);
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
+    padding: 10px 12px 12px;
+    display: none;
+    overflow: hidden;
 }
 
 .ai-cart-drawer__panel {
-    position: absolute;
-    right: 14px;
-    bottom: 72px;
-    width: min(430px, calc(100vw - 28px));
-    max-height: min(62vh, 560px);
-    overflow: auto;
-    transform: translateY(16px);
-    opacity: 0;
-    transition: transform 0.22s ease, opacity 0.22s ease;
-    border: 1px solid rgba(226, 232, 240, 0.95);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.97);
-    padding: 10px 12px;
-    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+    position: static;
+    width: 100%;
+    max-height: 100%;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
 }
 
-.ai-cart-drawer.is-open .ai-cart-drawer__panel {
-    transform: translateY(0);
-    opacity: 1;
-}
+.ai-cart-drawer.is-open { display: block; }
+.ai-cart-drawer__backdrop { display: none; }
 
 .ai-cart-drawer__grab {
-    width: 44px;
+    width: 46px;
     height: 4px;
     border-radius: 999px;
-    background: #cbd5e1;
+    background: #d1d5db;
     margin: 0 auto 10px;
 }
 
@@ -1168,106 +1155,132 @@ ul {
 
 .ai-cart-tabs {
     display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 3px;
+    background: #f3f4f6;
+    padding: 4px;
+    border-radius: 12px;
+    gap: 4px;
 }
 
 .ai-cart-tab {
-    height: 28px;
-    padding: 0 10px;
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 700;
-    color: #475569;
+    border: 0;
     background: transparent;
-    border: none;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 8px 12px;
+    border-radius: 10px;
     cursor: pointer;
 }
 
 .ai-cart-tab.is-active {
-    background: #eff6ff;
-    color: #1d4ed8;
+    background: #fff;
+    color: #0d2b5b;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
 }
 
 .ai-cart-drawer__close {
-    border: 1px solid #dbeafe;
-    background: #eff6ff;
-    color: #1d4ed8;
-    border-radius: 9px;
-    padding: 4px 8px;
-    font-size: 11px;
+    border: 0;
+    background: #eef2ff;
+    color: #274690;
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 12px;
     font-weight: 700;
     cursor: pointer;
 }
 
 .ai-cart-list {
-    display: flex;
-    flex-direction: column;
+    margin-top: 8px;
+    display: grid;
     gap: 8px;
+    max-height: calc(min(56vh, 480px) - 92px);
+    overflow: auto;
+    padding-right: 4px;
 }
 
 .ai-cart-empty {
-    font-size: 12px;
+    font-size: 13px;
     color: #64748b;
-    padding: 6px 2px 2px;
+    padding: 14px 6px 6px;
 }
 
 .ai-cart-item {
-    position: relative;
-    list-style: none;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
+    display: grid;
+    grid-template-columns: 54px 1fr auto;
+    gap: 10px;
+    align-items: start;
+    border: 1px solid #eef2f7;
+    border-radius: 14px;
     background: #fff;
-    padding: 9px 34px 9px 10px;
+    padding: 10px;
+}
+
+.ai-cart-item__thumb {
+    width: 54px;
+    height: 54px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #dbeafe, #e5e7eb);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ai-cart-item__thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.ai-cart-item__content {
+    min-width: 0;
 }
 
 .ai-cart-item__type {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px 7px;
-    border-radius: 999px;
-    background: #eff6ff;
-    color: #1d4ed8;
     font-size: 11px;
+    color: #94a3b8;
     font-weight: 700;
     margin-bottom: 4px;
 }
 
 .ai-cart-item__name {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
-    color: #111827;
+    color: #0f172a;
     line-height: 1.35;
+    margin-bottom: 4px;
+    word-break: break-word;
 }
 
-.ai-cart-item__meta {
-    margin-top: 3px;
+.ai-cart-item__line {
     font-size: 12px;
-    color: #475569;
+    color: #64748b;
     line-height: 1.35;
+    word-break: break-word;
+}
+
+.ai-cart-item__price {
+    color: #00aaff;
+    font-weight: 800;
 }
 
 .ai-cart-item__remove {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 22px;
-    height: 22px;
+    border: 0;
+    background: #f8fafc;
+    color: #475569;
+    width: 30px;
+    height: 30px;
     border-radius: 999px;
-    border: 1px solid #e2e8f0;
-    background: #fff;
-    color: #64748b;
     cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
 }
 
 .ai-cart-item__remove:hover {
+    background: #fee2e2;
     color: #b91c1c;
-    border-color: #fecaca;
-    background: #fef2f2;
 }
 
 
@@ -1324,21 +1337,19 @@ ul {
     }
 
     .ai-cart-fab {
-        right: 12px;
-        bottom: 12px;
-        padding: 9px 11px;
+        right: 14px;
+        bottom: 14px;
     }
 
     .ai-cart-fab__label {
         display: none;
     }
 
-    .ai-cart-drawer__panel {
-        right: 8px;
-        left: 8px;
+    .ai-cart-drawer {
+        right: 12px;
+        left: 12px;
         width: auto;
-        bottom: 64px;
-        max-height: 58vh;
+        bottom: 70px;
     }
 
     .ai-commerce-card--flight {

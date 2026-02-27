@@ -109,6 +109,22 @@
             {% if hotels %}
             <div class="deals-grid">
                 {% for hotel in hotels %}
+                {% set hotel_payload = {
+                    "hotel_id": (hotel.hotel_id|default("")),
+                    "name": ((hotel.name_ko|default("")) or (hotel.name|default(""))),
+                    "address": (hotel.address|default("")),
+                    "city": (city|default("")),
+                    "country": (country|default("")),
+                    "checkin": (checkin|default("")),
+                    "checkout": (checkout|default("")),
+                    "price": (hotel.price|default("")),
+                    "currency": ((hotel.currency|default("")) or "KRW"),
+                    "image": (hotel.image|default("")),
+                    "hotel_url": (hotel.hotel_url|default("")),
+                    "nights": (hotel.nights|default("")),
+                    "price_per_night": (hotel.price_per_night|default("")),
+                    "source": (hotel.source|default("Booking"))
+                } %}
                 <article class="hotel-card {% if hotel.hotel_id %}is-clickable{% endif %}">
                     {% if hotel.hotel_id %}
                     <a
@@ -120,6 +136,15 @@
                     {% set card_photos = hotel.photo_gallery if hotel.photo_gallery else [] %}
                     <div class="hotel-img-wrap">
                         <img src="{{ hotel.image if hotel.image else 'https://images.unsplash.com/photo-1560347876-aeef00ee58a1?auto=format&fit=crop&w=600&q=80' }}" alt="호텔 이미지" style="object-fit: cover; width: 100%; height: 180px" />
+                        <button
+                            type="button"
+                            class="hotel-card-wish-btn"
+                            data-hotel-wish='{{ hotel_payload|tojson|e }}'
+                            aria-label="위시리스트"
+                            title="위시리스트"
+                        >
+                            <i data-lucide="heart" width="18" height="18"></i>
+                        </button>
                         {% if card_photos and card_photos|length > 1 %}
                         <div class="card-thumb-strip" aria-hidden="true">
                             {% for cp in card_photos[1:4] %}
@@ -196,6 +221,28 @@
         </section>
     </main>
 
+    <button id="hotelSavedFab" class="hotel-saved-fab" type="button" aria-expanded="false" aria-controls="hotelSavedDrawer" title="장바구니 열기">
+        <span class="hotel-saved-fab__icon">🧺</span>
+        <span class="hotel-saved-fab__label">장바구니</span>
+        <span id="hotelSavedFabCount" class="hotel-saved-fab__count" hidden>0</span>
+    </button>
+    <div id="hotelSavedDrawer" class="hotel-saved-drawer" aria-hidden="true">
+        <div class="hotel-saved-drawer__backdrop" data-hotel-saved-close></div>
+        <section class="hotel-saved-drawer__panel">
+            <div class="hotel-saved-drawer__grab"></div>
+            <div class="hotel-saved-drawer__header">
+                <div class="hotel-saved-tabs" role="tablist" aria-label="저장 항목 탭">
+                    <button type="button" class="hotel-saved-tab is-active" data-hotel-saved-tab="cart" aria-selected="true">장바구니</button>
+                    <button type="button" class="hotel-saved-tab" data-hotel-saved-tab="wishlist" aria-selected="false">위시리스트</button>
+                    <button type="button" class="hotel-saved-tab" data-hotel-saved-tab="alerts" aria-selected="false">알림</button>
+                </div>
+                <button type="button" class="hotel-saved-drawer__close" data-hotel-saved-close>닫기</button>
+            </div>
+            <ul id="hotelSavedList" class="hotel-saved-list"></ul>
+            <div id="hotelSavedEmpty" class="hotel-saved-empty">저장된 항목이 없습니다.</div>
+        </section>
+    </div>
+
     <footer class="footer">
         <div class="footer-container">
             <div class="footer-top">
@@ -216,6 +263,6 @@
         </div>
     </footer>
 
-    <script src="/static/gloval-hotel.js"></script>
+    <script src="/static/gloval-hotel.js?v=20260227c"></script>
 </body>
 </html>

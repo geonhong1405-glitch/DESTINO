@@ -16,6 +16,7 @@ from app.endpoints.rag_api import router as rag_router
 from app.endpoints.flight_chat import router as flight_chat_router
 from app.endpoints.rental import router as rental_router
 from app.endpoints.saved_items import router as saved_items_router
+from app.endpoints.group_buy import router as group_buy_router
 from app.api.amadeus_api import (
     search_hotels as amadeus_search_hotels,
     resolve_location_to_iata as amadeus_resolve_location_to_iata,
@@ -1212,6 +1213,7 @@ app.include_router(rag_router)
 app.include_router(flight_chat_router)
 app.include_router(rental_router)
 app.include_router(saved_items_router)
+app.include_router(group_buy_router)
 
 
 
@@ -1274,6 +1276,27 @@ def api_update_profile(request: Request, payload: dict, db: Session = Depends(ge
             "phone": user.phone,
         },
     }
+
+
+@app.get("/api/me")
+def api_me(request: Request, db: Session = Depends(get_db)):
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        return {"ok": False, "user": None}
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        return {"ok": False, "user": None}
+    return {
+        "ok": True,
+        "user": {
+            "id": user.id,
+            "name": user.name or "",
+            "nickname": user.nickname or "",
+            "email": user.email or "",
+            "phone": user.phone or "",
+        },
+    }
 @app.get("/logout")
 def logout(request: Request):
     session_token = request.cookies.get("session_token")
@@ -1286,8 +1309,8 @@ def logout(request: Request):
 
 @app.get("/check-username")
 def check_username(username: str = Query(...), db: Session = Depends(get_db)):
-    exists = db.query(User).filter(User.name == username).first() is not None
-    return {"exists": exists}
+    # 아이디 중복 허용 정책: 중복 체크 결과를 노출하지 않음
+    return {"exists": False}
 
 
 @app.get("/check-email")
@@ -1491,17 +1514,32 @@ def signin_post(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    user = db.query(User).filter(User.name == username).first()
-    if not user:
+    users = (
+        db.query(User)
+        .filter(User.name == username)
+        .order_by(User.id.desc())
+        .all()
+    )
+    if not users:
         return templates.TemplateResponse("signin.html", {"request": request, "error": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해주세요."})
-    ok, needs_upgrade = _verify_password(password, user.password)
-    if not ok:
+
+    matched_user = None
+    needs_upgrade = False
+    for u in users:
+        ok, upgrade = _verify_password(password, u.password)
+        if ok:
+            matched_user = u
+            needs_upgrade = upgrade
+            break
+
+    if not matched_user:
         return templates.TemplateResponse("signin.html", {"request": request, "error": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해주세요."})
+
     if needs_upgrade:
-        user.password = _hash_password(password)
+        matched_user.password = _hash_password(password)
         db.commit()
 
-    session_token = create_session(user.id)
+    session_token = create_session(matched_user.id)
     response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
     response.set_cookie(key="session_token", value=session_token, httponly=True)
     return response
@@ -1850,8 +1888,6 @@ def create_user(
     phone: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    if db.query(User).filter(User.name == username).first():
-        return templates.TemplateResponse("join.html", {"request": request, "error": "이미 사용 중인 아이디입니다."})
     if db.query(User).filter(User.email == email).first():
         return templates.TemplateResponse("join.html", {"request": request, "error": "이미 사용 중인 이메일입니다."})
     if db.query(User).filter(User.phone == phone).first():
@@ -1869,9 +1905,4 @@ def create_user(
     db.commit()
     db.refresh(user)
     return RedirectResponse(url="/login", status_code=302)
-
-
-
-
-
 

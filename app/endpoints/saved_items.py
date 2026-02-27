@@ -3,7 +3,7 @@ import json
 from fastapi import APIRouter, HTTPException, Request
 
 from app.db.db import SessionLocal
-from app.db.models import UserSavedItem
+from app.db.models import GroupBuyPost, UserSavedItem
 from app.session import get_user_id_from_session
 
 router = APIRouter(prefix="/api", tags=["saved-items"])
@@ -49,9 +49,32 @@ def get_saved_items(request: Request):
             .all()
         )
         grouped = {"wishlist": [], "cart": []}
+        valid_group_post_ids = {
+            int(x.id) for x in db.query(GroupBuyPost.id).all() if x and x.id is not None
+        }
+        stale_ids = []
         for row in rows:
+            # 과거에 삭제된 공동구매 글을 참조하는 저장항목 자동 정리
+            if str(row.item_type or "").lower() in {"groupbuy", "travel-group"}:
+                payload = None
+                try:
+                    payload = json.loads(row.payload_json) if row.payload_json else None
+                except Exception:
+                    payload = None
+                post_id = payload.get("post_id") if isinstance(payload, dict) else None
+                if post_id is not None:
+                    try:
+                        if int(post_id) not in valid_group_post_ids:
+                            stale_ids.append(int(row.id))
+                            continue
+                    except Exception:
+                        pass
+
             key = row.list_type if row.list_type in grouped else "cart"
             grouped[key].append(_serialize_row(row))
+        if stale_ids:
+            db.query(UserSavedItem).filter(UserSavedItem.id.in_(stale_ids)).delete(synchronize_session=False)
+            db.commit()
         return grouped
     finally:
         db.close()
@@ -138,4 +161,3 @@ def delete_saved_item(item_id: int, request: Request):
         return {"ok": True}
     finally:
         db.close()
-

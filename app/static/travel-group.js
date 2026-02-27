@@ -1,610 +1,728 @@
-/**
- * DESTINO - 여행 공동예매 통합 스크립트
+﻿/**
+ * DESTINO 공동구매 페이지 스크립트
  */
 
-const RECOMMENDED_COUNTRIES = [
-    "일본",
-    "베트남",
-    "프랑스",
-    "태국",
-    "미국",
-    "이탈리아",
-    "스페인",
-    "영국",
-];
+const RECOMMENDED_COUNTRIES = ['일본', '베트남', '태국', '프랑스', '미국', '이탈리아', '스페인', '영국'];
 const COUNTRY_CITIES = {
-    일본: ["도쿄", "오사카", "교토", "후쿠오카", "삿포로"],
-    베트남: ["다낭", "나트랑", "하노이", "호치민", "푸꾸옥"],
-    프랑스: ["파리", "니스", "리옹", "마르세유"],
-    태국: ["방콕", "푸켓", "치앙마이", "파타야"],
-    미국: ["뉴욕", "LA", "라스베이거스", "시카고", "샌프란시스코"],
-    이탈리아: ["로마", "피렌체", "베네치아", "밀라노"],
-    스페인: ["바르셀로나", "마드리드", "세비야"],
-    영국: ["런던", "에든버러", "맨체스터"],
+    일본: ['오사카', '도쿄', '교토', '후쿠오카', '삿포로'],
+    베트남: ['다낭', '나트랑', '하노이', '호치민', '푸꾸옥'],
+    태국: ['방콕', '푸켓', '치앙마이', '파타야'],
+    프랑스: ['파리', '니스', '리옹', '마르세유'],
+    미국: ['뉴욕', '로스앤젤레스', '라스베이거스', '샌프란시스코'],
+    이탈리아: ['로마', '밀라노', '베네치아', '피렌체'],
+    스페인: ['바르셀로나', '마드리드', '세비야'],
+    영국: ['런던', '에든버러', '맨체스터'],
+};
+
+const GROUPBUY_IMAGE_BY_COUNTRY = {
+    japan: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=800&q=80',
+    vietnam: 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=800&q=80',
+    thailand: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?auto=format&fit=crop&w=800&q=80',
+    france: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=800&q=80',
+    usa: 'https://images.unsplash.com/photo-1485738422979-f5c462d49f74?auto=format&fit=crop&w=800&q=80',
+    italy: 'https://images.unsplash.com/photo-1525874684015-58379d421a52?auto=format&fit=crop&w=800&q=80',
+    spain: 'https://images.unsplash.com/photo-1543783207-ec64e4d95325?auto=format&fit=crop&w=800&q=80',
+    uk: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=800&q=80',
+    default: 'https://images.unsplash.com/photo-1488085061387-422e29b40080?auto=format&fit=crop&w=800&q=80',
 };
 
 let posts = [
     {
         id: 1,
-        country: "일본",
-        title: "오사카 3박 4일 벚꽃 투어 멤버 구함!",
-        start: "2025-03",
-        departure: "인천",
-        budget: "60만원",
+        country: '일본',
+        city: '오사카',
+        title: '오사카 3박 4일 벚꽃 투어 멤버 구함!',
+        start: '2026-03',
+        departure: '인천',
+        budget: '600,000원',
         current: 2,
-        max: '명 참여 중',
-        status: "open",
-        desc: "벚꽃 시즌에 맞춰 오사카 주요 명소를 함께 둘러볼 분들을 찾습니다. 숙소 공동예약으로 경비를 절감해요!",
+        max: 4,
+        status: 'open',
+        desc: '항공+숙소 함께 예약하실 분 모집합니다.',
     },
     {
         id: 2,
-        country: "베트남",
-        title: "다낭 풀빌라 같이 예약하실 분? (여성만)",
-        start: "2025-04",
-        departure: "인천",
-        budget: "80만원",
+        country: '베트남',
+        city: '다낭',
+        title: '다낭 풀빌라 같이 예약하실 분?',
+        start: '2026-04',
+        departure: '인천',
+        budget: '800,000원',
         current: 3,
-        max: '명 참여 중',
-        status: "open",
-        desc: "럭셔리 풀빌라 4인실을 예약하려고 합니다. 현재 3명 확정이며 마지막 한 분 모셔요.",
+        max: 4,
+        status: 'open',
+        desc: '가족형 풀빌라 공동구매 인원 모집입니다.',
     },
     {
         id: 3,
-        country: "태국",
-        title: "방콕 미식 탐방 5일차 조인하실 분",
-        start: "2025-03",
-        departure: "김해",
-        budget: "45만원",
+        country: '태국',
+        city: '방콕',
+        title: '방콕 미식 탐방 5일 조인하실 분',
+        start: '2026-03',
+        departure: '김해',
+        budget: '450,000원',
         current: 4,
-        max: '명 참여 중',
-        status: "closed",
-        desc: "방콕의 맛집들을 도장깨기 할 동행자들을 모집했습니다. 모집이 마감되었습니다.",
-    },
-    {
-        id: 4,
-        country: "프랑스",
-        title: "파리 에펠탑 뷰 숙소 공동예매해요",
-        start: "2025-05",
-        departure: "인천",
-        budget: "150만원",
-        current: 1,
-        max: '명 참여 중',
-        status: "open",
-        desc: "에펠탑이 보이는 숙소를 혼자 예약하기 부담스러워 동행을 구합니다. 깔끔하신 분 환영합니다.",
-    },
-    {
-        id: 5,
-        country: "미국",
-        title: "뉴욕 뮤지컬 데이 티켓 공동구매",
-        start: "2025-03",
-        departure: "뉴욕현지",
-        budget: "20만원",
-        current: 2,
-        max: '명 참여 중',
-        status: "open",
-        desc: "브로드웨이 뮤지컬 단체 할인을 위해 인원을 모으고 있습니다. 현지 합류도 가능합니다.",
+        max: 4,
+        status: 'closed',
+        desc: '미식 위주 일정이며 모집은 마감되었습니다.',
     },
 ];
 
-// 페이지당 보여줄 게시글 개수 설정
-const itemsPerPage = 5; 
-// 필터링된 포스트를 담을 변수 (페이지네이션에서 사용)
-let filteredPosts = [...posts];
+const itemsPerPage = 5;
+let currentPage = 1;
+let currentDetailPostId = null;
+let currentUserProfile = { nickname: '', email: '' };
 
+let savedItemsState = { wishlist: [], cart: [] };
+let groupSavedTab = 'cart';
+let groupAlertState = [];
 
-// 로그인 여부 확인 함수 (window.__AUTH__에 nickname이 있으면 로그인 상태)
 function isLoggedIn() {
-    return window.__AUTH__ && window.__AUTH__.nickname && window.__AUTH__.nickname !== '';
+    return !!(window.__AUTH__ && window.__AUTH__.nickname);
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-    initPage();
-    // 글쓰기 버튼 로그인 체크 (모달 자체가 열리지 않도록)
-    const writeBtn = document.querySelector('.btn-write');
-    if (writeBtn) {
-        // 기존 onclick 속성 제거 (HTML에서 남아있을 수 있음)
-        writeBtn.onclick = null;
-        writeBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            if (!isLoggedIn()) {
-                alert('로그인 후 이용 가능합니다.');
-                return false;
-            }
-            openModal('writeModal');
-        });
-    }
-});
-
-function initPage() {
-    renderPosts(); // 게시글 목록 그리기
-    setupInteractions(); // 기존 검색바 클릭 이벤트
-    initPopovers(); // ★ 글쓰기 모달 내 나라/도시 클릭 이벤트 (중요)
-    populateRecommendations(); // ★ 글쓰기 모달 내 추천 나라 리스트 생성 (중요)
-
-    // 추가/수정: 페이지 로드 시 날짜 제한 초기화 및 이벤트 연결
-    initDateConstraints(); 
-    const categorySelect = document.getElementById('formCategory');
-    if (categorySelect) {
-        categorySelect.addEventListener('change', initDateConstraints);
-    }
-
-    lucide.createIcons();
-    const startInput = document.getElementById("formDateStart");
-    if (startInput) {
-        startInput.addEventListener("change", updateMinEndDate);
+async function loadCurrentUserProfile() {
+    if (!isLoggedIn()) return;
+    try {
+        const res = await fetch('/api/me', { credentials: 'include', cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const u = data?.user || {};
+        currentUserProfile.nickname = String(u.nickname || window.__AUTH?.nickname || '').trim();
+        currentUserProfile.email = String(u.email || '').trim();
+    } catch (_e) {
+        currentUserProfile.nickname = String(window.__AUTH?.nickname || '').trim();
     }
 }
 
-/**
- * 게시글 목록 렌더링
- */
-function renderPosts(page = 1) {
-    const listContainer = document.getElementById('boardList');
-    if (!listContainer) return;
-    listContainer.innerHTML = '';
+function requireLoginMessage() {
+    if (confirm('로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?')) {
+        location.href = '/login';
+    }
+}
 
-    // 현재 코드의 filteredPosts를 사용하여 페이지네이션 적용
-    const startIndex = (page - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const pageData = filteredPosts.slice(startIndex, endIndex);
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
-    if (pageData.length === 0) {
-        listContainer.innerHTML = '<div style="text-align:center; padding:100px 0; color:#999;">조건에 맞는 게시글이 없습니다.</div>';
-        renderPagination(0, 0);
+function getPostById(id) {
+    return posts.find((p) => Number(p.id) === Number(id));
+}
+
+function normalizeCountryKey(country) {
+    const c = String(country || '').toLowerCase();
+    if (c.includes('일본') || c.includes('japan')) return 'japan';
+    if (c.includes('베트남') || c.includes('vietnam')) return 'vietnam';
+    if (c.includes('태국') || c.includes('thailand')) return 'thailand';
+    if (c.includes('프랑스') || c.includes('france')) return 'france';
+    if (c.includes('미국') || c.includes('usa') || c.includes('united states')) return 'usa';
+    if (c.includes('이탈리아') || c.includes('italy')) return 'italy';
+    if (c.includes('스페인') || c.includes('spain')) return 'spain';
+    if (c.includes('영국') || c.includes('uk') || c.includes('united kingdom')) return 'uk';
+    return 'default';
+}
+
+function getDefaultGroupbuyImage(country) {
+    const key = normalizeCountryKey(country);
+    return GROUPBUY_IMAGE_BY_COUNTRY[key] || GROUPBUY_IMAGE_BY_COUNTRY.default;
+}
+
+function getSavedItemTypeLabel(itemType) {
+    const type = String(itemType || '').toLowerCase();
+    if (type === 'flight') return '항공';
+    if (type === 'hotel' || type === 'stay' || type === 'accommodation') return '숙박';
+    if (type === 'groupbuy' || type === 'travel-group') return '공동구매';
+    return type ? type.toUpperCase() : 'ITEM';
+}
+
+function getGroupSavedImageUrl(item) {
+    const payload = item?.payload || {};
+    if (payload?.image_url) return String(payload.image_url);
+    if (payload?.country) return getDefaultGroupbuyImage(payload.country);
+    return '';
+}
+
+function getStatusLabel(post) {
+    if (post.status === 'closed') return '모집 마감';
+    if ((post.max - post.current) <= 1) return '마감 임박';
+    return '모집 중';
+}
+
+function buildGroupbuyPayload(post) {
+    const name = post.title;
+    const meta = [post.budget, `${post.start} 출발`, `${post.departure} 출발`].filter(Boolean).join(' | ');
+    return {
+        list_type: 'wishlist',
+        item_type: 'groupbuy',
+        name,
+        meta,
+        source: 'travel-group',
+        payload: {
+            post_id: post.id,
+            country: post.country,
+            city: post.city || '',
+            start: post.start,
+            departure: post.departure,
+            budget: post.budget,
+            image_url: getDefaultGroupbuyImage(post.country),
+            status: post.status,
+            current: post.current,
+            max: post.max,
+            desc: post.desc,
+        },
+    };
+}
+
+function getGroupbuyKey(itemLike) {
+    const itemType = String(itemLike?.item_type || '').toLowerCase();
+    const name = String(itemLike?.name || '').toLowerCase();
+    const meta = String(itemLike?.meta || '').toLowerCase();
+    const source = String(itemLike?.source || '').toLowerCase();
+    return `${itemType}__${name}__${meta}__${source}`;
+}
+
+function isPostWished(post) {
+    const payload = buildGroupbuyPayload(post);
+    const key = getGroupbuyKey(payload);
+    return (savedItemsState.wishlist || []).some((item) => getGroupbuyKey(item) === key);
+}
+
+async function savedItemsApi(path = '/api/saved-items', options = {}) {
+    const res = await fetch(path, {
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(options.headers || {}),
+        },
+        ...options,
+    });
+    let data = null;
+    try { data = await res.json(); } catch (_e) {}
+
+    if (res.status === 401) {
+        const err = new Error('LOGIN_REQUIRED');
+        err.code = 'LOGIN_REQUIRED';
+        throw err;
+    }
+    if (!res.ok) {
+        const err = new Error((data && (data.detail || data.error)) || `HTTP ${res.status}`);
+        err.code = 'API_ERROR';
+        throw err;
+    }
+    return data;
+}
+
+async function groupBuyApi(path = '/api/group-buy/posts', options = {}) {
+    const res = await fetch(path, {
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(options.headers || {}),
+        },
+        ...options,
+    });
+    let data = null;
+    try { data = await res.json(); } catch (_e) {}
+    if (res.status === 401) {
+        const err = new Error('LOGIN_REQUIRED');
+        err.code = 'LOGIN_REQUIRED';
+        throw err;
+    }
+    if (!res.ok) {
+        const err = new Error((data && (data.detail || data.error)) || `HTTP ${res.status}`);
+        err.code = 'API_ERROR';
+        throw err;
+    }
+    return data;
+}
+
+async function loadGroupBuyPosts() {
+    try {
+        const rows = await groupBuyApi('/api/group-buy/posts', { method: 'GET', headers: {} });
+        posts = (Array.isArray(rows) ? rows : []).map((row) => ({
+            id: row.id,
+            country: row.country,
+            city: row.city || '',
+            title: row.title,
+            start: String(row.start_date || '').slice(0, 7),
+            departure: row.departure || '인천',
+            budget: row.budget || '',
+            current: Number(row.current_people || 1),
+            max: Number(row.max_people || 4),
+            status: row.status || 'open',
+            desc: row.description || '',
+            ownerUserId: Number(row.owner_user_id || 0),
+            ownerNickname: row.owner_nickname || '',
+            isMine: !!row.is_mine,
+            rawStartDate: row.start_date || '',
+            rawEndDate: row.end_date || '',
+        }));
+    } catch (_e) {
+        posts = [];
+    }
+    renderPosts(1);
+}
+
+async function loadSavedItems() {
+    if (!isLoggedIn()) {
+        savedItemsState = { wishlist: [], cart: [] };
+        renderPosts(currentPage);
+        renderGroupSavedDrawer();
         return;
     }
 
-    pageData.forEach((post) => {
-        // 기존의 인원 현황 계산 및 마감 임박 로직
-        const maxPax = post.max || 4;
-        const progress = (post.current / maxPax) * 100;
-        const isImminent = post.status === 'open' && (maxPax - post.current <= 1);
-        
-        const card = document.createElement('div');
-        card.className = 'board-card';
-        
-        // 클릭 시 현재의 발전된 상세 모달(showDetail) 호출
-        card.onclick = () => showDetail(post.id); 
-        
-        card.innerHTML = `
-            <div class="card-left">
-                <div class="card-meta">
-                    <span class="badge-country">${post.country}</span>
+    try {
+        const data = await savedItemsApi('/api/saved-items', { method: 'GET', headers: {} });
+        savedItemsState = {
+            wishlist: Array.isArray(data?.wishlist) ? data.wishlist : [],
+            cart: Array.isArray(data?.cart) ? data.cart : [],
+        };
+    } catch (_e) {
+        savedItemsState = { wishlist: [], cart: [] };
+    }
+
+    renderPosts(currentPage);
+    renderGroupSavedDrawer();
+}
+
+async function loadGroupAlerts() {
+    try {
+        const res = await fetch('/api/group-buy/join-requests/inbox', { credentials: 'include' });
+        if (res.status === 401) {
+            groupAlertState = [];
+            return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        groupAlertState = Array.isArray(data) ? data : [];
+    } catch (_e) {
+        groupAlertState = [];
+    }
+}
+
+async function decideGroupAlert(requestId, action) {
+    const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}/decision`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+    });
+    if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d?.detail || `HTTP ${res.status}`);
+    }
+}
+
+function renderPosts(page = 1) {
+    currentPage = page;
+    const listContainer = document.getElementById('boardList');
+    const pagination = document.getElementById('pagination');
+    if (!listContainer || !pagination) return;
+
+    const totalPages = Math.ceil(posts.length / itemsPerPage) || 1;
+    const safePage = Math.min(Math.max(page, 1), totalPages);
+    const startIndex = (safePage - 1) * itemsPerPage;
+    const pageData = posts.slice(startIndex, startIndex + itemsPerPage);
+
+    listContainer.innerHTML = pageData.map((post) => {
+        const wished = isPostWished(post);
+        const statusClass = post.status === 'closed' ? 'status-closed' : ((post.max - post.current) <= 1 ? 'status-imminent' : 'status-open');
+        return `
+            <article class="board-card" data-post-id="${Number(post.id)}">
+                <div class="card-left">
+                    <div class="card-meta"><span class="badge-country">${escapeHtml(post.country)}</span></div>
+                    <div class="board-title">${escapeHtml(post.title)}</div>
+                    <div class="board-date"><i data-lucide="calendar" width="14"></i>${escapeHtml(post.start)} 출발 예정 · ${escapeHtml(post.departure || '인천')} 출발</div>
                 </div>
-                <div class="board-title">${post.title}</div>
-                <div class="board-date">
-                    <i data-lucide="calendar" width="14"></i> ${post.start} 출발 예정 · ${post.departure || '인천'} 출발
-                </div>
-            </div>
-            
-            <div class="card-right">
-                <div class="progress-container">
+                <div class="card-right">
                     <div class="progress-label">
                         <span><i data-lucide="users" width="14" style="vertical-align:middle"></i> 인원 현황</span>
-                        <span class="pax-text">
-                            <span class="current-pax">${post.current}</span>
-                            <span class="max-pax">  ${maxPax}</span>
-                        </span>
+                        <span class="pax-text"><span class="current-pax">${post.current}</span> / <span class="max-pax">${post.max}명</span></span>
+                    </div>
+                    <div class="card-footer">
+                        <div class="budget-text">${escapeHtml(post.budget)}</div>
+                        <div class="status-badge ${statusClass}">${getStatusLabel(post)}</div>
                     </div>
                 </div>
-                
-                <div class="card-footer">
-                    <div class="budget-text">${post.budget}</div>
-                    <div class="status-badge ${post.status === 'closed' ? 'status-closed' : (isImminent ? 'status-imminent' : 'status-open')}">
-                        ${post.status === 'closed' ? '모집 마감' : (isImminent ? '마감 임박' : '모집 중')}
-                    </div>
-                </div>
-            </div>
-
-            <button class="card-wish-btn ${post.wish ? 'active' : ''}" type="button">
-                <i data-lucide="heart" width="20" ${post.wish ? 'fill="currentColor"' : 'fill="none"'}></i>
-            </button>
+                <button class="card-wish-btn ${wished ? 'active' : ''}" type="button" data-wish-post-id="${Number(post.id)}" aria-label="위시리스트">
+                    <i data-lucide="heart" width="20" ${wished ? 'fill="currentColor"' : 'fill="none"'}></i>
+                </button>
+            </article>
         `;
-        // 찜 버튼에 로그인 체크 이벤트 바인딩
-        const wishBtn = card.querySelector('.card-wish-btn');
-        if (wishBtn) {
-            wishBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                if (!isLoggedIn()) {
-                    alert('로그인 후 이용 가능합니다.');
-                    return false;
-                }
-                toggleWish(e, post.id);
-            });
+    }).join('');
+
+    pagination.innerHTML = '';
+    if (totalPages > 1) {
+        for (let i = 1; i <= totalPages; i += 1) {
+            const btn = document.createElement('button');
+            btn.className = `page-btn ${i === safePage ? 'active' : ''}`;
+            btn.type = 'button';
+            btn.textContent = String(i);
+            btn.addEventListener('click', () => renderPosts(i));
+            pagination.appendChild(btn);
         }
-        listContainer.appendChild(card);
-    });
-
-    renderPagination(filteredPosts.length, page);
-    lucide.createIcons();
-}
-
-/**
- * 페이지네이션 렌더링 함수
- */
-function renderPagination(totalItems, currentPage) {
-    const container = document.getElementById('pagination');
-    if (!container) return; // HTML에 pagination 아이디를 가진 요소가 없으면 중단
-    
-    container.innerHTML = '';
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
-    
-    // 페이지가 1개 이하라면 페이지네이션을 표시하지 않음
-    if (totalPages <= 1) return;
-
-    // [이전] 버튼
-    const prev = document.createElement('div');
-    prev.className = 'page-nav';
-    prev.innerHTML = '<i data-lucide="chevron-left"></i>';
-    prev.style.cursor = 'pointer';
-    prev.onclick = () => {
-        if (currentPage > 1) renderPosts(currentPage - 1);
-    };
-    container.appendChild(prev);
-
-    // [번호] 버튼들
-    for (let i = 1; i <= totalPages; i++) {
-        const btn = document.createElement('button');
-        btn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
-        btn.innerText = i;
-        btn.onclick = () => renderPosts(i);
-        container.appendChild(btn);
     }
 
-    // [다음] 버튼
-    const next = document.createElement('div');
-    next.className = 'page-nav';
-    next.innerHTML = '<i data-lucide="chevron-right"></i>';
-    next.style.cursor = 'pointer';
-    next.onclick = () => {
-        if (currentPage < totalPages) renderPosts(currentPage + 1);
-    };
-    container.appendChild(next);
-    
-    // 루사이드 아이콘 렌더링
     lucide.createIcons();
 }
 
-/**
- * 상세 페이지 표시 (디자인 및 버튼 반영)
- */
 function showDetail(id) {
-    const p = posts.find((post) => post.id === id);
-    if (!p) return;
+    const post = getPostById(id);
+    if (!post) return;
+    currentDetailPostId = Number(post.id);
 
-    // 개인정보 동의 체크박스 초기화 (항상 해제된 상태로 시작)
-    const privacyCheck = document.getElementById("privacyCheck");
+    const wished = isPostWished(post);
+    const header = document.getElementById('detailHeader');
+    const body = document.getElementById('detailBody');
+    const actions = document.getElementById('detailActions');
+    const privacyCheck = document.getElementById('privacyCheck');
+    const privacyBox = privacyCheck?.closest('.privacy-box');
+
     if (privacyCheck) privacyCheck.checked = false;
 
-    // 헤더 반영
-    document.getElementById("detailHeader").innerHTML = `
-        <div style="font-size:13px; color:var(--primary-color); font-weight:700; margin-bottom:4px;">${p.cat || "공동예매"}</div>
-        <h2 style="font-size:22px;">${p.title}</h2>
-    `;
-
-    // 바디 그리드 반영
-    document.getElementById("detailBody").innerHTML = `
-        <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap: 15px; margin-bottom:20px;">
-            <div style="background:#f0faff; padding:15px; border-radius:12px;">
-                <div style="font-size:11px; color:#0088cc; font-weight:700; margin-bottom:4px;">여행지</div>
-                <div style="font-size:15px; font-weight:700;">${p.country} (${p.city || "전체"})</div>
-            </div>
-            <div style="background:#f8f9fa; padding:15px; border-radius:12px;">
-                <div style="font-size:11px; color:#666; font-weight:700; margin-bottom:4px;">일정</div>
-                <div style="font-size:15px; font-weight:700;">${p.start} 출발</div>
-            </div>
-        </div>
-        <div style="border-top:1px solid #f0f0f0; padding-top:20px;">
-            <div style="font-weight:700; margin-bottom:10px; font-size:15px;">상세 설명</div>
-            <p style="white-space:pre-wrap; color:#555; font-size:14px; line-height:1.7;">${p.desc}</p>
-        </div>
-    `;
-
-    // showDetail 함수 내부의 하단 버튼 영역 부분
-    const actions = document.getElementById("detailActions");
-    actions.innerHTML = `
-        <button id="detailWishBtn" class="btn-detail-wish ${p.wish ? "active" : ""}" type="button">
-            <i data-lucide="heart" width="24" ${p.wish ? 'fill="currentColor"' : 'fill="none"'}></i>
-        </button>
-        <button class="btn-detail-apply" type="button">지금 신청하기</button>
-    `;
-
-    // 찜 버튼에 로그인 체크 이벤트 바인딩
-    const detailWishBtn = document.getElementById("detailWishBtn");
-    if (detailWishBtn) {
-        detailWishBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            if (!isLoggedIn()) {
-                alert('로그인 후 이용 가능합니다.');
-                return false;
-            }
-            toggleWish(e, p.id);
-        });
+    if (header) {
+        header.innerHTML = `
+            <div style="font-size:13px; color:var(--primary-color); font-weight:700; margin-bottom:4px;">공동구매</div>
+            <h2 style="font-size:22px;">${escapeHtml(post.title)}</h2>
+        `;
     }
-    // 신청하기 버튼에 로그인 체크 이벤트 바인딩
-    const applyBtn = actions.querySelector('.btn-detail-apply');
-    if (applyBtn) {
-        applyBtn.addEventListener('click', function(e) {
-            if (!isLoggedIn()) {
-                alert('로그인 후 이용 가능합니다.');
-                return false;
+
+    if (body) {
+        body.innerHTML = `
+            <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap: 15px; margin-bottom:20px;">
+                <div style="background:#f0faff; padding:15px; border-radius:12px;">
+                    <div style="font-size:11px; color:#0088cc; font-weight:700; margin-bottom:4px;">여행지</div>
+                    <div style="font-size:15px; font-weight:700;">${escapeHtml(post.country)} (${escapeHtml(post.city || '미정')})</div>
+                </div>
+                <div style="background:#f8f9fa; padding:15px; border-radius:12px;">
+                    <div style="font-size:11px; color:#666; font-weight:700; margin-bottom:4px;">일정</div>
+                    <div style="font-size:15px; font-weight:700;">${escapeHtml(post.start)} 출발</div>
+                </div>
+            </div>
+            <div style="margin-bottom:20px; font-size:14px; color:#333; font-weight:700;">모집 인원: ${Number(post.current || 1)} / ${Number(post.max || 4)}명</div>
+            <div style="border-top:1px solid #f0f0f0; padding-top:20px;">
+                <div style="font-weight:700; margin-bottom:10px; font-size:15px;">상세 설명</div>
+                <p style="white-space:pre-wrap; color:#555; font-size:14px; line-height:1.7;">${escapeHtml(post.desc || '')}</p>
+            </div>
+            <div id="joinRequestFormWrap" style="display:none; margin-top:18px; padding:14px; border:1px solid #e5e7eb; border-radius:12px; background:#fafcff;">
+                <div style="font-size:13px; font-weight:700; margin-bottom:10px;">참여 요청 양식</div>
+                <div style="display:grid; gap:8px;">
+                    <label style="font-size:12px; color:#666;">닉네임</label>
+                    <input id="joinReqNickname" type="text" readonly style="padding:10px; border:1px solid #e5e7eb; border-radius:8px; background:#f3f4f6;" />
+                    <label style="font-size:12px; color:#666;">이메일</label>
+                    <input id="joinReqEmail" type="email" placeholder="연락 가능한 이메일" style="padding:10px; border:1px solid #e5e7eb; border-radius:8px;" />
+                    <label style="font-size:12px; color:#666;">세부사항</label>
+                    <textarea id="joinReqDetail" rows="3" placeholder="자기소개, 동행 희망사항 등을 적어주세요." style="padding:10px; border:1px solid #e5e7eb; border-radius:8px; resize:vertical;"></textarea>
+                </div>
+            </div>
+        `;
+    }
+
+    if (actions) {
+        const canApply = !post.isMine && post.status !== 'closed';
+        if (privacyBox) {
+            privacyBox.style.display = canApply ? 'flex' : 'none';
+        }
+        actions.innerHTML = `
+            <button id="detailWishBtn" class="btn-detail-wish ${wished ? 'active' : ''}" type="button" data-detail-wish-id="${Number(post.id)}">
+                <i data-lucide="heart" width="24" ${wished ? 'fill="currentColor"' : 'fill="none"'}></i>
+            </button>
+            ${post.isMine
+                ? '<button class="btn-detail-apply" type="button" disabled style="opacity:.7;cursor:not-allowed;">내 게시글</button><button class="btn-detail-apply" type="button" id="detailDeleteBtn" style="background:#ef4444;">게시글 삭제</button>'
+                : (canApply
+                    ? '<button class="btn-detail-apply" type="button" id="detailApplyBtn">참여요청</button>'
+                    : '<button class="btn-detail-apply" type="button" disabled style="opacity:.7;cursor:not-allowed;">모집 마감</button>')
+            }
+        `;
+
+        document.getElementById('detailWishBtn')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleWish(post.id);
+        });
+        document.getElementById('detailApplyBtn')?.addEventListener('click', () => {
+            const wrap = document.getElementById('joinRequestFormWrap');
+            if (!wrap) return;
+            if (wrap.style.display !== 'block') {
+                wrap.style.display = 'block';
+                const nickInput = document.getElementById('joinReqNickname');
+                const emailInput = document.getElementById('joinReqEmail');
+                if (nickInput) nickInput.value = currentUserProfile.nickname || String(window.__AUTH?.nickname || '');
+                if (emailInput && !emailInput.value) emailInput.value = currentUserProfile.email || '';
+                wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
             }
             handleApply();
         });
+        document.getElementById('detailDeleteBtn')?.addEventListener('click', () => deleteMyPost(post.id));
     }
 
+    openModal('detailModal');
     lucide.createIcons();
-    openModal("detailModal");
 }
 
-function toggleWish(e, id) {
-  // 카드 클릭 이벤트(상세보기)가 발생하는 것을 방지
-    if (e) e.stopPropagation();
+async function deleteMyPost(postId) {
+    if (!isLoggedIn()) {
+        requireLoginMessage();
+        return;
+    }
+    if (!confirm('내 게시글을 삭제할까요?')) return;
+    try {
+        await groupBuyApi(`/api/group-buy/posts/${Number(postId)}`, { method: 'DELETE', headers: {} });
+        closeModal('detailModal');
+        await loadGroupBuyPosts();
+        await loadGroupAlerts();
+        renderGroupSavedDrawer();
+        showToast('게시글을 삭제했습니다.');
+    } catch (e) {
+        if (e?.code === 'LOGIN_REQUIRED') return requireLoginMessage();
+        alert(e?.message || '게시글 삭제 중 오류가 발생했습니다.');
+    }
+}
 
-    const post = posts.find((p) => p.id === id);
+async function toggleWish(id) {
+    const post = getPostById(id);
     if (!post) return;
 
-  // 찜 상태 반전
-    post.wish = !post.wish;
-
-  // 목록 다시 그리기 (하트 색상 반영)
-    renderPosts();
-
-  // 만약 상세 모달이 열려있다면 모달 안의 하트도 업데이트
-    const detailModal = document.getElementById("detailModal");
-    const detailWishBtn = document.getElementById("detailWishBtn");
-    // 상세 모달이 눈에 보이는 상태일 때만 실행
-    if (detailWishBtn && document.getElementById("detailModal").style.display === "flex") {
-        // 클래스 토글 (배경색 변경)
-        detailWishBtn.classList.toggle("active", post.wish);
-        // 아이콘 색상 채우기 변경
-        detailWishBtn.innerHTML = `<i data-lucide="heart" width="24" ${post.wish ? 'fill="currentColor"' : 'fill="none"'}></i>`;
-        // Lucide 아이콘 다시 그리기
-        lucide.createIcons();
+    if (!isLoggedIn()) {
+        requireLoginMessage();
+        return;
     }
 
-  // 토스트 알림 (기존에 showToast 함수가 있다면 실행)
-    if (typeof showToast === "function") {
-        showToast(
-            post.wish
-            ? "찜한 목록에 추가되었습니다."
-            : "찜한 목록에서 삭제되었습니다.",
-        );
-    } else {
-        console.log(post.wish ? "찜 추가" : "찜 해제");
+    const payload = buildGroupbuyPayload(post);
+    const key = getGroupbuyKey(payload);
+    const existing = (savedItemsState.wishlist || []).find((item) => getGroupbuyKey(item) === key);
+
+    try {
+        if (existing) {
+            await savedItemsApi(`/api/saved-items/${Number(existing.id)}`, { method: 'DELETE', headers: {} });
+            showToast('위시리스트에서 제거했습니다.');
+        } else {
+            await savedItemsApi('/api/saved-items', { method: 'POST', body: JSON.stringify(payload) });
+            showToast('공동구매를 위시리스트에 추가했습니다.');
+        }
+        await loadSavedItems();
+        if (document.getElementById('detailModal')?.style.display === 'flex') {
+            showDetail(id);
+        }
+    } catch (e) {
+        if (e?.code === 'LOGIN_REQUIRED') return requireLoginMessage();
+        alert(e?.message || '저장 중 오류가 발생했습니다.');
     }
 }
 
-/**
- * 팝업(Popover) 초기화 - 글쓰기 나라/도시 클릭의 핵심
- */
-function initPopovers() {
-    const globalOverlay =
-        document.getElementById("globalOverlay") ||
-        document.getElementById("overlay");
+function setupPostInteractions() {
+    const boardList = document.getElementById('boardList');
+    if (!boardList || boardList.dataset.bound === '1') return;
+    boardList.dataset.bound = '1';
 
-    const setup = (triggerId, popId, doneId) => {
-        const trigger = document.getElementById(triggerId);
-        const pop = document.getElementById(popId);
-
-        if (!trigger || !pop) return;
-
-        trigger.onclick = (e) => {
-            if (trigger.classList.contains("disabled")) return;
+    boardList.addEventListener('click', (e) => {
+        const wishBtn = e.target.closest('[data-wish-post-id]');
+        if (wishBtn) {
+            e.preventDefault();
             e.stopPropagation();
-            pop.classList.toggle("active");
-            globalOverlay.classList.toggle("active");
-        };
-
-        const doneBtn = document.getElementById(doneId);
-        if (doneBtn) {
-                doneBtn.onclick = () => {
-                pop.classList.remove("active");
-                globalOverlay.classList.remove("active");
-            };
+            const postId = Number(wishBtn.getAttribute('data-wish-post-id'));
+            if (!Number.isNaN(postId)) toggleWish(postId);
+            return;
         }
-    };
 
-  // 글쓰기 모달 내 팝오버 연결
-    setup("formCountryTrigger", "formCountryPopover", "formCountryDoneBtn");
-    setup("formCityTrigger", "formCityPopover", "formCityDoneBtn");
+        const card = e.target.closest('.board-card[data-post-id]');
+        if (!card) return;
+        const postId = Number(card.getAttribute('data-post-id'));
+        if (!Number.isNaN(postId)) showDetail(postId);
+    });
 }
 
-/**
- * 시작 날짜를 선택하면 종료 날짜의 최소값을 해당 날짜로 고정
- */
-function updateMinEndDate() {
-    const startInput = document.getElementById('formDateStart');
-    const endInput = document.getElementById('formDateEnd');
-    
-    if (startInput && endInput && startInput.value) {
-        // 도착일의 최소값(min)을 출발일로 설정 (출발일보다 이전 선택 불가)
-        endInput.setAttribute('min', startInput.value);
-        
-        // 만약 기존에 선택된 도착일이 새 출발일보다 빠르면 도착일 초기화
-        if (endInput.value && endInput.value < startInput.value) {
-            endInput.value = '';
+async function handleApply() {
+    const checked = document.getElementById('privacyCheck')?.checked;
+    if (!checked) return alert('개인정보 수집 및 이용 동의가 필요합니다.');
+    if (!isLoggedIn()) {
+        requireLoginMessage();
+        return;
+    }
+    if (!currentDetailPostId) return;
+    try {
+        const email = String(document.getElementById('joinReqEmail')?.value || '').trim();
+        const detail = String(document.getElementById('joinReqDetail')?.value || '').trim();
+        if (!email) return alert('이메일을 입력해주세요.');
+        const res = await groupBuyApi(`/api/group-buy/posts/${Number(currentDetailPostId)}/join-requests`, {
+            method: 'POST',
+            body: JSON.stringify({ email, detail }),
+        });
+        if (res?.created === false) {
+            showToast('이미 요청을 보냈습니다.');
+        } else {
+            showToast('참여 요청이 접수되었습니다.');
         }
+        closeModal('detailModal');
+    } catch (e) {
+        if (e?.code === 'LOGIN_REQUIRED') return requireLoginMessage();
+        alert(e?.message || '요청 처리 중 오류가 발생했습니다.');
     }
 }
 
-/**
- * 추천 나라 목록 생성 (글쓰기 모달 내부)
- */
-function populateRecommendations() {
-    const formList = document.getElementById("formCountryList");
-    if (!formList) return;
-    formList.innerHTML = "";
-
-    RECOMMENDED_COUNTRIES.forEach((c) => {
-        const item = document.createElement("div");
-        item.className = "recommend-item";
-        item.innerHTML = `<i data-lucide="globe" width="14"></i>${c}`;
-
-        item.onclick = () => {
-            document.getElementById("formCountryInput").value = c;
-            document.getElementById("formCountryDisplay").innerText = c;
-            updateFormCities(c); // 나라 선택 시 도시 목록 갱신 호출
-        };
-        formList.appendChild(item);
-    });
-}
-
-/**
- * 도시 목록 업데이트
- */
-function updateFormCities(country) {
-    const trigger = document.getElementById("formCityTrigger");
-    const display = document.getElementById("formCityDisplay");
-    const list = document.getElementById("formCityList");
-
-    trigger.classList.remove("disabled");
-    display.innerText = "도시 선택";
-    list.innerHTML = "";
-
-    const cities = COUNTRY_CITIES[country] || [];
-    cities.forEach((city) => {
-        const div = document.createElement("div");
-        div.className = "recommend-item";
-        div.innerHTML = `<i data-lucide="map-pin" width="14"></i>${city}`;
-        div.onclick = () => {
-            document.getElementById("formCityInput").value = city;
-            display.innerText = city;
-        };
-        list.appendChild(div);
-    });
-    lucide.createIcons();
-}
-
-/**
- * 신청 처리
- */
-function handleApply() {
-    const checked = document.getElementById("privacyCheck").checked;
-    if (!checked) return alert("개인정보 수집 및 이용에 동의해주세요.");
-    alert("신청이 완료되었습니다! 담당자가 확인 후 연락드릴 예정입니다.");
-    closeModal("detailModal");
-}
-
-// 나머지 모달 제어 및 기본 인터랙션은 유지
 function openModal(id) {
     const modal = document.getElementById(id);
     if (!modal) return;
-
-    modal.style.display = "flex";
-
-    // 배경 스크롤 차단 클래스 추가
-    document.body.classList.add("modal-open");
+    modal.style.display = 'flex';
+    document.body.classList.add('modal-open');
 }
+
 function closeModal(id) {
     const modal = document.getElementById(id);
     if (!modal) return;
+    modal.style.display = 'none';
+    document.body.classList.remove('modal-open');
 
-    // 1. 모달 숨기기
-    modal.style.display = "none";
-
-    // 배경 스크롤 차단 해제
-    // (열려있는 다른 모달이 없을 때만 클래스를 제거해야 안전합니다)
-    const openModals = document.querySelectorAll('.modal[style*="display: flex"]');
-    if (openModals.length === 0) {
-        document.body.classList.remove("modal-open");
-    }
-    
-    // 2. 만약 닫는 모달이 '글쓰기 모달(writeModal)'이라면 내용 리셋
     if (id === 'writeModal') {
-        const writeForm = document.getElementById('writeForm');
-        if (writeForm) {
-            writeForm.reset(); // 모든 input, textarea 초기화
-        }
-
-        // 3. 커스텀 디스플레이 요소들 초기화 (나라/도시 선택창)
+        document.getElementById('writeForm')?.reset();
         const countryDisplay = document.getElementById('formCountryDisplay');
         const cityDisplay = document.getElementById('formCityDisplay');
-        
-        if (countryDisplay) countryDisplay.innerText = "나라 선택";
-        if (cityDisplay) {
-            cityDisplay.innerText = "도시 선택";
-            // 도시 선택 버튼을 다시 비활성화 상태로 되돌리고 싶다면 아래 추가
-            document.getElementById('formCityTrigger')?.classList.add('disabled');
-        }
-
-        // 4. 종료 날짜 영역 보이기/숨기기 상태 초기화 (필요 시)
-        const endDateWrapper = document.getElementById('formEndDateWrapper');
-        if (endDateWrapper) {
-            endDateWrapper.style.display = 'block'; // 기본 상태로 복구
-        }
+        if (countryDisplay) countryDisplay.innerText = '나라 선택';
+        if (cityDisplay) cityDisplay.innerText = '도시 입력';
+        document.getElementById('formCityTrigger')?.classList.add('disabled');
+        const list = document.getElementById('formCityList');
+        if (list) list.innerHTML = '';
+        document.querySelectorAll('.popover-container.active').forEach((el) => el.classList.remove('active'));
+        document.getElementById('overlay')?.classList.remove('active');
     }
 }
-function showToast(msg) {
-  /* 토스트 로직 */
+
+function initPopovers() {
+    const overlay = document.getElementById('overlay');
+    const setup = (triggerId, popId, doneId) => {
+        const trigger = document.getElementById(triggerId);
+        const pop = document.getElementById(popId);
+        const done = document.getElementById(doneId);
+        if (!trigger || !pop || !done || !overlay) return;
+
+        trigger.addEventListener('click', (e) => {
+            if (trigger.classList.contains('disabled')) return;
+            if (pop.contains(e.target)) return;
+            e.stopPropagation();
+            pop.classList.add('active');
+            overlay.classList.add('active');
+        });
+
+        pop.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        done.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (triggerId === 'formCountryTrigger') {
+                const typed = String(document.getElementById('formCountryInput')?.value || '').trim();
+                if (typed) {
+                    document.getElementById('formCountryDisplay').innerText = typed;
+                    updateFormCities(typed);
+                }
+            } else if (triggerId === 'formCityTrigger') {
+                const typed = String(document.getElementById('formCityInput')?.value || '').trim();
+                if (typed) {
+                    document.getElementById('formCityDisplay').innerText = typed;
+                }
+            }
+
+            pop.classList.remove('active');
+            overlay.classList.remove('active');
+        });
+    };
+
+    setup('formCountryTrigger', 'formCountryPopover', 'formCountryDoneBtn');
+    setup('formCityTrigger', 'formCityPopover', 'formCityDoneBtn');
+
+    overlay?.addEventListener('click', () => {
+        document.querySelectorAll('.popover-container.active').forEach((el) => el.classList.remove('active'));
+        overlay.classList.remove('active');
+    });
 }
 
-/**
- * 날짜 선택 제한 설정 (항공권은 오늘부터, 그 외는 120일 이후부터)
- */
+function populateRecommendations() {
+    const list = document.getElementById('formCountryList');
+    if (!list) return;
+    list.innerHTML = '';
+
+    RECOMMENDED_COUNTRIES.forEach((country) => {
+        const item = document.createElement('div');
+        item.className = 'recommend-item';
+        item.innerHTML = `<i data-lucide="globe" width="14"></i>${escapeHtml(country)}`;
+        item.addEventListener('click', () => {
+            document.getElementById('formCountryInput').value = country;
+            document.getElementById('formCountryDisplay').innerText = country;
+            updateFormCities(country);
+        });
+        list.appendChild(item);
+    });
+
+    lucide.createIcons();
+}
+
+function updateFormCities(country) {
+    const trigger = document.getElementById('formCityTrigger');
+    const display = document.getElementById('formCityDisplay');
+    const list = document.getElementById('formCityList');
+    if (!trigger || !display || !list) return;
+
+    trigger.classList.remove('disabled');
+    display.innerText = '도시 선택';
+    list.innerHTML = '';
+
+    (COUNTRY_CITIES[country] || []).forEach((city) => {
+        const item = document.createElement('div');
+        item.className = 'recommend-item';
+        item.innerHTML = `<i data-lucide="map-pin" width="14"></i>${escapeHtml(city)}`;
+        item.addEventListener('click', () => {
+            document.getElementById('formCityInput').value = city;
+            display.innerText = city;
+        });
+        list.appendChild(item);
+    });
+
+    lucide.createIcons();
+}
+
 function initDateConstraints() {
-    const startInput = document.getElementById("formDateStart");
-    const categorySelect = document.getElementById('formCategory'); // 여기서 변수를 정의해줘야 합니다.
-    
+    const startInput = document.getElementById('formDateStart');
+    const categorySelect = document.getElementById('formCategory');
     if (!startInput) return;
 
     const now = new Date();
-
-    // 항공권(flight)이 아닐 때만 120일 제한 적용
-    if (categorySelect && categorySelect.value !== 'flight') {
+    if (categorySelect?.value !== 'flight') {
         now.setDate(now.getDate() + 120);
-    } else {
-        // 항공권일 때는 오늘 날짜 이후로 설정
-        now.setDate(now.getDate());
     }
 
-    // YYYY-MM-DD 형식으로 변환 (KST 기준 처리를 위해 로컬 날짜 사용 권장)
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const minDate = `${year}-${month}-${day}`;
-
-    // 출발일 input의 최소 날짜(min) 설정
-    startInput.setAttribute("min", minDate);
-
-    // 만약 현재 입력된 날짜가 바뀐 최소 날짜보다 이전이라면 초기화
-    if (startInput.value && startInput.value < minDate) {
-        startInput.value = "";
-    }
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    startInput.setAttribute('min', `${y}-${m}-${d}`);
 }
 
-function setupInteractions() {
-  // 메인 페이지 검색바 나라 선택 로직 (필요시 유지)
-    const countryGroup = document.getElementById("countryInputGroup");
-    if (countryGroup) {
-        countryGroup.onclick = () => {
-            document.getElementById("countryPopover").classList.add("active");
-            document.getElementById("overlay").classList.add("active");
-        };
-    }
+function updateMinEndDate() {
+    const startInput = document.getElementById('formDateStart');
+    const endInput = document.getElementById('formDateEnd');
+    if (!startInput || !endInput || !startInput.value) return;
+    endInput.setAttribute('min', startInput.value);
+    if (endInput.value && endInput.value < startInput.value) endInput.value = '';
 }
 
-/**
- * 카테고리 선택에 따라 종료 날짜 입력란 표시/숨김 및 필수 속성 제어
- */
 function toggleFormDates() {
     const categorySelect = document.getElementById('formCategory');
     const endDateWrapper = document.getElementById('formEndDateWrapper');
-    const endDateInput = document.getElementById('formDateEnd'); // 입력창 직접 선택
-    
+    const endDateInput = document.getElementById('formDateEnd');
     if (!categorySelect || !endDateWrapper || !endDateInput) return;
 
     if (categorySelect.value === 'flight') {
-        // 항공권(편도)일 때: 도착일 숨기고 필수 입력 해제
         endDateWrapper.style.display = 'none';
         endDateInput.removeAttribute('required');
         endDateInput.value = '';
-    } else if (categorySelect.value === 'roundtrip') {
-        // 왕복 항공권: 출발일/도착일 모두 보이고 필수
-        endDateWrapper.style.display = 'block';
-        endDateInput.setAttribute('required', 'required');
     } else {
-        // 호텔, 패키지 등: 출발/도착일 모두 보이고 필수
         endDateWrapper.style.display = 'block';
         endDateInput.setAttribute('required', 'required');
     }
@@ -612,84 +730,295 @@ function toggleFormDates() {
     initDateConstraints();
 }
 
-/**
- * 새 글 등록 처리 (마이페이지 연동 포함)
- */
-function handleFormSubmit(e) {
-    e.preventDefault();
-
-    // 폼 데이터 가져오기
-    const titleInput = document.getElementById("formTitle");
-    const categorySelect = document.getElementById("formCategory");
-    const dateStart = document.getElementById("formDateStart").value;
-    const countryText = document.getElementById("formCountryDisplay").innerText;
-    const descText = document.getElementById("formDesc").value;
-
-    // 예산(budget) input이 있는지 확인 후 가져오기 (없으면 기본값)
-    const budgetInput = document.getElementById('formBudget');
-    const budgetValue = budgetInput ? budgetInput.value : "협의 후 결정";
-
-    // 2. 유효성 검사
-    if (countryText === "나라 선택") return alert("나라를 선택해주세요.");
-    if (!titleInput.value.trim()) return alert("제목을 입력해주세요.");
-
-    // 3. 새 게시글 객체 생성
-    const newPost = {
-        id: Date.now(), // 고유 ID (삭제 시 사용)
-        title: titleInput.value,
-        country: countryText,
-        start: dateStart,
-        budget: budgetValue,
-        desc: descText,
-        category: categorySelect ? categorySelect.value : 'etc',
-        current: 1,
-        max: '명 참여 중',
-        status: 'open',
-        wish: false
-    };
-
-    // 4. 로컬 스토리지에 저장 (마이페이지 연동의 핵심)
-    saveToLocalStorage(newPost);
-
-    // 5. 현재 페이지 리스트에도 즉시 반영
-    posts.unshift(newPost);
-    filteredPosts = [...posts];
-    renderPosts(1);
-
-    // 6. UI 정리 및 모달 닫기
-    closeModal('writeModal');
-    e.target.reset(); // 폼 초기화
-    document.getElementById('formCountryDisplay').innerText = "나라 선택";
-    document.getElementById('formCityDisplay').innerText = "도시 선택";
+function formatCurrency(input) {
+    const raw = String(input.value || '').replace(/[^0-9]/g, '');
+    input.value = raw ? new Intl.NumberFormat('ko-KR').format(Number(raw)) : '';
 }
 
-/**
- * 숫자에 콤마를 찍고 숫자 이외의 문자를 제거하는 함수
- */
-function formatCurrency(input) {
-    // 1. 숫자 이외의 문자 제거
-    let value = input.value.replace(/[^0-9]/g, "");
-    
-    // 2. 숫자가 없으면 빈값 처리
-    if (!value) {
-        input.value = "";
+async function handleFormSubmit(e) {
+    e.preventDefault();
+
+    const title = document.getElementById('formTitle')?.value?.trim() || '';
+    const country = document.getElementById('formCountryDisplay')?.innerText || '나라 선택';
+    const city = document.getElementById('formCityDisplay')?.innerText || '도시 입력';
+    const maxPeopleRaw = String(document.getElementById('formMaxPeople')?.value || '').trim();
+    const maxPeople = Number(maxPeopleRaw);
+    const start = document.getElementById('formDateStart')?.value || '';
+    const budgetRaw = document.getElementById('formBudget')?.value || '';
+    const desc = document.getElementById('formDesc')?.value?.trim() || '';
+
+    if (!title) return alert('제목을 입력해주세요.');
+    if (country === '나라 선택') return alert('나라를 선택해주세요.');
+    if (!maxPeopleRaw || !Number.isFinite(maxPeople) || maxPeople < 2 || !Number.isInteger(maxPeople)) {
+        return alert('모집 인원은 2명 이상 정수로 입력해주세요.');
+    }
+    if (!start) return alert('출발일을 선택해주세요.');
+
+    const cityValue = (city === '도시 입력' || city === '도시 선택') ? '' : city;
+    const budget = budgetRaw ? `${budgetRaw}원` : '예산 미정';
+    if (!isLoggedIn()) {
+        requireLoginMessage();
+        return;
+    }
+    try {
+        await groupBuyApi('/api/group-buy/posts', {
+            method: 'POST',
+            body: JSON.stringify({
+                category: document.getElementById('formCategory')?.value || 'package',
+                title,
+                country,
+                city: cityValue,
+                max_people: maxPeople,
+                start_date: start,
+                end_date: document.getElementById('formDateEnd')?.value || '',
+                departure: '인천',
+                budget,
+                description: desc,
+            }),
+        });
+        closeModal('writeModal');
+        await loadGroupBuyPosts();
+        showToast('모집 글이 등록되었습니다.');
+    } catch (err) {
+        if (err?.code === 'LOGIN_REQUIRED') return requireLoginMessage();
+        alert(err?.message || '게시글 등록에 실패했습니다.');
+    }
+}
+
+function showToast(msg) {
+    let toast = document.getElementById('toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast';
+        toast.className = 'toast';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.style.display = 'flex';
+    setTimeout(() => {
+        toast.style.display = 'none';
+    }, 1800);
+}
+
+function getGroupSavedTabItems() {
+    return Array.isArray(savedItemsState[groupSavedTab]) ? savedItemsState[groupSavedTab] : [];
+}
+
+function setGroupSavedDrawer(open) {
+    const drawer = document.getElementById('groupSavedDrawer');
+    const fab = document.getElementById('groupSavedFab');
+    if (!drawer || !fab) return;
+    drawer.classList.toggle('is-open', !!open);
+    drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
+    fab.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function renderGroupSavedDrawer() {
+    const listEl = document.getElementById('groupSavedList');
+    const emptyEl = document.getElementById('groupSavedEmpty');
+    const countEl = document.getElementById('groupSavedFabCount');
+    const tabs = document.querySelectorAll('[data-group-saved-tab]');
+    if (!listEl || !emptyEl) return;
+
+    const total = (savedItemsState.cart?.length || 0) + (savedItemsState.wishlist?.length || 0) + (groupAlertState?.length || 0);
+    if (countEl) {
+        countEl.hidden = total === 0;
+        countEl.textContent = String(total);
+    }
+
+    tabs.forEach((btn) => {
+        const isActive = btn.getAttribute('data-group-saved-tab') === groupSavedTab;
+        btn.classList.toggle('is-active', isActive);
+        btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+
+    if (groupSavedTab === 'alerts') {
+        if (!groupAlertState.length) {
+            listEl.innerHTML = '';
+            emptyEl.style.display = 'block';
+            emptyEl.textContent = '도착한 참여 요청 알림이 없습니다.';
+            return;
+        }
+        emptyEl.style.display = 'none';
+        listEl.innerHTML = groupAlertState.map((item) => {
+            const status = String(item.status || 'pending');
+            const statusLabel = status === 'accepted' ? '수락됨' : (status === 'rejected' ? '거절됨' : '대기중');
+            const statusChipStyle = status === 'accepted'
+                ? 'display:inline-block;padding:2px 8px;border-radius:999px;background:#dcfce7;color:#166534;font-weight:800;'
+                : (status === 'rejected'
+                    ? 'display:inline-block;padding:2px 8px;border-radius:999px;background:#fee2e2;color:#991b1b;font-weight:800;'
+                    : 'display:inline-block;padding:2px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-weight:800;');
+            const incoming = String(item.direction || 'incoming') !== 'mine';
+            const reqTitle = incoming
+                ? `${escapeHtml(item.requester_name || '-')}님이 요청했습니다`
+                : `${escapeHtml(item.requester_name || '작성자')}님의 응답`;
+            return `
+                <li class="group-saved-item" style="grid-template-columns:1fr;">
+                    <div class="group-saved-item__content">
+                        <div class="group-saved-item__type">공동구매 · 참여요청</div>
+                        <div class="group-saved-item__name">${escapeHtml(item.post_title || '-')}</div>
+                        <div class="group-saved-item__meta">${reqTitle}<br>${item.requester_email ? `이메일: ${escapeHtml(item.requester_email)}<br>` : ''}<span style="${statusChipStyle}">${statusLabel}</span>${item.message ? `<br>${escapeHtml(item.message || '')}` : ''}</div>
+                        ${
+                            incoming && status === 'pending'
+                                ? `<div class="group-saved-item__meta">
+                                    <button type="button" data-group-alert-action="accept" data-group-alert-id="${Number(item.id)}" title="수락" style="margin-right:6px;padding:4px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;">수락</button>
+                                    <button type="button" data-group-alert-action="reject" data-group-alert-id="${Number(item.id)}" title="거절" style="padding:4px 8px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700;">거절</button>
+                                </div>`
+                                : ''
+                        }
+                        ${
+                            status !== 'pending'
+                                ? `<div class="group-saved-item__meta" style="margin-top:8px;">
+                                    <button type="button" data-group-alert-remove="${Number(item.id)}" title="알림 삭제" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#475569;font-size:12px;font-weight:700;">알림 삭제</button>
+                                </div>`
+                                : ''
+                        }
+                    </div>
+                </li>
+            `;
+        }).join('');
         return;
     }
 
-    // 3. 세 자리마다 콤마 추가 (Intl.NumberFormat 사용)
-    input.value = new Intl.NumberFormat().format(value);
+    const items = getGroupSavedTabItems();
+    if (!items.length) {
+        listEl.innerHTML = '';
+        emptyEl.style.display = 'block';
+        emptyEl.textContent = groupSavedTab === 'cart' ? '장바구니 항목이 없습니다.' : '위시리스트 항목이 없습니다.';
+        return;
+    }
+
+    emptyEl.style.display = 'none';
+    listEl.innerHTML = items.map((item) => {
+        const imageUrl = getGroupSavedImageUrl(item);
+        const source = String(item?.source || 'saved-item');
+        const typeLabel = getSavedItemTypeLabel(item.item_type || item.type);
+        return `
+            <li class="group-saved-item">
+                <div class="group-saved-item__thumb ${imageUrl ? '' : 'no-image'}">
+                    ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.name || '')}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('no-image')">` : ''}
+                </div>
+                <div class="group-saved-item__content">
+                    <div class="group-saved-item__type">${escapeHtml(typeLabel)} · ${escapeHtml(source)}</div>
+                    <div class="group-saved-item__name">${escapeHtml(item.name || '-')}</div>
+                    ${item.meta ? `<div class="group-saved-item__meta">${escapeHtml(item.meta).replace(/\|/g, '<br>')}</div>` : ''}
+                </div>
+                <button type="button" class="group-saved-item__remove" data-group-saved-remove="${Number(item.id)}" title="삭제">×</button>
+            </li>
+        `;
+    }).join('');
 }
 
-/**
- * 로컬 스토리지 저장 함수
- */
-function saveToLocalStorage(post) {
-    try {
-        const myPosts = JSON.parse(localStorage.getItem('myTripPosts')) || [];
-        myPosts.unshift(post);
-        localStorage.setItem('myTripPosts', JSON.stringify(myPosts));
-        alert('성공적으로 등록되었습니다!');
-    } catch (e) {
-        console.error("저장 실패:", e);
-    }
+function initGroupSavedDrawer() {
+    const fab = document.getElementById('groupSavedFab');
+    const drawer = document.getElementById('groupSavedDrawer');
+    const listEl = document.getElementById('groupSavedList');
+    if (!fab || !drawer || !listEl) return;
+
+    fab.addEventListener('click', () => {
+        setGroupSavedDrawer(!drawer.classList.contains('is-open'));
+        if (drawer.classList.contains('is-open')) {
+            loadGroupAlerts().then(renderGroupSavedDrawer);
+        }
+    });
+
+    document.querySelectorAll('[data-group-saved-close]').forEach((el) => {
+        el.addEventListener('click', () => setGroupSavedDrawer(false));
+    });
+
+    document.querySelectorAll('[data-group-saved-tab]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            groupSavedTab = btn.getAttribute('data-group-saved-tab') || 'cart';
+            if (groupSavedTab === 'alerts') {
+                loadGroupAlerts().then(renderGroupSavedDrawer);
+                return;
+            }
+            renderGroupSavedDrawer();
+        });
+    });
+
+    listEl.addEventListener('click', async (e) => {
+        const alertBtn = e.target.closest('[data-group-alert-action]');
+        if (alertBtn) {
+            const requestId = Number(alertBtn.getAttribute('data-group-alert-id'));
+            const action = String(alertBtn.getAttribute('data-group-alert-action') || '');
+            if (!requestId || !action) return;
+            try {
+                await decideGroupAlert(requestId, action);
+                await loadGroupAlerts();
+                await loadGroupBuyPosts();
+                renderGroupSavedDrawer();
+            } catch (err) {
+                alert(err?.message || '요청 처리 중 오류가 발생했습니다.');
+            }
+            return;
+        }
+        const alertRemoveBtn = e.target.closest('[data-group-alert-remove]');
+        if (alertRemoveBtn) {
+            const requestId = Number(alertRemoveBtn.getAttribute('data-group-alert-remove'));
+            if (!requestId) return;
+            try {
+                await groupBuyApi(`/api/group-buy/join-requests/${requestId}`, { method: 'DELETE' });
+                await loadGroupAlerts();
+                renderGroupSavedDrawer();
+            } catch (err) {
+                alert(err?.message || '알림 삭제 중 오류가 발생했습니다.');
+            }
+            return;
+        }
+        const removeBtn = e.target.closest('[data-group-saved-remove]');
+        if (!removeBtn) return;
+        const itemId = Number(removeBtn.getAttribute('data-group-saved-remove'));
+        if (Number.isNaN(itemId)) return;
+
+        try {
+            await savedItemsApi(`/api/saved-items/${itemId}`, { method: 'DELETE', headers: {} });
+            await loadSavedItems();
+        } catch (err) {
+            if (err?.code === 'LOGIN_REQUIRED') return requireLoginMessage();
+            alert(err?.message || '삭제 중 오류가 발생했습니다.');
+        }
+    });
+
+    window.addEventListener('focus', () => {
+        if (drawer.classList.contains('is-open')) {
+            loadGroupAlerts().then(renderGroupSavedDrawer);
+        }
+    });
+
+    renderGroupSavedDrawer();
 }
+
+function initWriteButtonGuard() {
+    const writeBtn = document.querySelector('.btn-write');
+    if (!writeBtn) return;
+    writeBtn.onclick = null;
+    writeBtn.addEventListener('click', (e) => {
+        if (!isLoggedIn()) {
+            e.preventDefault();
+            requireLoginMessage();
+            return;
+        }
+        openModal('writeModal');
+    });
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    setupPostInteractions();
+    initPopovers();
+    populateRecommendations();
+    initDateConstraints();
+    initGroupSavedDrawer();
+    initWriteButtonGuard();
+    await loadCurrentUserProfile();
+    await loadGroupBuyPosts();
+    await loadSavedItems();
+    await loadGroupAlerts();
+    renderGroupSavedDrawer();
+    lucide.createIcons();
+});
+
+window.addEventListener('focus', () => {
+    loadGroupBuyPosts();
+    loadSavedItems();
+});
