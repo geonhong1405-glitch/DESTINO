@@ -1,11 +1,12 @@
 import re
 from datetime import datetime, timedelta
 from typing import Any, Callable, Optional
+from zoneinfo import ZoneInfo
 
 
 def parse_rel_date(text: str):
     t = re.sub(r"\s+", "", (text or "").lower())
-    now = datetime.now()
+    now = datetime.now(ZoneInfo("Asia/Seoul"))
 
     if "\uc624\ub298" in t:
         return now.date()

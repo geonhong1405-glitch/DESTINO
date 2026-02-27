@@ -35,6 +35,29 @@ def detect_intent(message: str, prev_state: dict[str, Any], *, contains_fn: Call
         return "hotel"
     if prev_state.get("last_intent") == "hotel" and not contains_fn(m, ["항공", "비행기", "출발", "도착"]):
         return "hotel"
+
+    has_any_travel_signal = contains_fn(
+        m,
+        [
+            "항공", "항공권", "비행기", "flight", "출발", "도착", "직항", "경유",
+            "호텔", "숙소", "숙박", "hotel", "체크인", "체크아웃",
+            "렌터카", "렌트카", "rental", "car",
+            "일정", "itinerary", "plan", "루트", "코스",
+            "여행", "trip", "travel",
+        ],
+    )
+    waiting_flight_followup = (
+        prev_state.get("last_intent") == "flight"
+        and (
+            not prev_state.get("origin")
+            or not prev_state.get("destination")
+            or not prev_state.get("departure_date")
+        )
+    )
+    if waiting_flight_followup:
+        return "flight"
+    if not has_any_travel_signal:
+        return "knowledge"
     return "flight"
 
 
@@ -79,7 +102,7 @@ def resolve_intent_with_llm(
     has_itinerary_signal = contains_fn(
         m,
         ["일정", "코스", "루트", "동선", "플랜", "몇박", "박", "몇일", "투어", "itinerary", "plan", "route", "day 1"],
-    ) or bool(re.search(r"\d+\s*박|\d+\s*일", m))
+    ) or bool(re.search(r"\d+\s*박\s*\d+\s*일", m))
     has_flight_signal = contains_fn(m, ["항공", "항공권", "비행기", "출발", "도착", "직항", "경유"])
     has_hotel_signal = contains_fn(m, ["호텔", "숙소", "체크인", "체크아웃"])
 

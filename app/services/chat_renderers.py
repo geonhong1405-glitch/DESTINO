@@ -39,12 +39,22 @@ def flight_html_table(rows: list[dict[str, Any]], meta: dict[str, Any]) -> str:
 
     def _segment_summary(row: dict[str, Any]) -> str:
         parts = []
-        for i, seg in enumerate(row.get("segments") or [], 1):
-            dep_code = seg.get("departure_iata", "-")
-            arr_code = seg.get("arrival_iata", "-")
-            parts.append(
-                f"{i}) {seg.get('airline','-')} | {dep_code} {_fmt_dt(seg.get('departure'))} -> {arr_code} {_fmt_dt(seg.get('arrival'))} | {seg.get('duration','-')}"
-            )
+        itin_legs = row.get("itinerary_segments")
+        if isinstance(itin_legs, list) and itin_legs:
+            for leg in itin_legs:
+                for i, seg in enumerate(leg or [], 1):
+                    dep_code = seg.get("departure_iata", "-")
+                    arr_code = seg.get("arrival_iata", "-")
+                    parts.append(
+                        f"{i}) {seg.get('airline','-')} | {dep_code} {_fmt_dt(seg.get('departure'))} -> {arr_code} {_fmt_dt(seg.get('arrival'))} | {seg.get('duration','-')}"
+                    )
+        else:
+            for i, seg in enumerate(row.get("segments") or [], 1):
+                dep_code = seg.get("departure_iata", "-")
+                arr_code = seg.get("arrival_iata", "-")
+                parts.append(
+                    f"{i}) {seg.get('airline','-')} | {dep_code} {_fmt_dt(seg.get('departure'))} -> {arr_code} {_fmt_dt(seg.get('arrival'))} | {seg.get('duration','-')}"
+                )
         return "<br>".join(parts) if parts else "-"
 
     def _price_label(row: dict[str, Any]) -> str:
@@ -57,7 +67,7 @@ def flight_html_table(rows: list[dict[str, Any]], meta: dict[str, Any]) -> str:
         "<div style='margin-bottom:10px;padding:8px;background:#f7f7f7;border:1px solid #ddd;'>"
         f"<b>API 조회조건</b> | 출발: {meta.get('origin')} / 도착: {meta.get('destination')} / "
         f"출발일: {meta.get('departure_date')} / 복귀일: {meta.get('return_date') or '-'} / "
-        f"인원: {meta.get('adults')} / 최대가격: {meta.get('max_price') or '-'}"
+        f"인원: 성인 {meta.get('adults', 1)} / 소아 {meta.get('children', 0)} / 유아 {meta.get('infants', 0)} / 최대가격: {meta.get('max_price') or '-'}"
         "</div>"
     )
     html += "<table border='1' style='border-collapse:collapse; width:100%; font-size:14px;'>"
