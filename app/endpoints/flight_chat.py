@@ -50,6 +50,8 @@ SLOT_KEYS = [
     "departure_date",
     "return_date",
     "adults",
+    "children",
+    "infants",
     "max_price",
     "limit",
     "sort_by",
@@ -661,9 +663,19 @@ def api_flight_search(
     cabin: Optional[str] = Query(None),
     max_price: Optional[float] = Query(None),
 ):
-    _ = (child, infant)
     try:
-        raw = flight_search_service._search_flights(origin, destination, departure_date, return_date, adults, max_price, cabin, 30)
+        raw = flight_search_service._search_flights(
+            origin=origin,
+            destination=destination,
+            departure_date=departure_date,
+            return_date=return_date,
+            adults=adults,
+            children=child,
+            infants=infant,
+            max_price=max_price,
+            cabin=cabin,
+            max_results=30,
+        )
         rates = flight_search_service._attach_krw(raw)
         return {
             "results": raw.get("data", []),
@@ -674,7 +686,7 @@ def api_flight_search(
             "raw": raw,
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"\uc9c1\ud56d\ud68c \uc9c1\ud56d \uc9c1\ud56d: {e}")
+        raise HTTPException(status_code=400, detail=f"항공권 검색 실패: {e}")
 
 
 @router.post("/chat")

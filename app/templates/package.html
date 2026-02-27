@@ -1,225 +1,213 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DESTINO - 패키지 여행 예약</title>
-    <!-- Pretendard Font -->
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- CSS File Link -->
-    <link rel="stylesheet" href="../static/package.css">
+    <link rel="stylesheet" href="../static/package.css" />
 </head>
 <body>
-
-    <div class="overlay" id="overlay" onclick="closeAllPopovers()"></div>
-
-    <!-- Header -->
     <header class="header">
-            <div class="container header-inner">
-                <h1 class="logo"><a href="/">DESTINO</a></h1>
-                <nav class="header-nav">
-                    {% if nickname %}
-                    <a href="/mypage">
-                        <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
-                    </a>
-                    <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
-                    {% else %}
+        <div class="container header-inner">
+            <h1 class="logo"><a href="/">DESTINO</a></h1>
+            <nav class="header-nav">
+            {% if nickname %}
+                <a href="/mypage">
+                    <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                </a>
+                <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700" onclick="window.__AUTH__ = null; window.dispatchEvent(new Event('authchange'));">
+                    로그아웃
+                </a>
+                {% else %}
                     <a href="/login">로그인</a>
-                    {% endif %}
-                    <a href="#">이용안내</a>
-                    <a href="#">고객센터</a>
-                    <a href="#">KOR</a>
-                </nav>
-            </div>
-        </header>
+                {% endif %}
+                <a href="#">이용안내</a>
+                <a href="#">고객센터</a>
+                <a href="#">KOR</a>
+            </nav>
+        </div>
+    </header>
 
     <main>
-        <!-- Hero & Search Section -->
         <section class="hero-section">
             <div class="container">
-                <h1 class="hero-title">떠나고 싶은 순간,<br>DESTINO 패키지</h1>
-                
-                <div class="search-widget">
-                    <div class="search-form-grid">
-                        <!-- Destination Selection -->
-                        <div class="input-group">
-                            <label>목적지</label>
-                            <div class="input-field" onclick="openPopover(event, 'destinationPopover')">
-                                <i data-lucide="map-pin"></i>
-                                <span id="text-dest">어디로 떠날까요?</span>
-                            </div>
-                            <div class="popover region-popover" id="destinationPopover">
-                                <div class="popover-sidebar">
-                                    <button class="sidebar-btn active">동남아</button>
-                                    <button class="sidebar-btn">일본</button>
-                                    <button class="sidebar-btn">유럽</button>
-                                    <button class="sidebar-btn">미주/대양주</button>
-                                </div>
-                                <div class="popover-main">
-                                    <div class="popover-search">
-                                        <input type="text" placeholder="도시 또는 국가 검색" onkeyup="filterRegion(this)">
-                                    </div>
-                                    <ul class="region-list" id="dest-list">
-                                        <li class="region-item" onclick="selectRegion('dest', '베트남 다낭 (DAD)')"><span>베트남 다낭</span> <span style="color:#ccc; font-size:11px;">DAD</span></li>
-                                        <li class="region-item" onclick="selectRegion('dest', '태국 방콕 (BKK)')"><span>태국 방콕</span> <span style="color:#ccc; font-size:11px;">BKK</span></li>
-                                        <li class="region-item" onclick="selectRegion('dest', '일본 도쿄 (NRT)')"><span>일본 도쿄</span> <span style="color:#ccc; font-size:11px;">NRT</span></li>
-                                        <li class="region-item" onclick="selectRegion('dest', '일본 오사카 (KIX)')"><span>일본 오사카</span> <span style="color:#ccc; font-size:11px;">KIX</span></li>
-                                        <li class="region-item" onclick="selectRegion('dest', '프랑스 파리 (CDG)')"><span>프랑스 파리</span> <span style="color:#ccc; font-size:11px;">CDG</span></li>
-                                        <li class="region-item" onclick="selectRegion('dest', '미국 뉴욕 (JFK)')"><span>미국 뉴욕</span> <span style="color:#ccc; font-size:11px;">JFK</span></li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Origin Selection -->
-                        <div class="input-group">
-                            <label>출발지</label>
-                            <div class="input-field" onclick="openPopover(event, 'originPopover')">
-                                <i data-lucide="plane-takeoff"></i>
-                                <span id="text-origin">인천 (ICN)</span>
-                            </div>
-                            <div class="popover region-popover" id="originPopover" style="left: auto; right: 0;">
-                                <div class="popover-main">
-                                    <div class="popover-search">
-                                        <input type="text" placeholder="출발 공항 검색" onkeyup="filterRegion(this)">
-                                    </div>
-                                    <ul class="region-list">
-                                        <li class="region-item" onclick="selectRegion('origin', '인천 (ICN)')"><span>인천</span> <span style="color:#ccc; font-size:11px;">ICN</span></li>
-                                        <li class="region-item" onclick="selectRegion('origin', '김포 (GMP)')"><span>김포</span> <span style="color:#ccc; font-size:11px;">GMP</span></li>
-                                        <li class="region-item" onclick="selectRegion('origin', '부산 (PUS)')"><span>부산</span> <span style="color:#ccc; font-size:11px;">PUS</span></li>
-                                        <li class="region-item" onclick="selectRegion('origin', '대구 (TAE)')"><span>대구</span> <span style="color:#ccc; font-size:11px;">TAE</span></li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Start Date -->
-                        <div class="input-group">
-                            <label>가는 날</label>
-                            <div class="input-field" onclick="openPopover(event, 'calStartPopover')">
-                                <i data-lucide="calendar"></i>
-                                <span id="text-start">날짜 선택</span>
-                            </div>
-                            <div class="popover calendar-popover" id="calStartPopover">
-                                <div class="calendar-header">
-                                    <button class="cal-btn" onclick="changeMonth(-1, 'start')"><i data-lucide="chevron-left" width="16"></i></button>
-                                    <div class="calendar-title-wrap" id="title-wrap-start"></div>
-                                    <button class="cal-btn" onclick="changeMonth(1, 'start')"><i data-lucide="chevron-right" width="16"></i></button>
-                                </div>
-                                <div class="calendar-grid" id="grid-start"></div>
-                            </div>
-                        </div>
-
-                        <!-- End Date -->
-                        <div class="input-group">
-                            <label>오는 날</label>
-                            <div class="input-field" onclick="openPopover(event, 'calEndPopover')">
-                                <i data-lucide="calendar"></i>
-                                <span id="text-end">날짜 선택</span>
-                            </div>
-                            <div class="popover calendar-popover" id="calEndPopover" style="left: auto; right: 0;">
-                                <div class="calendar-header">
-                                    <button class="cal-btn" onclick="changeMonth(-1, 'end')"><i data-lucide="chevron-left" width="16"></i></button>
-                                    <div class="calendar-title-wrap" id="title-wrap-end"></div>
-                                    <button class="cal-btn" onclick="changeMonth(1, 'end')"><i data-lucide="chevron-right" width="16"></i></button>
-                                </div>
-                                <div class="calendar-grid" id="grid-end"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <button class="btn-search">검색하기</button>
-                </div>
+                <h1 class="hero-title">
+                    <span>떠나고 싶은 순간,</span><br />DESTINO 패키지
+                </h1>
             </div>
         </section>
 
-        <!-- Package Grid -->
-        <section class="pack-cont" style="padding-bottom: 60px;">
+        <button id="packageSavedFab" class="flight-saved-fab" type="button" aria-expanded="false" aria-controls="packageSavedDrawer" title="장바구니 열기">
+            <span class="flight-saved-fab__icon">🧺</span>
+            <span class="flight-saved-fab__label">장바구니</span>
+            <span id="packageSavedFabCount" class="flight-saved-fab__count" hidden>0</span>
+        </button>
+
+        <div id="packageSavedDrawer" class="flight-saved-drawer" aria-hidden="true">
+            <div class="flight-saved-drawer__backdrop" data-package-saved-close></div>
+            <section class="flight-saved-drawer__panel">
+                <div class="flight-saved-drawer__grab"></div>
+                <div class="flight-saved-drawer__header">
+                    <div class="flight-saved-tabs" role="tablist" aria-label="저장 항목 탭">
+                        <button id="packageSavedTabCart" type="button" class="flight-saved-tab is-active" data-package-saved-tab="cart" aria-selected="true">
+                            장바구니
+                        </button>
+                        <button id="packageSavedTabWishlist" type="button" class="flight-saved-tab" data-package-saved-tab="wishlist" aria-selected="false">
+                            위시리스트
+                        </button>
+                    </div>
+                    <button type="button" class="flight-saved-drawer__close" data-package-saved-close>닫기</button>
+                </div>
+                <ul id="packageSavedList" class="flight-saved-list"></ul>
+                <div id="packageSavedEmpty" class="flight-saved-empty">장바구니 항목이 없습니다.</div>
+            </section>
+        </div>
+
+        <section class="pack-cont" style="padding-bottom: 60px">
             <h2 class="section-title">지금 가장 인기있는 <span>특가 패키지</span></h2>
             <div class="package-grid">
                 <a href="#" class="package-card">
                     <div class="package-image pImg1">
                         <div class="badge">BEST</div>
+                        <button class="package-wishlist-btn" data-save-payload="베트남-다낭-499000" title="위시리스트">
+                            <svg class="wishlist-icon" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11 19s-7-4.35-7-10A5 5 0 0 1 11 4a5 5 0 0 1 7 5c0 5.65-7 10-7 10z" stroke="#ff5252" stroke-width="2" fill="none" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="package-body">
                         <p class="package-loc">베트남 · 다낭</p>
                         <h3 class="package-name">[노팁/노옵션] 다낭/호이안 5일 #미케비치 #럭셔리리조트</h3>
                         <div class="package-price">
-                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span style="font-size: 12px; color: #999">1인 기준</span>
                             <span class="price-val">499,000원~</span>
                         </div>
+                        <button class="package-cart-btn" data-save-payload="베트남-다낭-499000">장바구니</button>
+                        <button class="package-pay-btn">예약하기</button>
+                        <button class="package-wishlist-btn" data-save-payload="베트남-다낭-499000">위시리스트</button>
                     </div>
                 </a>
+
                 <a href="#" class="package-card">
                     <div class="package-image pImg2">
                         <div class="badge">오늘마감</div>
+                        <button class="package-wishlist-btn" data-save-payload="일본-교토-890000" title="위시리스트">
+                            <svg class="wishlist-icon" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11 19s-7-4.35-7-10A5 5 0 0 1 11 4a5 5 0 0 1 7 5c0 5.65-7 10-7 10z" stroke="#ff5252" stroke-width="2" fill="none" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="package-body">
                         <p class="package-loc">일본 · 교토</p>
                         <h3 class="package-name">간사이 감성 여행 4일 #온천호텔 #가이세키석식</h3>
                         <div class="package-price">
-                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span style="font-size: 12px; color: #999">1인 기준</span>
                             <span class="price-val">890,000원~</span>
                         </div>
+                        <button class="package-cart-btn" data-save-payload="일본-교토-890000">장바구니</button>
+                        <button class="package-pay-btn">예약하기</button>
+                        <button class="package-wishlist-btn" data-save-payload="일본-교토-890000">위시리스트</button>
                     </div>
                 </a>
+
                 <a href="#" class="package-card">
                     <div class="package-image pImg3">
                         <div class="badge">슈퍼프라이스</div>
+                        <button class="package-wishlist-btn" data-save-payload="영국-런던-3250000" title="위시리스트">
+                            <svg class="wishlist-icon" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11 19s-7-4.35-7-10A5 5 0 0 1 11 4a5 5 0 0 1 7 5c0 5.65-7 10-7 10z" stroke="#ff5252" stroke-width="2" fill="none" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="package-body">
                         <p class="package-loc">영국 · 런던</p>
                         <h3 class="package-name">영국 완전정복 9일 #프리미어리그직관 #런던시내호텔</h3>
                         <div class="package-price">
-                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span style="font-size: 12px; color: #999">1인 기준</span>
                             <span class="price-val">3,250,000원~</span>
                         </div>
+                        <button class="package-cart-btn" data-save-payload="영국-런던-3250000">장바구니</button>
+                        <button class="package-pay-btn">예약하기</button>
+                        <button class="package-wishlist-btn" data-save-payload="영국-런던-3250000">위시리스트</button>
                     </div>
                 </a>
+
                 <a href="#" class="package-card">
                     <div class="package-image pImg4">
                         <div class="badge">MD추천</div>
+                        <button class="package-wishlist-btn" data-save-payload="태국-방콕-550000" title="위시리스트">
+                            <svg class="wishlist-icon" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11 19s-7-4.35-7-10A5 5 0 0 1 11 4a5 5 0 0 1 7 5c0 5.65-7 10-7 10z" stroke="#ff5252" stroke-width="2" fill="none" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="package-body">
                         <p class="package-loc">태국 · 방콕</p>
                         <h3 class="package-name">방콕/파타야 5일 #5성급호텔 #전통마사지포함</h3>
                         <div class="package-price">
-                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span style="font-size: 12px; color: #999">1인 기준</span>
                             <span class="price-val">550,000원~</span>
                         </div>
+                        <button class="package-cart-btn" data-save-payload="태국-방콕-550000">장바구니</button>
+                        <button class="package-pay-btn">예약하기</button>
+                        <button class="package-wishlist-btn" data-save-payload="태국-방콕-550000">위시리스트</button>
                     </div>
                 </a>
-                <!-- 추가 -->
+
                 <a href="#" class="package-card">
                     <div class="package-image pImg5">
                         <div class="badge">MD추천</div>
+                        <button class="package-wishlist-btn" data-save-payload="몽골-테를지-1190000" title="위시리스트">
+                            <svg class="wishlist-icon" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11 19s-7-4.35-7-10A5 5 0 0 1 11 4a5 5 0 0 1 7 5c0 5.65-7 10-7 10z" stroke="#ff5252" stroke-width="2" fill="none" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="package-body">
                         <p class="package-loc">몽골 · 테를지</p>
-                        <h3 class="package-name">은하수 아래 하룻밤 5일 #현대식게르 #푸르공투어 #승마체험</h3>
+                        <h3 class="package-name">은하수 아래 하룻밤 5일 #현대식게르 #푸르공투어</h3>
                         <div class="package-price">
-                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span style="font-size: 12px; color: #999">1인 기준</span>
                             <span class="price-val">1,190,000원~</span>
                         </div>
+                        <button class="package-cart-btn" data-save-payload="몽골-테를지-1190000">장바구니</button>
+                        <button class="package-pay-btn">예약하기</button>
+                        <button class="package-wishlist-btn" data-save-payload="몽골-테를지-1190000">위시리스트</button>
                     </div>
                 </a>
+
                 <a href="#" class="package-card">
                     <div class="package-image pImg6">
                         <div class="badge">BEST</div>
+                        <button class="package-wishlist-btn" data-save-payload="아이슬란드-레이캬비크-4590000" title="위시리스트">
+                            <svg class="wishlist-icon" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11 19s-7-4.35-7-10A5 5 0 0 1 11 4a5 5 0 0 1 7 5c0 5.65-7 10-7 10z" stroke="#ff5252" stroke-width="2" fill="none" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="package-body">
                         <p class="package-loc">아이슬란드 · 레이캬비크</p>
-                        <h3 class="package-name">얼음과 불의 땅 8일 #오로라헌팅 #블루라군온천 #링로드일주</h3>
+                        <h3 class="package-name">얼음과 불의 땅 8일 #오로라헌팅 #블루라군온천</h3>
                         <div class="package-price">
-                            <span style="font-size:12px; color:#999;">1인 기준</span>
+                            <span style="font-size: 12px; color: #999">1인 기준</span>
                             <span class="price-val">4,590,000원~</span>
                         </div>
+                        <button class="package-cart-btn" data-save-payload="아이슬란드-레이캬비크-4590000">장바구니</button>
+                        <button class="package-pay-btn">예약하기</button>
+                        <button class="package-wishlist-btn" data-save-payload="아이슬란드-레이캬비크-4590000">위시리스트</button>
                     </div>
                 </a>
+
                 <a href="#" class="package-card">
                     <div class="package-image pImg7">
                         <div class="badge">MD추천</div>
+                        <button class="package-wishlist-btn" data-save-payload="포르투갈-리스본-2890000" title="위시리스트">
+                            <svg class="wishlist-icon" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11 19s-7-4.35-7-10A5 5 0 0 1 11 4a5 5 0 0 1 7 5c0 5.65-7 10-7 10z" stroke="#ff5252" stroke-width="2" fill="none" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="package-body">
                         <p class="package-loc">포르투갈 · 리스본</p>
@@ -228,11 +216,19 @@
                             <span style="font-size:12px; color:#999;">1인 기준</span>
                             <span class="price-val">2,890,000원~</span>
                         </div>
+                        <button class="package-cart-btn" data-save-payload="포르투갈-리스본-2890000">장바구니</button>
+                        <button class="package-pay-btn">예약하기</button>
+                        <button class="package-wishlist-btn" data-save-payload="포르투갈-리스본-2890000">위시리스트</button>
                     </div>
                 </a>
                 <a href="#" class="package-card">
                     <div class="package-image pImg8">
                         <div class="badge">슈퍼프라이스</div>
+                        <button class="package-wishlist-btn" data-save-payload="이집트-카이로-2990000" title="위시리스트">
+                            <svg class="wishlist-icon" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11 19s-7-4.35-7-10A5 5 0 0 1 11 4a5 5 0 0 1 7 5c0 5.65-7 10-7 10z" stroke="#ff5252" stroke-width="2" fill="none" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="package-body">
                         <p class="package-loc">이집트 · 카이로</p>
@@ -241,11 +237,19 @@
                             <span style="font-size:12px; color:#999;">1인 기준</span>
                             <span class="price-val">2,990,000원~</span>
                         </div>
+                        <button class="package-cart-btn" data-save-payload="이집트-카이로-2990000">장바구니</button>
+                        <button class="package-pay-btn">예약하기</button>
+                        <button class="package-wishlist-btn" data-save-payload="이집트-카이로-2990000">위시리스트</button>
                     </div>
                 </a>
                 <a href="#" class="package-card">
                     <div class="package-image pImg9">
                         <div class="badge">오늘마감</div>
+                        <button class="package-wishlist-btn" data-save-payload="이탈리아-로마-3980000" title="위시리스트">
+                            <svg class="wishlist-icon" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11 19s-7-4.35-7-10A5 5 0 0 1 11 4a5 5 0 0 1 7 5c0 5.65-7 10-7 10z" stroke="#ff5252" stroke-width="2" fill="none" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="package-body">
                         <p class="package-loc">이탈리아 · 로마</p>
@@ -254,11 +258,19 @@
                             <span style="font-size:12px; color:#999;">1인 기준</span>
                             <span class="price-val">3,980,000원~</span>
                         </div>
+                        <button class="package-cart-btn" data-save-payload="이탈리아-로마-3980000">장바구니</button>
+                        <button class="package-pay-btn">예약하기</button>
+                        <button class="package-wishlist-btn" data-save-payload="이탈리아-로마-3980000">위시리스트</button>
                     </div>
                 </a>
                 <a href="#" class="package-card">
                     <div class="package-image pImg10">
                         <div class="badge">MD추천</div>
+                        <button class="package-wishlist-btn" data-save-payload="스페인-바르셀로나-3750000" title="위시리스트">
+                            <svg class="wishlist-icon" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11 19s-7-4.35-7-10A5 5 0 0 1 11 4a5 5 0 0 1 7 5c0 5.65-7 10-7 10z" stroke="#ff5252" stroke-width="2" fill="none" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="package-body">
                         <p class="package-loc">스페인 · 바르셀로나</p>
@@ -267,11 +279,19 @@
                             <span style="font-size:12px; color:#999;">1인 기준</span>
                             <span class="price-val">3,750,000원~</span>
                         </div>
+                        <button class="package-cart-btn" data-save-payload="스페인-바르셀로나-3750000">장바구니</button>
+                        <button class="package-pay-btn">예약하기</button>
+                        <button class="package-wishlist-btn" data-save-payload="스페인-바르셀로나-3750000">위시리스트</button>
                     </div>
                 </a>
                 <a href="#" class="package-card">
                     <div class="package-image pImg11">
                         <div class="badge">슈퍼프라이스</div>
+                        <button class="package-wishlist-btn" data-save-payload="대만-타이베이-450000" title="위시리스트">
+                            <svg class="wishlist-icon" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11 19s-7-4.35-7-10A5 5 0 0 1 11 4a5 5 0 0 1 7 5c0 5.65-7 10-7 10z" stroke="#ff5252" stroke-width="2" fill="none" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="package-body">
                         <p class="package-loc">대만 · 타이베이</p>
@@ -280,11 +300,19 @@
                             <span style="font-size:12px; color:#999;">1인 기준</span>
                             <span class="price-val">450,000원~</span>
                         </div>
+                        <button class="package-cart-btn" data-save-payload="대만-타이베이-450000">장바구니</button>
+                        <button class="package-pay-btn">예약하기</button>
+                        <button class="package-wishlist-btn" data-save-payload="대만-타이베이-450000">위시리스트</button>
                     </div>
                 </a>
                 <a href="#" class="package-card">
                     <div class="package-image pImg12">
                         <div class="badge">BEST</div>
+                        <button class="package-wishlist-btn" data-save-payload="미국-하와이-2150000" title="위시리스트">
+                            <svg class="wishlist-icon" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11 19s-7-4.35-7-10A5 5 0 0 1 11 4a5 5 0 0 1 7 5c0 5.65-7 10-7 10z" stroke="#ff5252" stroke-width="2" fill="none" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="package-body">
                         <p class="package-loc">미국 · 하와이</p>
@@ -293,6 +321,9 @@
                             <span style="font-size:12px; color:#999;">1인 기준</span>
                             <span class="price-val">2,150,000원~</span>
                         </div>
+                        <button class="package-cart-btn" data-save-payload="미국-하와이-2150000">장바구니</button>
+                        <button class="package-pay-btn">예약하기</button>
+                        <button class="package-wishlist-btn" data-save-payload="미국-하와이-2150000">위시리스트</button>
                     </div>
                 </a>
             </div>
@@ -305,19 +336,14 @@
                 <div class="footer-column">
                     <h3>고객센터</h3>
                     <p>오전 9시 ~ 새벽 3시 운영</p>
-                    <p>채팅 상담 문의: 24시간 운영</p>
                     <div class="cs-buttons">
                         <a href="tel:1670-0000" class="btn-cs">
                             <span class="icon">📞</span>
-                            <div class="text">
-                                <strong>1670-0000</strong>
-                            </div>
+                            <div class="text"><strong>1670-0000</strong></div>
                         </a>
                         <a href="#" class="btn-cs">
                             <span class="icon">💬</span>
-                            <div class="text">
-                                <strong>채팅 상담</strong>
-                            </div>
+                            <div class="text"><strong>채팅 상담</strong></div>
                         </a>
                     </div>
                 </div>
@@ -333,25 +359,7 @@
                     <h3>서비스</h3>
                     <ul>
                         <li><a href="#">공지사항</a></li>
-                        <li><a href="#">자주 묻는 질문</a></li>
-                        <li><a href="#">여행 매거진</a></li>
-                    </ul>
-                </div>
-                <div class="footer-column">
-                    <h3>혜택</h3>
-                    <ul>
-                        <li><a href="#">멤버십 안내</a></li>
-                        <li><a href="#">공동예매 가이드</a></li>
-                        <li><a href="#">포인트 정책</a></li>
-                    </ul>
-                </div>
-                <div class="footer-column">
-                    <h3>모든 여행</h3>
-                    <ul>
-                        <li><a href="#">국내 숙소</a></li>
-                        <li><a href="#">해외 숙소</a></li>
-                        <li><a href="#">항공권</a></li>
-                        <li><a href="#">렌터카</a></li>
+                        <li><a href="#">FAQ</a></li>
                     </ul>
                 </div>
             </div>
@@ -359,27 +367,23 @@
             <div class="footer-bottom">
                 <div class="company-info">
                     <p>(주)데스티노 컴퍼니 | 대표이사: 김여행 | 사업자등록번호: 000-00-00000</p>
-                    <p>주소: 서울특별시 강남구 테헤란로 123 | 이메일: help@destino.com</p>
-                    <p class="disclaimer">
-                        데스티노는 통신판매중개자로서 통신판매의 당사자가 아니며, 상품의 예약, 이용 및 환불 등과
-                        관련한 의무와 책임은 각 판매자에게 있습니다.
-                    </p>
                     <div class="footer-policy">
                         <a href="#">이용약관</a>
                         <a href="#"><strong>개인정보처리방침</strong></a>
-                        <a href="#">소비자 분쟁해결 기준</a>
                     </div>
                 </div>
                 <div class="social-links">
-                    <a href="#" class="social-icon">YouTube</a>
-                    <a href="#" class="social-icon">Instagram</a>
-                    <a href="#" class="social-icon">Facebook</a>
+                    <a href="#">YouTube</a>
+                    <a href="#">Instagram</a>
                 </div>
             </div>
         </div>
     </footer>
 
-    <!-- JS File Link -->
+    <script>
+        // 서버 사이드 변수 할당
+        window.__AUTH__ = "{{ nickname|default('') }}";
+    </script>
     <script src="../static/package.js"></script>
 </body>
 </html>

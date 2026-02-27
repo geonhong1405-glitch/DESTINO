@@ -343,11 +343,39 @@
             `;
             cartList.appendChild(li);
         });
+        syncCommerceCardStates();
     }
 
-    async function addCartItem(item) {
-        const cartPayload = {
-            list_type: "cart",
+    function hasSavedItem(listType, item) {
+        return (savedItems[listType] || []).some((x) => savedKey(x) === savedKey(item));
+    }
+
+    function syncCommerceCardStates() {
+        const cards = Array.from(shell.querySelectorAll(".ai-commerce-card"));
+        cards.forEach((card) => {
+            const item = card.__savedItemData;
+            if (!item) return;
+            const inCart = hasSavedItem("cart", item);
+            const inWishlist = hasSavedItem("wishlist", item);
+            const addBtn = card.querySelector(".ai-commerce-card__add");
+            const wishBtn = card.querySelector(".ai-commerce-card__wish");
+            if (addBtn) {
+                addBtn.textContent = inCart ? "담김" : "장바구니";
+                addBtn.classList.toggle("is-active", inCart);
+            }
+            if (wishBtn) {
+                wishBtn.textContent = inWishlist ? "♥" : "♡";
+                wishBtn.classList.toggle("is-active", inWishlist);
+                wishBtn.setAttribute("aria-pressed", inWishlist ? "true" : "false");
+                wishBtn.setAttribute("title", inWishlist ? "위시리스트에 저장됨" : "위시리스트 저장");
+            }
+            card.classList.toggle("is-added", inCart || inWishlist);
+        });
+    }
+
+    async function addSavedItem(listType, item) {
+        const savePayload = {
+            list_type: listType,
             item_type: item.type || item.item_type || "item",
             name: item.name || "-",
             meta: item.meta || "",
@@ -357,12 +385,12 @@
         try {
             const resp = await savedItemsApi("/api/saved-items", {
                 method: "POST",
-                body: JSON.stringify(cartPayload),
+                body: JSON.stringify(savePayload),
             });
             const row = resp?.item;
             if (row) {
-                const exists = (savedItems.cart || []).some((x) => savedKey(x) === savedKey(row));
-                if (!exists) savedItems.cart.unshift(row);
+                const exists = (savedItems[listType] || []).some((x) => savedKey(x) === savedKey(row));
+                if (!exists) savedItems[listType].unshift(row);
             } else {
                 await refreshSavedItems();
             }
@@ -373,7 +401,8 @@
                 promptLoginForSavedItems();
                 return false;
             }
-            alert(e?.message || "장바구니 저장 중 오류가 발생했습니다.");
+            const label = listType === "wishlist" ? "위시리스트" : "장바구니";
+            alert(e?.message || `${label} 저장 중 오류가 발생했습니다.`);
             return false;
         }
     }
@@ -461,6 +490,7 @@
         const table = wrap.querySelector("table");
         if (!table) return [];
         const cards = [];
+        const seen = new Set();
         const rows = Array.from(table.querySelectorAll("tr"));
         rows.forEach((tr, idx) => {
             const tds = Array.from(tr.querySelectorAll("td"));
@@ -473,7 +503,7 @@
             const segmentDetails = (detailDiv?.textContent || "")
                 .replace(/\s+/g, " ")
                 .trim();
-            cards.push({
+            const card = {
                 type: "항공편",
                 name: `${airline} ${dep} 출발`,
                 meta: [arr ? `도착 ${arr}` : "", routeInfo || "", duration ? `소요 ${duration}` : "", price || ""]
@@ -487,7 +517,19 @@
                 price,
                 segmentDetails,
                 isRoundTrip,
-            });
+            };
+            const dedupeKey = [
+                card.airline,
+                card.dep,
+                card.arr,
+                card.routeInfo,
+                card.duration,
+                card.price,
+                card.segmentDetails,
+            ].join("||");
+            if (seen.has(dedupeKey)) return;
+            seen.add(dedupeKey);
+            cards.push(card);
         });
         return cards.slice(0, 8);
     }
@@ -520,6 +562,58 @@
         return { date: "", time: txt || "-" };
     }
 
+    function formatKoreanMeridiemTime(hhmm) {
+        const m = String(hhmm || "").match(/^(\d{2}):(\d{2})$/);
+        if (!m) return String(hhmm || "-");
+        const h24 = Number(m[1]);
+        const mm = m[2];
+        const meridiem = h24 < 12 ? "오전" : "오후";
+        const h12 = (h24 % 12) || 12;
+        return `${meridiem} ${h12}:${mm}`;
+    }
+
+    function formatPtDurationKo(value) {
+        const m = String(value || "").toUpperCase().match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/);
+        if (!m) return String(value || "-");
+        const h = Number(m[1] || 0);
+        const mm = Number(m[2] || 0);
+        if (h && mm) return `${h}시간 ${mm}분`;
+        if (h) return `${h}시간`;
+        if (mm) return `${mm}분`;
+        return "-";
+    }
+
+    function ptDurationMinutes(value) {
+        const m = String(value || "").toUpperCase().match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/);
+        if (!m) return 0;
+        return Number(m[1] || 0) * 60 + Number(m[2] || 0);
+    }
+
+    function formatMinutesKo(totalMinutes) {
+        const m = Math.max(0, Number(totalMinutes || 0));
+        const h = Math.floor(m / 60);
+        const mm = m % 60;
+        if (h && mm) return `${h}시간 ${mm}분`;
+        if (h) return `${h}시간`;
+        if (mm) return `${mm}분`;
+        return "-";
+    }
+
+    function parseFareDisplay(priceText) {
+        const txt = String(priceText || "").trim();
+        const mKrw = txt.match(/([\d,]+)\s*KRW/i);
+        if (mKrw) {
+            return { primary: `₩${mKrw[1]}`, secondary: "" };
+        }
+        const mFx = txt.match(/([\d,]+(?:\.\d+)?)\s*(USD|EUR|JPY|CNY|GBP)/i) || txt.match(/(USD|EUR|JPY|CNY|GBP)\s*([\d,]+(?:\.\d+)?)/i);
+        if (mFx) {
+            const code = (mFx[2] || mFx[1] || "").toUpperCase();
+            const amount = mFx[1] && /^[\d,.]+$/.test(mFx[1]) ? mFx[1] : mFx[2];
+            return { primary: `${code} ${amount}`, secondary: "" };
+        }
+        return { primary: txt || "-", secondary: "" };
+    }
+
     function parseFlightSegmentEntries(segmentDetails) {
         const txt = String(segmentDetails || "").trim();
         if (!txt) return [];
@@ -538,7 +632,47 @@
                 duration: m[7],
             });
         }
+        // If backend prints itinerary legs separately, numbering restarts from 1 per leg.
+        // Convert that reset pattern into explicit leg index for roundtrip rendering.
+        let prev = 0;
+        let legNo = 1;
+        out.forEach((seg) => {
+            if (prev && seg.idx <= prev) legNo += 1;
+            seg.leg = legNo;
+            prev = seg.idx;
+        });
         return out;
+    }
+
+    function summarizeLegs(segs) {
+        const groups = new Map();
+        segs.forEach((s) => {
+            const key = Number(s.leg || 1);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(s);
+        });
+        return Array.from(groups.keys()).sort((a, b) => a - b).map((k) => {
+            const arr = groups.get(k) || [];
+            const first = arr[0] || {};
+            const last = arr[arr.length - 1] || {};
+            const path = arr.length
+                ? [arr[0].depCode, ...arr.map((x) => x.arrCode)].filter(Boolean)
+                : [];
+            const via = path.length > 2 ? path.slice(1, -1) : [];
+            const totalMinutes = arr.reduce((acc, x) => acc + ptDurationMinutes(x.duration), 0);
+            return {
+                depCode: first.depCode || "-",
+                depAt: first.depAt || "-",
+                arrCode: last.arrCode || "-",
+                arrAt: last.arrAt || "-",
+                duration: formatMinutesKo(totalMinutes),
+                isDirect: arr.length <= 1,
+                stops: Math.max(arr.length - 1, 0),
+                routeText: via.length
+                    ? `${path[0]} → ${path[path.length - 1]} (경유: ${via.join(", ")})`
+                    : `${path[0] || "-"} → ${path[path.length - 1] || "-"}`,
+            };
+        });
     }
 
     function parseListCards(rawHtml) {
@@ -580,7 +714,15 @@
                 price: fields["가격"] || "",
                 rating: fields["평점"] || "",
                 stars: fields["성급"] || "",
+                supplier: fields["업체"] || "",
+                specs: fields["옵션"] || "",
+                pickup: fields["픽업"] || "",
+                dropoff: fields["반납"] || "",
                 photo: fields["사진"] || "",
+                address: fields["주소"] || fields["위치"] || "",
+                checkin: fields["체크인"] || "",
+                checkout: fields["체크아웃"] || "",
+                maps: fields["지도"] || "",
                 distanceBasis,
             });
         }
@@ -779,17 +921,33 @@
                 const airline = cardData.airline || "항공사";
                 const airlineCode = String(cardData.airline || "").trim().toUpperCase() || "-";
                 const airlineLogoUrl = getAirlineLogoUrlByCode(airlineCode);
-                const isRoundTrip = Boolean(cardData.isRoundTrip);
+                const segs = parseFlightSegmentEntries(cardData.segmentDetails);
+                const legSummaries = summarizeLegs(segs);
+                const outSeg = legSummaries[0] || segs[0];
+                const inSeg = legSummaries[1] || segs[1];
+                const appearsRoundByRoute = Boolean(
+                    outSeg &&
+                    inSeg &&
+                    outSeg.depCode &&
+                    inSeg.arrCode &&
+                    outSeg.depCode === inSeg.arrCode
+                );
+                const isRoundTrip = Boolean(cardData.isRoundTrip && appearsRoundByRoute);
                 const isDirect = /직항/.test(routeInfo);
                 const durationLabel = isRoundTrip ? "왕복 여정" : (isDirect ? "비행시간" : "총 여정");
-                const segs = parseFlightSegmentEntries(cardData.segmentDetails);
-                const outSeg = segs[0];
-                const inSeg = segs[1];
-                const isRoundDirect = Boolean(isRoundTrip && outSeg && inSeg && segs.length === 2);
+                const canRenderRoundPairs = Boolean(
+                    isRoundTrip &&
+                    outSeg &&
+                    inSeg &&
+                    legSummaries.length >= 2 &&
+                    outSeg.depCode === inSeg.arrCode &&
+                    outSeg.arrCode === inSeg.depCode
+                );
                 const routeInfoLabel = isRoundTrip
-                    ? (isRoundDirect ? "출국/귀국 직항" : "왕복 여정")
+                    ? (canRenderRoundPairs ? "출국/귀국 직항" : "왕복 여정")
                     : routeInfo;
-                const fareLabel = isRoundTrip ? "왕복 총액" : "가격";
+                const totalLegs = segs.length || (canRenderRoundPairs ? 2 : 1);
+                const fareDisplay = parseFareDisplay(price);
 
                 card.innerHTML = `
                     <div class="ai-flight-card__brand">
@@ -799,54 +957,43 @@
                         </div>
                         <div class="ai-flight-card__airline">${escapeHtml(airlineCode || airline)}</div>
                     </div>
-                    ${isRoundTrip && outSeg && inSeg ? (() => {
+                    ${canRenderRoundPairs ? (() => {
                         const oDep = splitMmddHm(outSeg.depAt);
                         const oArr = splitMmddHm(outSeg.arrAt);
                         const iDep = splitMmddHm(inSeg.depAt);
                         const iArr = splitMmddHm(inSeg.arrAt);
-                        const legBadge = isRoundDirect ? "직항" : "구간 확인";
                         return `
                         <div class="ai-flight-card__schedule ai-flight-card__schedule--round">
-                            <div class="ai-flight-card__rt-list">
-                                <div class="ai-flight-card__rt-row">
-                                    <div class="ai-flight-card__rt-tag">출국</div>
+                            <div class="ai-flight-card__v2-list">
+                                <div class="ai-flight-card__v2-row">
                                     <div class="ai-flight-card__point">
-                                    <div class="ai-flight-card__time">${escapeHtml(oDep.time)}</div>
-                                    <div class="ai-flight-card__date">${escapeHtml(oDep.date)}</div>
+                                    <div class="ai-flight-card__time">${escapeHtml(formatKoreanMeridiemTime(oDep.time))}</div>
                                     <div class="ai-flight-card__code">${escapeHtml(outSeg.depCode)}</div>
                                     </div>
-                                    <div class="ai-flight-card__route ai-flight-card__route--rt">
-                                        <div class="ai-flight-card__duration-wrap">
-                                        <span class="ai-flight-card__duration">${escapeHtml(outSeg.duration)}</span>
-                                        <span class="ai-flight-card__duration-label">&nbsp;</span>
-                                        </div>
-                                        <div class="ai-flight-card__line"></div>
-                                        <div class="ai-flight-card__routeinfo">${escapeHtml(legBadge)}</div>
+                                    <div class="ai-flight-card__v2-route">
+                                        <div class="ai-flight-card__duration">${escapeHtml(formatPtDurationKo(outSeg.duration))}</div>
+                                        <div class="ai-flight-card__v2-routecode">${escapeHtml(outSeg.routeText || `${outSeg.depCode} → ${outSeg.arrCode}`)}</div>
+                                        <div class="ai-flight-card__line" data-dots="${'.'.repeat(Math.max(0, Number(outSeg.stops || 0)))}"></div>
+                                        <div class="ai-flight-card__routeinfo">${escapeHtml(outSeg.isDirect ? "직항" : `경유 ${outSeg.stops}회`)}</div>
                                     </div>
                                     <div class="ai-flight-card__point ai-flight-card__point--arr">
-                                    <div class="ai-flight-card__time">${escapeHtml(oArr.time)}</div>
-                                    <div class="ai-flight-card__date">${escapeHtml(oArr.date)}</div>
+                                    <div class="ai-flight-card__time">${escapeHtml(formatKoreanMeridiemTime(oArr.time))}</div>
                                     <div class="ai-flight-card__code">${escapeHtml(outSeg.arrCode)}</div>
                                     </div>
                                 </div>
-                                <div class="ai-flight-card__rt-row">
-                                    <div class="ai-flight-card__rt-tag">귀국</div>
+                                <div class="ai-flight-card__v2-row">
                                     <div class="ai-flight-card__point">
-                                        <div class="ai-flight-card__time">${escapeHtml(iDep.time)}</div>
-                                        <div class="ai-flight-card__date">${escapeHtml(iDep.date)}</div>
+                                        <div class="ai-flight-card__time">${escapeHtml(formatKoreanMeridiemTime(iDep.time))}</div>
                                         <div class="ai-flight-card__code">${escapeHtml(inSeg.depCode)}</div>
                                     </div>
-                                    <div class="ai-flight-card__route ai-flight-card__route--rt">
-                                        <div class="ai-flight-card__duration-wrap">
-                                            <span class="ai-flight-card__duration">${escapeHtml(inSeg.duration)}</span>
-                                            <span class="ai-flight-card__duration-label">&nbsp;</span>
-                                        </div>
-                                        <div class="ai-flight-card__line"></div>
-                                        <div class="ai-flight-card__routeinfo">${escapeHtml(legBadge)}</div>
+                                    <div class="ai-flight-card__v2-route">
+                                        <div class="ai-flight-card__duration">${escapeHtml(formatPtDurationKo(inSeg.duration))}</div>
+                                        <div class="ai-flight-card__v2-routecode">${escapeHtml(inSeg.routeText || `${inSeg.depCode} → ${inSeg.arrCode}`)}</div>
+                                        <div class="ai-flight-card__line" data-dots="${'.'.repeat(Math.max(0, Number(inSeg.stops || 0)))}"></div>
+                                        <div class="ai-flight-card__routeinfo">${escapeHtml(inSeg.isDirect ? "직항" : `경유 ${inSeg.stops}회`)}</div>
                                     </div>
                                     <div class="ai-flight-card__point ai-flight-card__point--arr">
-                                        <div class="ai-flight-card__time">${escapeHtml(iArr.time)}</div>
-                                        <div class="ai-flight-card__date">${escapeHtml(iArr.date)}</div>
+                                        <div class="ai-flight-card__time">${escapeHtml(formatKoreanMeridiemTime(iArr.time))}</div>
                                         <div class="ai-flight-card__code">${escapeHtml(inSeg.arrCode)}</div>
                                     </div>
                                 </div>
@@ -874,9 +1021,14 @@
                         </div>
                     </div>`}
                     <div class="ai-flight-card__fare">
-                        <div class="ai-flight-card__fare-label">${escapeHtml(fareLabel)}</div>
-                        <div class="ai-flight-card__fare-value">${escapeHtml(price)}</div>
-                        <button type="button" class="ai-commerce-card__add">장바구니 담기</button>
+                        <button type="button" class="ai-commerce-card__wish" aria-pressed="false" title="위시리스트 저장">♡</button>
+                        <div class="ai-flight-card__fare-label">총 ${escapeHtml(String(totalLegs))}구간</div>
+                        <div class="ai-flight-card__fare-value">${escapeHtml(fareDisplay.primary)}</div>
+                        ${fareDisplay.secondary ? `<div class="ai-flight-card__fare-sub">${escapeHtml(fareDisplay.secondary)}</div>` : ""}
+                        <div class="ai-commerce-card__actions">
+                            <button type="button" class="ai-commerce-card__add">장바구니</button>
+                            <button type="button" class="ai-commerce-card__pay">예약하기</button>
+                        </div>
                     </div>
                 `;
             } else if (cardData.type === "호텔") {
@@ -884,18 +1036,56 @@
                 if (cardData.rating) metaBits.push(`평점 ${cardData.rating}`);
                 if (cardData.stars) metaBits.push(`${cardData.stars}성급`);
                 const priceText = cardData.price || "";
+                const stayText = [cardData.checkin ? `체크인 ${cardData.checkin}` : "", cardData.checkout ? `체크아웃 ${cardData.checkout}` : ""]
+                    .filter(Boolean)
+                    .join(" · ");
+                const locationText = cardData.address || "";
                 card.classList.add("ai-commerce-card--hotel");
                 card.innerHTML = `
-                    ${cardData.photo ? `<div class="ai-hotel-card__thumb-wrap"><img class="ai-hotel-card__thumb" src="${escapeHtml(cardData.photo)}" alt="${escapeHtml(cardData.name)}" loading="lazy"></div>` : `<div class="ai-hotel-card__thumb-wrap ai-hotel-card__thumb-wrap--placeholder"><div class="ai-hotel-card__thumb-fallback">HOTEL</div></div>`}
+                    ${cardData.photo ? `<div class="ai-hotel-card__thumb-wrap"><img class="ai-hotel-card__thumb" src="${escapeHtml(cardData.photo)}" alt="${escapeHtml(cardData.name)}" loading="lazy" onerror="this.onerror=null; const w=this.closest('.ai-hotel-card__thumb-wrap'); if(w){w.classList.add('ai-hotel-card__thumb-wrap--placeholder'); w.innerHTML='<div class=\\'ai-hotel-card__thumb-fallback\\'>HOTEL</div>'; }"></div>` : `<div class="ai-hotel-card__thumb-wrap ai-hotel-card__thumb-wrap--placeholder"><div class="ai-hotel-card__thumb-fallback">HOTEL</div></div>`}
                     <div class="ai-hotel-card__body">
                         <div class="ai-commerce-card__type">${escapeHtml(cardData.type)}</div>
                         <div class="ai-commerce-card__name">${escapeHtml(cardData.name)}</div>
                         ${metaBits.length ? `<div class="ai-hotel-card__chips">${metaBits.map((t) => `<span class="ai-hotel-card__chip">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
+                        ${stayText ? `<div class="ai-hotel-card__note">${escapeHtml(stayText)}</div>` : ""}
+                        ${locationText ? `<div class="ai-hotel-card__note">${escapeHtml(locationText)}</div>` : ""}
+                        ${cardData.maps ? `<a class="ai-hotel-card__map" href="${escapeHtml(cardData.maps)}" target="_blank" rel="noopener noreferrer">지도 보기</a>` : ""}
                     </div>
                     <div class="ai-hotel-card__fare">
-                        <div class="ai-flight-card__fare-label">1박 기준가(참고)</div>
+                        <button type="button" class="ai-commerce-card__wish" aria-pressed="false" title="위시리스트 저장">♡</button>
+                        <div class="ai-flight-card__fare-label">숙박 총액(참고)</div>
                         <div class="ai-hotel-card__price">${escapeHtml(priceText || "-")}</div>
-                        <button type="button" class="ai-commerce-card__add">장바구니 담기</button>
+                        <div class="ai-commerce-card__actions">
+                            <button type="button" class="ai-commerce-card__add">장바구니</button>
+                            <button type="button" class="ai-commerce-card__pay">예약하기</button>
+                        </div>
+                    </div>
+                `;
+            } else if (cardData.type === "렌터카") {
+                const priceText = cardData.price || "";
+                const metaBits = [];
+                if (cardData.supplier) metaBits.push(`업체 ${cardData.supplier}`);
+                if (cardData.rating) metaBits.push(`평점 ${cardData.rating}`);
+                if (cardData.specs) metaBits.push(cardData.specs);
+                const rentalPeriod = [cardData.pickup ? `픽업 ${cardData.pickup}` : "", cardData.dropoff ? `반납 ${cardData.dropoff}` : ""]
+                    .filter(Boolean)
+                    .join(" · ");
+                card.classList.add("ai-commerce-card--hotel");
+                card.innerHTML = `
+                    ${cardData.photo ? `<div class="ai-hotel-card__thumb-wrap"><img class="ai-hotel-card__thumb" src="${escapeHtml(cardData.photo)}" alt="${escapeHtml(cardData.name)}" loading="lazy" onerror="this.onerror=null; const w=this.closest('.ai-hotel-card__thumb-wrap'); if(w){w.classList.add('ai-hotel-card__thumb-wrap--placeholder'); w.innerHTML='<div class=\\'ai-hotel-card__thumb-fallback\\'>RENTAL</div>'; }"></div>` : `<div class="ai-hotel-card__thumb-wrap ai-hotel-card__thumb-wrap--placeholder"><div class="ai-hotel-card__thumb-fallback">RENTAL</div></div>`}
+                    <div class="ai-hotel-card__body">
+                        <div class="ai-commerce-card__name">${escapeHtml(cardData.name)}</div>
+                        ${metaBits.length ? `<div class="ai-hotel-card__chips">${metaBits.map((t) => `<span class="ai-hotel-card__chip">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
+                        ${rentalPeriod ? `<div class="ai-hotel-card__note">${escapeHtml(rentalPeriod)}</div>` : ""}
+                    </div>
+                    <div class="ai-hotel-card__fare">
+                        <button type="button" class="ai-commerce-card__wish" aria-pressed="false" title="위시리스트 저장">♡</button>
+                        <div class="ai-flight-card__fare-label">대여 총액(참고)</div>
+                        <div class="ai-hotel-card__price">${escapeHtml(priceText || "-")}</div>
+                        <div class="ai-commerce-card__actions">
+                            <button type="button" class="ai-commerce-card__add">장바구니</button>
+                            <button type="button" class="ai-commerce-card__pay">예약하기</button>
+                        </div>
                     </div>
                 `;
             } else {
@@ -903,16 +1093,27 @@
                     <div class="ai-commerce-card__type">${escapeHtml(cardData.type)}</div>
                     <div class="ai-commerce-card__name">${escapeHtml(cardData.name)}</div>
                     ${cardData.meta ? `<div class="ai-commerce-card__meta">${escapeHtml(cardData.meta)}</div>` : ""}
-                    <button type="button" class="ai-commerce-card__add">장바구니 담기</button>
+                    <div class="ai-commerce-card__actions">
+                        <button type="button" class="ai-commerce-card__add">장바구니</button>
+                        <button type="button" class="ai-commerce-card__wish" aria-pressed="false" title="위시리스트 저장">♡</button>
+                    </div>
                 `;
             }
+            card.__savedItemData = cardData;
             const addBtn = card.querySelector(".ai-commerce-card__add");
+            const wishBtn = card.querySelector(".ai-commerce-card__wish");
+            const payBtn = card.querySelector(".ai-commerce-card__pay");
             addBtn?.addEventListener("click", async () => {
-                const added = await addCartItem(cardData);
-                if (added) {
-                    card.classList.add("is-added");
-                    addBtn.textContent = "담김";
-                }
+                await addSavedItem("cart", cardData);
+                cartTab = "cart";
+                setCartDrawer(true);
+            });
+            payBtn?.addEventListener("click", () => {
+                alert("결제 기능은 준비 중입니다. 우선 장바구니에 담아두었습니다.");
+            });
+            wishBtn?.addEventListener("click", async () => {
+                await addSavedItem("wishlist", cardData);
+                cartTab = "wishlist";
                 setCartDrawer(true);
             });
             grid.appendChild(card);
@@ -920,6 +1121,7 @@
         section.appendChild(grid);
         content.innerHTML = "";
         content.appendChild(section);
+        syncCommerceCardStates();
     }
 
     async function sendMessage() {

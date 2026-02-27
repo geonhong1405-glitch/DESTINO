@@ -111,6 +111,9 @@ ul {
 #ai-chat-shell {
     animation: chatFadeUp 0.35s ease;
     position: relative;
+    width: 100%;
+    max-width: 1240px;
+    margin: 0 auto;
 }
 
 .ai-chat-panel {
@@ -174,6 +177,12 @@ ul {
 
 .ai-chat-mode .ai-chat-combined {
     margin-top: 0 !important;
+}
+
+/* Tailwind max-w-3xl 제한 해제 (chat mode only) */
+.ai-chat-mode.max-w-3xl {
+    max-width: min(1240px, 96vw) !important;
+    width: 100% !important;
 }
 
 .ai-chat-panel__header {
@@ -259,6 +268,8 @@ ul {
 .ai-msg--bot {
     align-self: flex-start;
     align-items: flex-start;
+    width: 100%;
+    max-width: 100%;
 }
 
 .ai-msg__meta {
@@ -288,6 +299,10 @@ ul {
     background: rgba(255, 255, 255, 0.92);
     border: 1px solid rgba(226, 232, 240, 0.9);
     border-top-left-radius: 6px;
+    width: 100%;
+    max-width: 100%;
+    align-self: stretch;
+    box-sizing: border-box;
 }
 
 .ai-msg__bubble--loading {
@@ -573,6 +588,47 @@ ul {
     background: #dbeafe;
 }
 
+.ai-commerce-card__add.is-active {
+    background: #dbeafe;
+    border-color: #93c5fd;
+    color: #1e3a8a;
+}
+
+.ai-commerce-card__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.ai-commerce-card__wish {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #64748b;
+    border-radius: 999px;
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    align-self: flex-start;
+}
+
+.ai-commerce-card__wish:hover {
+    border-color: #93c5fd;
+    color: #2563eb;
+    background: #eff6ff;
+}
+
+.ai-commerce-card__wish.is-active {
+    border-color: #fbcfe8;
+    color: #e11d48;
+    background: #fff1f2;
+}
+
 .ai-commerce-card--flight {
     display: grid;
     grid-template-columns: 88px minmax(0, 1fr) 190px;
@@ -586,7 +642,7 @@ ul {
 
 .ai-commerce-card--hotel {
     display: grid;
-    grid-template-columns: 132px minmax(0, 1fr) 190px;
+    grid-template-columns: 132px minmax(0, 1fr) 210px;
     gap: 12px;
     align-items: stretch;
     padding: 12px;
@@ -609,7 +665,7 @@ ul {
 .ai-hotel-card__thumb {
     width: 100%;
     height: 108px;
-    object-fit: contain;
+    object-fit: cover;
     display: block;
     background: #fff;
 }
@@ -636,6 +692,10 @@ ul {
     gap: 6px;
 }
 
+.ai-commerce-card--hotel .ai-commerce-card__type {
+    display: none;
+}
+
 .ai-hotel-card__chips {
     display: flex;
     flex-wrap: wrap;
@@ -656,6 +716,18 @@ ul {
     font-size: 11px;
     color: #64748b;
     line-height: 1.35;
+    word-break: break-word;
+}
+
+.ai-hotel-card__map {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1d4ed8;
+    text-decoration: none;
+}
+
+.ai-hotel-card__map:hover {
+    text-decoration: underline;
 }
 
 .ai-hotel-card__fare {
@@ -880,15 +952,16 @@ ul {
 }
 
 .ai-flight-card__line::after {
-    content: "";
+    content: attr(data-dots);
     position: absolute;
-    top: -3px;
+    top: -12px;
     left: 50%;
     transform: translateX(-50%);
-    width: 6px;
-    height: 6px;
-    border-radius: 999px;
-    background: #94a3b8;
+    color: #94a3b8;
+    font-size: 14px;
+    letter-spacing: 2px;
+    line-height: 1;
+    white-space: nowrap;
 }
 
 .ai-flight-card__routeinfo {
@@ -920,7 +993,7 @@ ul {
     padding-left: 12px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 6px;
     min-width: 0;
 }
@@ -939,7 +1012,7 @@ ul {
 }
 
 .ai-flight-card__schedule--round + .ai-flight-card__fare .ai-flight-card__fare-value {
-    font-size: 18px;
+    font-size: 28px;
 }
 
 @media (max-width: 1200px) {
@@ -1054,9 +1127,47 @@ ul {
     filter: brightness(1.04);
 }
 
+.ai-flight-card__fare .ai-commerce-card__actions {
+    justify-content: stretch;
+}
+
+.ai-flight-card__fare .ai-commerce-card__add {
+    flex: 1;
+}
+
+.ai-flight-card__fare .ai-commerce-card__wish {
+    align-self: flex-end;
+}
+
 .ai-hotel-card__fare .ai-commerce-card__add {
+    margin-top: 2px;
     align-self: stretch;
     text-align: center;
+    background: linear-gradient(135deg, #1d4ed8, #1e3a8a);
+    color: #fff;
+    border-color: rgba(37, 99, 235, 0.2);
+    min-width: 0;
+    width: 100%;
+    height: 38px;
+    border-radius: 12px;
+    font-size: 13px;
+}
+
+.ai-hotel-card__fare .ai-commerce-card__add:hover {
+    background: linear-gradient(135deg, #1d4ed8, #1e3a8a);
+    filter: brightness(1.04);
+}
+
+.ai-hotel-card__fare .ai-commerce-card__actions {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ai-hotel-card__fare .ai-commerce-card__wish {
+    align-self: flex-end;
 }
 
 .ai-cart-fab {
@@ -1315,6 +1426,182 @@ ul {
 @keyframes chatFadeUp {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+/* Flight card visual refresh: match commerce-like horizontal layout */
+.ai-commerce-card--flight {
+    grid-template-columns: 78px minmax(0, 1fr) minmax(170px, 210px);
+    padding: 14px 16px;
+    background: #fff;
+    height: 220px;
+    overflow: hidden;
+}
+
+.ai-flight-card__airline {
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.ai-flight-card__v2-list {
+    display: grid;
+    gap: 10px;
+}
+
+.ai-flight-card__v2-row {
+    display: grid;
+    grid-template-columns: minmax(86px, 1fr) minmax(110px, 1.1fr) minmax(86px, 1fr);
+    gap: 8px;
+    align-items: center;
+    min-height: 86px;
+}
+
+.ai-flight-card__schedule--round .ai-flight-card__date {
+    display: none;
+}
+
+.ai-flight-card__schedule--round .ai-flight-card__time {
+    font-size: 20px;
+    line-height: 1.1;
+}
+
+.ai-flight-card__schedule--round .ai-flight-card__code {
+    font-size: 13px;
+    color: #111827;
+}
+
+.ai-flight-card__v2-route {
+    display: grid;
+    gap: 4px;
+    align-items: center;
+    justify-items: center;
+}
+
+.ai-flight-card__v2-routecode {
+    font-size: 14px;
+    color: #334155;
+    font-weight: 700;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ai-flight-card__duration {
+    font-size: 13px;
+    font-weight: 800;
+    color: #1f2937;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ai-flight-card__routeinfo {
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.ai-flight-card__fare-label {
+    font-size: 13px;
+}
+
+.ai-flight-card__fare-value {
+    font-size: 28px;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+/* keep fare typography consistent across all flight-card variants */
+.ai-commerce-card--flight .ai-flight-card__fare-value,
+.ai-commerce-card--flight .ai-flight-card__schedule--round + .ai-flight-card__fare .ai-flight-card__fare-value {
+    font-size: 28px;
+    line-height: 1.1;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.ai-flight-card__fare-sub {
+    font-size: 14px;
+    color: #64748b;
+}
+
+.ai-flight-card__fare .ai-commerce-card__wish {
+    width: 38px;
+    height: 38px;
+    font-size: 20px;
+}
+
+.ai-flight-card__fare .ai-commerce-card__actions {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ai-flight-card__fare .ai-commerce-card__add {
+    min-width: 0;
+    width: 100%;
+    height: 38px;
+    border-radius: 12px;
+    font-size: 13px;
+}
+
+.ai-commerce-card__pay {
+    min-width: 0;
+    width: 100%;
+    height: 38px;
+    border: 1px solid #bfdbfe;
+    background: #eef6ff;
+    color: #1d4ed8;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.ai-commerce-card__pay:hover {
+    background: #dbeafe;
+}
+
+@media (max-width: 1024px) {
+    .ai-commerce-card--flight {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .ai-flight-card__v2-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 8px 0;
+        border-bottom: 1px dashed #e5e7eb;
+    }
+
+    .ai-flight-card__v2-row:last-child {
+        border-bottom: 0;
+    }
+
+    .ai-flight-card__point {
+        flex-direction: row;
+        align-items: baseline;
+        gap: 8px;
+    }
+
+    .ai-flight-card__point--arr {
+        justify-content: flex-start;
+        text-align: left;
+        align-items: baseline;
+    }
+
+    .ai-flight-card__fare .ai-commerce-card__actions {
+        flex-wrap: wrap;
+    }
+}
+
+/* hard guard: prevent any right-side overflow in flight fare column */
+.ai-flight-card__fare {
+    overflow: hidden;
 }
 
 @media (max-width: 768px) {

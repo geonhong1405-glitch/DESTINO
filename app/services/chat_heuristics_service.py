@@ -33,6 +33,8 @@ def merge_state(prev: dict[str, Any], cur: dict[str, Any], *, slot_keys: list[st
             continue
         out[key] = value
     out.setdefault("adults", 1)
+    out.setdefault("children", 0)
+    out.setdefault("infants", 0)
     return out
 
 

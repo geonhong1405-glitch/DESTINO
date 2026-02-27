@@ -187,6 +187,31 @@ def _rental_cards_html(city_label: str, pickup_date: str, dropoff_date: str, car
     )
 
 
+def _rental_cards_html_v2(city_label: str, pickup_date: str, dropoff_date: str, cars: list[dict[str, Any]]) -> str:
+    lines: list[str] = []
+    for i, car in enumerate(cars[:8], 1):
+        name = str(car.get("name") or "렌터카")
+        supplier = str(car.get("supplier") or "Rental Partner")
+        price = _fmt_money(car.get("price"), str(car.get("currency") or "KRW"))
+        specs = " · ".join([str(x) for x in (car.get("specs") or []) if x]) or "옵션 정보 확인"
+        img = str(car.get("image") or "").strip()
+        rating = car.get("rating")
+        parts = [
+            f"{i}) {name}",
+            f"가격: {price}",
+            f"업체: {supplier}",
+            f"옵션: {specs}",
+            f"픽업: {pickup_date}",
+            f"반납: {dropoff_date}",
+        ]
+        if rating is not None:
+            parts.append(f"평점: {rating}")
+        if img:
+            parts.append(f"사진: {img}")
+        lines.append(" | ".join(parts))
+    return f"<div><b>{city_label} 렌터카 추천</b><br>{'<br>'.join(lines)}</div>"
+
+
 def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, Any]] = None) -> tuple[str, dict[str, Any]]:
     prev_state = prev_state or {}
     country_code = _detect_country_code(message, prev_state) or "JP"
@@ -261,5 +286,5 @@ def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, A
             {"rental_context": True, "rental_state": rental_state},
         )
 
-    html = _rental_cards_html(pickup_name, pickup_date, dropoff_date, cars)
+    html = _rental_cards_html_v2(pickup_name, pickup_date, dropoff_date, cars)
     return html, {"rental_context": True, "rental_state": rental_state}

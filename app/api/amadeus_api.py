@@ -10,52 +10,6 @@ load_dotenv()
 AMADEUS_CLIENT_ID = os.getenv("AMADEUS_CLIENT_ID") or os.getenv("AMADEUS_API_KEY")
 AMADEUS_CLIENT_SECRET = os.getenv("AMADEUS_CLIENT_SECRET") or os.getenv("AMADEUS_API_SECRET")
 AMADEUS_BASE_URL = os.getenv("AMADEUS_BASE_URL", "https://test.api.amadeus.com").rstrip("/")
-LOCATION_ALIASES = {
-    "서울": "SEL",
-    "인천": "ICN",
-    "김포": "GMP",
-    "부산": "PUS",
-    "제주": "CJU",
-    "도쿄": "TYO",
-    "오사카": "OSA",
-    "후쿠오카": "FUK",
-    "삿포로": "SPK",
-    "나리타": "NRT",
-    "하네다": "HND",
-    "뉴욕": "NYC",
-    "런던": "LON",
-    "파리": "PAR",
-    "로마": "ROM",
-    "방콕": "BKK",
-    "다낭": "DAD",
-    "하노이": "HAN",
-    "호치민": "SGN",
-    "싱가포르": "SIN",
-    "시드니": "SYD",
-    "멜버른": "MEL",
-    "브리즈번": "BNE",
-}
-
-COUNTRY_ALIASES = {
-    "한국": "SEL",
-    "대한민국": "SEL",
-    "일본": "TYO",
-    "중국": "BJS",
-    "대만": "TPE",
-    "홍콩": "HKG",
-    "미국": "NYC",
-    "영국": "LON",
-    "프랑스": "PAR",
-    "이탈리아": "ROM",
-    "태국": "BKK",
-    "베트남": "SGN",
-    "싱가포르": "SIN",
-    "말레이시아": "KUL",
-    "인도네시아": "JKT",
-    "필리핀": "MNL",
-    "호주": "SYD",
-    "뉴질랜드": "AKL",
-}
 
 
 def get_amadeus_token() -> str:
@@ -83,12 +37,6 @@ def resolve_location_to_iata(keyword: str, token: Optional[str] = None) -> Optio
         return None
 
     cleaned = keyword.strip()
-    compact = cleaned.replace(" ", "")
-
-    if compact in LOCATION_ALIASES:
-        return LOCATION_ALIASES[compact]
-    if compact in COUNTRY_ALIASES:
-        return COUNTRY_ALIASES[compact]
     if len(cleaned) == 3 and cleaned.isalpha():
         return cleaned.upper()
 
@@ -120,6 +68,8 @@ def search_flight_offers_raw(
     departure_date: str,
     return_date: Optional[str] = None,
     adults: int = 1,
+    children: int = 0,
+    infants: int = 0,
     cabin: Optional[str] = None,
     max_results: int = 30,
 ):
@@ -133,6 +83,10 @@ def search_flight_offers_raw(
         "adults": adults,
         "max": max_results,
     }
+    if children and int(children) > 0:
+        params["children"] = int(children)
+    if infants and int(infants) > 0:
+        params["infants"] = int(infants)
     if return_date:
         params["returnDate"] = return_date
     if cabin:
