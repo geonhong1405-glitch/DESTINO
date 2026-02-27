@@ -103,45 +103,6 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     line-height: 1.3;
 }
 
-/* Search Engine */
-.search-widget {
-    background: var(--white);
-    border-radius: var(--radius-lg);
-    width: 100%;
-    max-width: 700px;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.12);
-    position: relative;
-    padding: 12px;
-    z-index: 10;
-}
-
-.tour-search-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.input-group {
-    flex: 1;
-    padding: 12px 24px;
-    background: var(--white);
-    border: 1px solid var(--border-color);
-    border-radius: 14px;
-    cursor: text;
-    transition: all 0.3s ease;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-}
-.input-group:focus-within { border-color: var(--primary-color); box-shadow: 0 0 0 4px rgba(0,123,255,0.1); }
-.input-group label { display: block; font-size: 11px; color: var(--text-sub); margin-bottom: 4px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-.input-group input { width: 100%; border: none; font-size: 16px; font-weight: 600; color: var(--text-main); outline: none; background: transparent; }
-
-.btn-search {
-    background: var(--primary-color); color: var(--white);
-    font-weight: 700; font-size: 17px;
-}
-
 /* airport drawer 스타일을 tour drawer로 복사 (클래스명만 tour로 변경) */
 .tour-saved-fab {
     position: fixed;
@@ -225,98 +186,7 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     border: 1px solid #e2e8f0; background: #fff; color: #64748b;
 }
 .tour-saved-item__remove:hover { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
-.btn-search:hover { background: var(--primary-hover); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,123,255,0.3); }
 
-/* Popover */
-.custom-popover {
-    position: absolute; top: calc(100% + 12px); left: 0; 
-    width: 100%; background: var(--white);
-    border-radius: var(--radius-md); 
-    box-shadow: 0 15px 40px rgba(0,0,0,0.12);
-    border: 1px solid var(--border-color); z-index: 2000; 
-    display: none; flex-direction: column; overflow: hidden;
-    padding: 24px;
-}
-.custom-popover.active { display: flex; }
-
-.popover-title { font-size: 14px; font-weight: 700; margin-bottom: 15px; color: var(--text-main); display: flex; align-items: center; gap: 6px; }
-.trend-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-.trend-item { 
-    display: flex; align-items: center; gap: 12px; padding: 12px; 
-    border-radius: 12px; border: 1px solid #f0f0f0; transition: 0.2s;
-    cursor: pointer;
-}
-.trend-item:hover { background: #f0f7ff; border-color: var(--primary-color); }
-.trend-img { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; }
-.trend-name { font-size: 14px; font-weight: 600; }
-
-
-/* Search Results */
-#search-results { display: none; }
-.search-suggestion-item {
-    padding: 14px; border-bottom: 1px solid #f5f5f5; cursor: pointer; display: flex; align-items: center; gap: 12px;
-    transition: 0.2s;
-}
-.search-suggestion-item:hover { background: #f9f9f9; padding-left: 20px; }
-.search-suggestion-item i { color: var(--primary-color); }
-
-
-/* --- Popover --- */
-.popover {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    z-index: 1100;
-    background: var(--white);
-    border-radius: 16px;
-    box-shadow: var(--shadow);
-    border: 1px solid var(--border-color);
-    margin-top: 10px;
-    display: none;
-    overflow: hidden;
-    width: 320px;
-    animation: fadeIn 0.2s ease-out;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.popover.active { display: block; }
-
-.region-popover { width: 450px; }
-.region-popover.active { display: flex; }
-.popover-sidebar { width: 120px; background: #f8f9fa; border-right: 1px solid var(--border-color); padding: 10px 0; }
-.sidebar-btn { width: 100%; padding: 12px 15px; border: none; background: none; text-align: left; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-sub); }
-.sidebar-btn.active { color: var(--primary-color); background: var(--white); }
-.popover-main { flex: 1; padding: 15px; max-height: 350px; overflow-y: auto; }
-.popover-search { padding: 5px 0 15px; position: sticky; top: 0; background: var(--white); z-index: 5; }
-.popover-search input { width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; outline: none; }
-.popover-search input:focus { border-color: var(--primary-color); }
-.region-list { list-style: none; }
-.region-item { padding: 10px; border-radius: 8px; cursor: pointer; font-size: 14px; display: flex; justify-content: space-between; }
-.region-item:hover { background: #f0f7ff; color: var(--primary-color); }
-
-/* Calendar */
-.calendar-popover { padding: 20px; width: 340px; }
-.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-.cal-btn { background: none; border: none; cursor: pointer; padding: 5px; color: var(--text-sub); border-radius: 50%; }
-.cal-btn:hover { background: #eee; }
-.calendar-title-wrap { display: flex; gap: 4px; align-items: center; }
-.calendar-select { border: none; background: none; font-size: 15px; font-weight: 700; cursor: pointer; padding: 2px 4px; border-radius: 4px; outline: none; }
-.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.day-label { font-size: 11px; font-weight: 700; color: #999; text-align: center; padding: 10px 0; }
-.calendar-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 13px; cursor: pointer; font-weight: 500; }
-.calendar-day:hover:not(.disabled) { background: #f0f7ff; color: var(--primary-color); }
-.calendar-day.today { color: var(--primary-color); font-weight: 800; text-decoration: underline; }
-.calendar-day.selected { background: var(--primary-color) !important; color: var(--white) !important; }
-.calendar-day.disabled { color: #ccc; cursor: default; pointer-events: none; }
-
-.overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: transparent; z-index: 1050; display: none; }
-.overlay.active { display: block; }
-
-/* --- tour Content --- */
 .container {
     max-width: 1200px;
     margin: 0 auto;
@@ -325,7 +195,6 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 .section-padding { padding: 60px 0; }
 .section-title { font-size: 26px; font-weight: 800; margin-bottom: 30px; letter-spacing: -0.5px; }
 .section-title span { color: var(--primary-color); }
-
 .tour-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
 .tour-card { background: var(--white); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-decoration: none; color: inherit; transition: transform 0.3s; }
 .tour-card:hover { transform: translateY(-5px); }
