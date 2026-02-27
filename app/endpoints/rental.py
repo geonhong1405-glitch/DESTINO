@@ -186,11 +186,11 @@ def rental_page(
     d_lon = _parse_float_param(dropoff_lon) if dropoff_lon else p_lon
 
     if not pickup_at:
-        now = datetime.datetime.now().replace(minute=0, second=0, microsecond=0)
+        now = datetime.datetime.now().replace(hour=11, minute=0, second=0, microsecond=0)
         pickup_at = now.strftime("%Y-%m-%d %H:%M")
     if not dropoff_at:
         try:
-            dt = datetime.datetime.strptime(pickup_at, "%Y-%m-%d %H:%M") + datetime.timedelta(days=3)
+            dt = datetime.datetime.strptime(pickup_at, "%Y-%m-%d %H:%M") + datetime.timedelta(days=1)
             dropoff_at = dt.strftime("%Y-%m-%d %H:%M")
         except Exception:
             dropoff_at = pickup_at

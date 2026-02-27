@@ -1,5 +1,5 @@
 ﻿from app.api.booking_hotel_flight_api import search_hotels as booking_search_hotels, search_flights as booking_search_flights
-from app.session import get_user_id_from_session, create_session, delete_session
+from app.session import get_user_id_from_session, create_session, delete_session, clear_all_sessions
 from app.db.db import Base, engine, SessionLocal
 from fastapi import FastAPI, Query, Request, Depends, Form, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -30,6 +30,7 @@ import base64
 import hashlib
 import hmac
 import requests
+from urllib.parse import quote, unquote
 
 _PWD_PREFIX = "pbkdf2_sha256"
 _PWD_ITERATIONS = 260000
@@ -292,6 +293,12 @@ def _translate_to_korean(text: str) -> str | None:
 
 
 app = FastAPI()
+
+
+@app.on_event("startup")
+def _clear_sessions_on_startup():
+    # 요구사항: 서버 재시작 시 기존 로그인 세션 무효화
+    clear_all_sessions()
 
 
 def get_db():
@@ -1589,6 +1596,16 @@ def gloval_hotel(
     start_idx = (page - 1) * page_size
     end_idx = start_idx + page_size
     paged_hotels = unique_hotels[start_idx:end_idx]
+    for h in paged_hotels:
+        if not isinstance(h, dict):
+            continue
+        try:
+            h["detail_snapshot"] = quote(
+                json.dumps(h, ensure_ascii=False, default=str),
+                safe="",
+            )
+        except Exception:
+            h["detail_snapshot"] = ""
 
     try:
         with open(os.path.join(BASE_DIR, "hotel_debug.log"), "a", encoding="utf-8") as f:
@@ -1630,12 +1647,22 @@ def gloval_hotel_detail(
     country: str = Query(None),
     checkin: str = Query(None),
     checkout: str = Query(None),
+    snapshot: str = Query(None),
 ):
     nickname = get_nickname_from_request(request)
     nights = _calc_nights(checkin, checkout)
     selected_hotel = None
     error_message = None
     google_place = None
+    snapshot_hotel = None
+
+    if snapshot:
+        try:
+            decoded = json.loads(unquote(snapshot))
+            if isinstance(decoded, dict):
+                snapshot_hotel = decoded
+        except Exception:
+            snapshot_hotel = None
 
     if not (hotel_id and city and checkin and checkout):
         error_message = "상세 정보를 표시하려면 호텔/도시/날짜 정보가 필요합니다."
@@ -1657,7 +1684,12 @@ def gloval_hotel_detail(
             error_message = f"호텔 상세 조회 실패: {e}"
 
     if not selected_hotel and not error_message:
-        error_message = "선택한 호텔 정보를 찾지 못했습니다. 검색 결과를 새로고침한 뒤 다시 시도해 주세요."
+        if snapshot_hotel and (
+            not hotel_id or str(snapshot_hotel.get("hotel_id")) == str(hotel_id)
+        ):
+            selected_hotel = snapshot_hotel
+        else:
+            error_message = "선택한 호텔 정보를 찾지 못했습니다. 검색 결과를 새로고침한 뒤 다시 시도해 주세요."
 
     if selected_hotel:
         try:
@@ -1905,4 +1937,3 @@ def create_user(
     db.commit()
     db.refresh(user)
     return RedirectResponse(url="/login", status_code=302)
-

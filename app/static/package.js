@@ -1,4 +1,4 @@
-// 위시리스트 버튼 상태 업데이트
+// ?�시리스??버튼 ?�태 ?�데?�트
 function updateWishlistButtons() {
   if (!packageSavedState || !packageSavedState.wishlist) return;
   const wishlistNames = packageSavedState.wishlist.map((item) => item.name);
@@ -13,11 +13,10 @@ function updateWishlistButtons() {
       typeof payload === "object"
         ? wishlistNames.includes(payload.name)
         : wishlistNames.includes(payload);
-    // 하트 아이콘만 표시 (airport 스타일)
-    // 기본 회색, in-wishlist일 때만 빨간색
-    let color = btn.classList.contains("in-wishlist") ? "#ff5252" : "#bbb";
-    btn.innerHTML = `<span class='wishlist-icon' style='font-size:22px;color:${color};'>♥</span>`;
-    // 마우스 오버 시 빨간색, 아니면 원래 색상
+    // ?�트 ?�이콘만 ?�시 (airport ?��???
+    // 기본 ?�색, in-wishlist???�만 빨간??    let color = btn.classList.contains("in-wishlist") ? "#ff5252" : "#bbb";
+    btn.innerHTML = `<span class='wishlist-icon' style='font-size:22px;color:${color};'>??/span>`;
+    // 마우???�버 ??빨간?? ?�니�??�래 ?�상
     btn.onmouseenter = function () {
       btn.querySelector(".wishlist-icon").style.color = "#ff5252";
     };
@@ -40,7 +39,7 @@ function updateWishlistButtons() {
 async function addToWishlist(payload) {
   if (!isLoggedIn()) {
     if (
-      confirm("로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?")
+      confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
     ) {
       location.href = "/login";
     }
@@ -49,7 +48,6 @@ async function addToWishlist(payload) {
   let name = typeof payload === "object" ? payload.name : payload;
   const wishlistNames = packageSavedState.wishlist.map((item) => item.name);
   if (wishlistNames.includes(name)) {
-    alert("이미 위시리스트에 있습니다.");
     return;
   }
   try {
@@ -72,7 +70,7 @@ async function addToWishlist(payload) {
     });
     if (res.status === 401) {
       if (
-        confirm("로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?")
+        confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
       ) {
         location.href = "/login";
       }
@@ -81,18 +79,16 @@ async function addToWishlist(payload) {
     await loadPackageSavedItems();
     updateWishlistButtons();
     packageSavedDrawerTab = "wishlist";
-    setPackageSavedDrawer(true);
+    // keep drawer closed on add/remove
     renderPackageSavedDrawer();
-    alert("위시리스트에 저장했습니다!");
   } catch (e) {
-    alert("저장 실패");
   }
 }
 
 async function removeFromWishlist(payload) {
   if (!isLoggedIn()) {
     if (
-      confirm("로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?")
+      confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
     ) {
       location.href = "/login";
     }
@@ -103,7 +99,6 @@ async function removeFromWishlist(payload) {
     (item) => item.name === name,
   );
   if (!wishlistItem) {
-    alert("위시리스트에 없습니다.");
     return;
   }
   try {
@@ -113,7 +108,7 @@ async function removeFromWishlist(payload) {
     });
     if (res.status === 401) {
       if (
-        confirm("로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?")
+        confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
       ) {
         location.href = "/login";
       }
@@ -121,9 +116,7 @@ async function removeFromWishlist(payload) {
     }
     await loadPackageSavedItems();
     updateWishlistButtons();
-    alert("위시리스트에서 제거했습니다.");
   } catch (e) {
-    alert("제거 실패");
   }
 }
 
@@ -140,7 +133,7 @@ function bindWishlistButtonEvents() {
       if (!isLoggedIn()) {
         if (
           confirm(
-            "로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?",
+            "로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??",
           )
         ) {
           location.href = "/login";
@@ -161,14 +154,14 @@ function bindWishlistButtonEvents() {
     };
   });
 }
-// 오른쪽 하단 drawer 기능 (airport와 동일하게)
-let packageSavedDrawerTab = "cart"; // 'cart' 또는 'wishlist'
+// ?�른�??�단 drawer 기능 (airport?� ?�일?�게)
+let packageSavedDrawerTab = "cart"; // 'cart' ?�는 'wishlist'
 let packageSavedState = { cart: [], wishlist: [] };
 // ...existing code...
 
-// 상품 카드 장바구니 버튼 기능 복구
+// ?�품 카드 ?�바구니 버튼 기능 복구
 function updateCartButtons() {
-  // packageSavedState가 undefined일 경우 방지
+  // packageSavedState가 undefined??경우 방�?
   if (!packageSavedState || !packageSavedState.cart) return;
   const cartNames = packageSavedState.cart.map((item) => item.name);
   document.querySelectorAll(".package-cart-btn").forEach((btn) => {
@@ -183,13 +176,13 @@ function updateCartButtons() {
         ? cartNames.includes(payload.name)
         : cartNames.includes(payload);
     if (!isLoggedIn()) {
-      btn.textContent = "장바구니";
+      btn.textContent = "?�바구니";
       btn.classList.remove("in-cart");
     } else if (isInCart) {
-      btn.textContent = "담김";
+      btn.textContent = "?��?";
       btn.classList.add("in-cart");
     } else {
-      btn.textContent = "장바구니";
+      btn.textContent = "?�바구니";
       btn.classList.remove("in-cart");
     }
   });
@@ -198,7 +191,7 @@ function updateCartButtons() {
 async function addToCart(payload) {
   if (!isLoggedIn()) {
     if (
-      confirm("로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?")
+      confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
     ) {
       location.href = "/login";
     }
@@ -207,7 +200,6 @@ async function addToCart(payload) {
   let name = typeof payload === "object" ? payload.name : payload;
   const cartNames = packageSavedState.cart.map((item) => item.name);
   if (cartNames.includes(name)) {
-    alert("이미 장바구니에 있습니다.");
     return;
   }
   try {
@@ -230,7 +222,7 @@ async function addToCart(payload) {
     });
     if (res.status === 401) {
       if (
-        confirm("로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?")
+        confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
       ) {
         location.href = "/login";
       }
@@ -238,16 +230,14 @@ async function addToCart(payload) {
     }
     await loadPackageSavedItems();
     updateCartButtons();
-    alert("장바구니에 담았습니다!");
   } catch (e) {
-    alert("담기 실패");
   }
 }
 
 async function removeFromCart(payload) {
   if (!isLoggedIn()) {
     if (
-      confirm("로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?")
+      confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
     ) {
       location.href = "/login";
     }
@@ -256,7 +246,6 @@ async function removeFromCart(payload) {
   let name = typeof payload === "object" ? payload.name : payload;
   const cartItem = packageSavedState.cart.find((item) => item.name === name);
   if (!cartItem) {
-    alert("장바구니에 없습니다.");
     return;
   }
   try {
@@ -266,7 +255,7 @@ async function removeFromCart(payload) {
     });
     if (res.status === 401) {
       if (
-        confirm("로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?")
+        confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
       ) {
         location.href = "/login";
       }
@@ -274,9 +263,7 @@ async function removeFromCart(payload) {
     }
     await loadPackageSavedItems();
     updateCartButtons();
-    alert("장바구니에서 제거했습니다.");
   } catch (e) {
-    alert("제거 실패");
   }
 }
 function bindCartButtonEvents() {
@@ -292,7 +279,7 @@ function bindCartButtonEvents() {
       if (!isLoggedIn()) {
         if (
           confirm(
-            "로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?",
+            "로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??",
           )
         ) {
           location.href = "/login";
@@ -325,7 +312,7 @@ window.addEventListener("authchange", () => {
 });
 updateCartButtons();
 
-// 오른쪽 하단 drawer 기능 (airport와 동일하게)
+// ?�른�??�단 drawer 기능 (airport?� ?�일?�게)
 // ...existing code...
 
 function bindCartButtonEvents() {
@@ -333,7 +320,6 @@ function bindCartButtonEvents() {
     btn.onclick = async function (e) {
       e.preventDefault();
       if (!isLoggedIn()) {
-        alert("로그인 후 이용 가능합니다.");
         return;
       }
       const payload = btn.dataset.savePayload;
@@ -398,7 +384,7 @@ async function savedItemsApi(path = "/api/saved-items", options = {}) {
 
 function requireLoginMessage() {
   if (
-    confirm("로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?")
+    confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
   ) {
     location.href = "/login";
   }
@@ -436,7 +422,8 @@ function renderPackageSavedDrawer() {
   const cartTab = document.getElementById("packageSavedTabCart");
   const wishlistTab = document.getElementById("packageSavedTabWishlist");
   if (!listEl || !emptyEl) return;
-  // 탭 활성화
+  // tab state
+  // tab state
   if (cartTab) {
     if (packageSavedDrawerTab === "cart") {
       cartTab.classList.add("is-active");
@@ -455,8 +442,7 @@ function renderPackageSavedDrawer() {
       wishlistTab.setAttribute("aria-selected", "false");
     }
   }
-  // 아이템 렌더링
-  // FAB count: 장바구니+위시리스트 전체 합계
+  // ?�이???�더�?  // FAB count: ?�바구니+?�시리스???�체 ?�계
   const cartCount = Array.isArray(packageSavedState.cart)
     ? packageSavedState.cart.length
     : 0;
@@ -468,7 +454,7 @@ function renderPackageSavedDrawer() {
     countEl.hidden = total === 0;
     countEl.textContent = String(total || 0);
   }
-  // 현재 탭 아이템만 렌더링
+  // current tab items
   const items = Array.isArray(packageSavedState[packageSavedDrawerTab])
     ? packageSavedState[packageSavedDrawerTab]
     : [];
@@ -476,16 +462,18 @@ function renderPackageSavedDrawer() {
   emptyEl.style.display = items.length ? "none" : "block";
   emptyEl.textContent =
     packageSavedDrawerTab === "cart"
-      ? "장바구니 항목이 없습니다."
-      : "위시리스트 항목이 없습니다.";
+      ? "?�바구니 ??��???�습?�다."
+      : "?�시리스????��???�습?�다.";
   items.forEach((item) => {
     const li = document.createElement("li");
     li.className = "flight-saved-item";
+    const typeText = item.item_type || (packageSavedDrawerTab === "cart" ? "package" : "wishlist");
+    const metaHtml = item.meta ? `<div class="flight-saved-item__meta">${item.meta}</div>` : "";
     li.innerHTML = `
-                <div class="flight-saved-item__type">${item.item_type || (packageSavedDrawerTab === "cart" ? "패키지" : "위시리스트")}</div>
+                <div class="flight-saved-item__type">${typeText}</div>
                 <div class="flight-saved-item__name">${item.name || "-"}</div>
-                ${item.meta ? `<div class="flight-saved-item__meta">${item.meta}</div>` : ""}
-                <button type="button" class="flight-saved-item__remove" data-package-saved-remove="${item.id}" title="삭제">×</button>
+                ${metaHtml}
+                <button type="button" class="flight-saved-item__remove" data-package-saved-remove="${item.id}" title="remove">x</button>
             `;
     listEl.appendChild(li);
   });
@@ -504,16 +492,15 @@ function initPackageSavedDrawer() {
   document.querySelectorAll("[data-package-saved-close]").forEach((el) => {
     el.addEventListener("click", () => setPackageSavedDrawer(false));
   });
-  // 탭 클릭 이벤트
+  // tab click events
   cartTab?.addEventListener("click", () => {
-    packageSavedDrawerTab = "cart";
     renderPackageSavedDrawer();
   });
   wishlistTab?.addEventListener("click", () => {
     packageSavedDrawerTab = "wishlist";
     renderPackageSavedDrawer();
   });
-  // 아이템 삭제
+  // ?�이????��
   listEl?.addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-package-saved-remove]");
     if (!btn) return;
@@ -528,7 +515,6 @@ function initPackageSavedDrawer() {
       updateCartButtons();
       updateWishlistButtons();
     } catch (err) {
-      alert("삭제 중 오류가 발생했습니다.");
     }
   });
   renderPackageSavedDrawer();

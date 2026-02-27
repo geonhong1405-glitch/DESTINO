@@ -129,7 +129,7 @@
                     {% if hotel.hotel_id %}
                     <a
                         class="hotel-card-link"
-                        href="/gloval-hotel/detail?hotel_id={{ hotel.hotel_id }}&city={{ city or '' }}&country={{ country or '' }}&checkin={{ checkin or '' }}&checkout={{ checkout or '' }}"
+                        href="/gloval-hotel/detail?hotel_id={{ hotel.hotel_id }}&city={{ city or '' }}&country={{ country or '' }}&checkin={{ checkin or '' }}&checkout={{ checkout or '' }}&snapshot={{ hotel.detail_snapshot or '' }}"
                         aria-label="{{ (hotel.name_ko or hotel.name or '호텔') }} 상세 보기"
                     >
                     {% endif %}

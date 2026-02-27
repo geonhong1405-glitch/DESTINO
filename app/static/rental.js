@@ -338,8 +338,9 @@ async function selectDestinationCity(els, state, payload) {
   state.destinationSearching = false;
 
   resetSelectedLocations(els);
-  if (els.pickupSearchInput) els.pickupSearchInput.value = city;
-  if (els.dropoffSearchInput) els.dropoffSearchInput.value = city;
+  // 목적지 선택 후에는 검색창 텍스트를 비워 수동 검색이 편하도록 유지
+  if (els.pickupSearchInput) els.pickupSearchInput.value = '';
+  if (els.dropoffSearchInput) els.dropoffSearchInput.value = '';
   closeAllPopovers(els);
 
   if (!city) return;
@@ -357,8 +358,10 @@ function closeAllPopovers(els) {
 
 function initDates(els, initial) {
   const now = new Date();
-  const startDefault = new Date(now.getTime() + 3600 * 1000);
-  const endDefault = new Date(startDefault.getTime() + 3 * 86400 * 1000);
+  const startDefault = new Date(now);
+  startDefault.setHours(11, 0, 0, 0); // 기본: 오늘 오전 11시
+  const endDefault = new Date(startDefault);
+  endDefault.setDate(endDefault.getDate() + 1); // 기본: 다음 날 오전 11시
   const s = parseLocalDateTime(initial.pickupAt) || startDefault;
   const e = parseLocalDateTime(initial.dropoffAt) || endDefault;
   const minDate = formatDate(now);
