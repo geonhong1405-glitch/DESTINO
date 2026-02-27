@@ -23,15 +23,15 @@ _APP_DIR = os.path.dirname(os.path.dirname(__file__))
 templates = Jinja2Templates(directory=os.path.join(_APP_DIR, "templates"))
 
 _RENTAL_COUNTRY_OPTIONS = [
-    {"code": "JP", "name": "일본", "currency": "JPY"},
-    {"code": "KR", "name": "대한민국", "currency": "KRW"},
-    {"code": "US", "name": "미국", "currency": "USD"},
-    {"code": "FR", "name": "프랑스", "currency": "EUR"},
-    {"code": "AE", "name": "아랍에미리트", "currency": "AED"},
-    {"code": "TH", "name": "태국", "currency": "THB"},
-    {"code": "VN", "name": "베트남", "currency": "VND"},
-    {"code": "SG", "name": "싱가포르", "currency": "SGD"},
-    {"code": "TW", "name": "대만", "currency": "TWD"},
+    {"code": "JP", "name": "??", "currency": "JPY"},
+    {"code": "KR", "name": "????", "currency": "KRW"},
+    {"code": "US", "name": "??", "currency": "USD"},
+    {"code": "FR", "name": "???", "currency": "EUR"},
+    {"code": "AE", "name": "??????", "currency": "AED"},
+    {"code": "TH", "name": "??", "currency": "THB"},
+    {"code": "VN", "name": "???", "currency": "VND"},
+    {"code": "SG", "name": "????", "currency": "SGD"},
+    {"code": "TW", "name": "??", "currency": "TWD"},
 ]
 
 
@@ -103,22 +103,39 @@ def _extract_rental_api_error(raw: dict | None) -> str | None:
     if raw.get("error"):
         return str(raw.get("error"))
     if isinstance(raw.get("errors"), dict) and raw.get("errors"):
-        return f"렌터카 API 요청 파라미터 오류일 수 있습니다. (공급사 응답: {list(raw.get('errors', {}).items())})"
+        return f"??? API ?? ???? ??? ? ????. (??? ??: {list(raw.get('errors', {}).items())})"
 
     message = str(raw.get("message") or "").strip()
     status = str(raw.get("status") or "").strip()
     joined = f"{status} {message}".strip().lower()
 
     if "something went wrong" in joined:
-        return "렌터카 API 서비스 일시 오류입니다. 잠시 후 다시 시도해 주세요."
+        return "??? API ??? ?? ?????. ?? ? ?? ??? ???."
     if any(k in joined for k in ("invalid", "required", "parameter", "validation")):
         detail = message or status
         if detail:
-            return f"렌터카 API 요청 파라미터 오류일 수 있습니다. (공급사 응답: {detail})"
-        return "렌터카 API 요청 파라미터 오류일 수 있습니다. 잠시 후 다시 시도해 주세요."
+            return f"??? API ?? ???? ??? ? ????. (??? ??: {detail})"
+        return "??? API ?? ???? ??? ? ????. ?? ? ?? ??? ???."
     if any(k in joined for k in ("rate limit", "too many requests")):
-        return "렌터카 API 호출이 많아 잠시 제한되었습니다. 잠시 후 다시 시도해 주세요."
+        return "??? API ??? ?? ?? ???????. ?? ? ?? ??? ???."
     return None
+
+def _clean_provider_detail(detail: str | None) -> str:
+    text = str(detail or "").strip()
+    if not text:
+        return ""
+    lowered = text.lower()
+    if lowered in {"successful", "success", "ok"}:
+        return ""
+    text = text.replace("(Successful)", "").replace("(success)", "").strip()
+    text = text.replace("(no sky detail)", "").strip()
+    text = text.replace("  ", " ").strip()
+    if text.endswith("()"):
+        text = text[:-2].strip()
+    return text
+
+
+
 
 
 @router.get("/api/rental/location-search")
@@ -198,6 +215,9 @@ def rental_page(
                 driver_age=30,
             )
             sky_cars = parse_sky_car_search_results(sky_raw)
+            if not sky_cars and isinstance(sky_raw, dict):
+                # Sky ?? ???? ?? ??? ??? ?? ??? ? ? ??
+                sky_cars = parse_rental_search_results(sky_raw)
             if sky_cars:
                 rental_raw = sky_raw
                 rental_cars = sky_cars
@@ -220,7 +240,9 @@ def rental_page(
                 )
                 rental_cars = parse_rental_search_results(rental_raw)
                 rental_provider = "Booking Fallback"
-                rental_provider_detail = f"Sky empty/fail -> Booking ({sky_msg or 'no sky detail'})"
+                detail_raw = f"Sky empty/fail -> Booking ({sky_msg or 'no sky detail'})"
+                detail_clean = _clean_provider_detail(detail_raw)
+                rental_provider_detail = detail_clean if detail_clean else "Sky empty/fail -> Booking"
             for car in rental_cars:
                 if not isinstance(car, dict):
                     continue
@@ -251,9 +273,9 @@ def rental_page(
             if api_error:
                 rental_error = api_error
             elif not rental_cars:
-                rental_error = "렌터카 검색 결과를 찾지 못했습니다. 다른 지역/시간으로 다시 시도해 주세요."
+                rental_error = "??? ?? ??? ?? ?????. ?? ??/???? ?? ??? ???."
         except Exception as e:
-            rental_error = f"렌터카 검색 실패: {e}"
+            rental_error = f"??? ?? ??: {e}"
 
     return templates.TemplateResponse(
         "rental.html",

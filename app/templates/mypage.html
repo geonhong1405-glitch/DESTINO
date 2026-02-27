@@ -9,7 +9,7 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Custom Styles -->
-    <link rel="stylesheet" href="../static/mypage.css?v=20260224">
+    <link rel="stylesheet" href="/static/mypage.css?v=20260227a">
 </head>
 <body data-user-id="{{ name or "" }}" data-user-name="{{ name or "" }}" data-user-nickname="{{ nickname or "" }}" data-user-email="{{ email or "" }}" data-user-phone="{{ phone or "" }}">
 
@@ -49,7 +49,7 @@
             </button>
             <button onclick="switchTab('wishlist')" id="tab-btn-wishlist" class="sidebar-item">
                 <i data-lucide="heart" size="20"></i>
-                <span class="font-medium">찜한 여행지</span>
+                <span class="font-medium">위시리스트</span>
             </button>
             <button onclick="switchTab('cart')" id="tab-btn-cart" class="sidebar-item">
                 <i data-lucide="shopping-cart" size="20"></i>
@@ -101,7 +101,7 @@
                         <p id="mypage-booking-count" class="stat-value">0건</p>
                     </div>
                     <div class="stat-box clickable" onclick="switchTab('wishlist')">
-                        <p class="stat-label">찜</p>
+                        <p class="stat-label">위시리스트</p>
                         <p id="mypage-wishlist-count" class="stat-value">0개</p>
                     </div>
                     <div class="stat-box clickable" onclick="switchTab('cart')">
@@ -164,7 +164,7 @@
             <div id="content-wishlist" class="tab-content">
                 <div class="card-container min-h-card">
                     <div class="section-header">
-                        <h4 id="mypage-wishlist-title" class="card-title mb-0">찜한 여행지 (0)</h4>
+                        <h4 id="mypage-wishlist-title" class="card-title mb-0">위시리스트 (0)</h4>
                     </div>
                     <div id="mypage-wishlist-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                     </div>
@@ -176,8 +176,13 @@
                 <div class="card-container min-h-card">
                     <div class="section-header">
                         <h4 id="mypage-cart-title" class="card-title mb-0">장바구니 (0)</h4>
+                        <div class="inline-flex bg-gray-100 rounded-xl p-1">
+                            <button id="mypage-cart-subtab-cart" type="button" onclick="switchCartSubTab('cart')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-white text-[#00AEEF]">장바구니</button>
+                            <button id="mypage-cart-subtab-alerts" type="button" onclick="switchCartSubTab('alerts')" class="px-3 py-1.5 text-xs font-bold rounded-lg text-gray-500">알림</button>
+                        </div>
                     </div>
                     <div id="mypage-cart-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4"></div>
+                    <div id="mypage-cart-alerts-list" class="grid grid-cols-1 gap-3 mt-4 hidden"></div>
                 </div>
             </div>
 
@@ -189,7 +194,7 @@
                             <h4 class="card-title mb-1">내가 만든 공동구매</h4>
                             <p class="text-sm text-gray-400">직접 등록하여 동행을 모집 중인 여행 목록입니다.</p>
                         </div>
-                        <a href="travel-group.html" class="px-4 py-2 bg-[#00AEEF]/10 text-[#00AEEF] rounded-xl text-xs font-bold hover:bg-[#00AEEF] hover:text-white transition-all">
+                        <a href="/travelGroup" class="px-4 py-2 bg-[#00AEEF]/10 text-[#00AEEF] rounded-xl text-xs font-bold hover:bg-[#00AEEF] hover:text-white transition-all">
                             + 새 모집글 쓰기
                         </a>
                     </div>
@@ -333,8 +338,6 @@
     </footer>
 
     <!-- Custom Script -->
-    <script src="../static/mypage.js?v=20260224f"></script>
+    <script src="/static/mypage.js?v=20260227a"></script>
 </body>
 </html>
-
-

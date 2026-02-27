@@ -10,6 +10,18 @@ class User(Base):
     password = Column(String(128))
     nickname = Column(String(50), index=True)
 
+
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, nullable=False)
+    session_token = Column(String(128), unique=True, index=True, nullable=False)
+    expire_at = Column(DateTime, index=True, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now(), server_default=func.now())
+
+
 class Nickname(Base):
     __tablename__ = "nicknames"
     id = Column(Integer, primary_key=True, index=True)
@@ -39,5 +51,39 @@ class UserSavedItem(Base):
     meta = Column(String(512), nullable=True)
     source = Column(String(50), nullable=True)
     payload_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now(), server_default=func.now())
+
+
+class GroupBuyPost(Base):
+    __tablename__ = "group_buy_posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_user_id = Column(Integer, index=True, nullable=False)
+    category = Column(String(30), nullable=True)
+    title = Column(String(255), nullable=False)
+    country = Column(String(100), nullable=False)
+    city = Column(String(100), nullable=True)
+    start_date = Column(String(20), nullable=False)  # YYYY-MM-DD
+    end_date = Column(String(20), nullable=True)
+    departure = Column(String(100), nullable=True)
+    budget = Column(String(80), nullable=True)
+    description = Column(Text, nullable=True)
+    status = Column(String(20), nullable=False, default="open")  # open/closed
+    current_people = Column(Integer, nullable=False, default=1)
+    max_people = Column(Integer, nullable=False, default=4)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now(), server_default=func.now())
+
+
+class GroupBuyJoinRequest(Base):
+    __tablename__ = "group_buy_join_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    post_id = Column(Integer, index=True, nullable=False)
+    post_owner_user_id = Column(Integer, index=True, nullable=False)
+    requester_user_id = Column(Integer, index=True, nullable=False)
+    message = Column(String(500), nullable=True)
+    status = Column(String(20), nullable=False, default="pending")  # pending/accepted/rejected
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, onupdate=func.now(), server_default=func.now())

@@ -161,71 +161,78 @@ document.getElementById('prevBtn').addEventListener('click', movePrev);
 document.addEventListener('DOMContentLoaded', initSlider);
 
 /* 공동구매 */
-// 가상의 공동구매 데이터
-const bookings = [
-    {
-        id: 1,
-        status: 'recruiting',
-        category: 'flight_hotel',
-        destination: '오사카',
-        title: '3박 4일 벚꽃투어 항공+호텔 특가 모여라!',
-        startDate: '2026-03-25',
-        endDate: '2026-03-28',
-        currentPax: 8,
-        maxPax: '명 참여 중',
-    },
-    {
-        id: 2,
-        status: 'imminent',
-        category: 'flight',
-        destination: '다낭',
-        title: '왕복 특가 항공권 4인 이상 모이면 반값!',
-        startDate: '2026-04-10',
-        endDate: '2026-04-14',
-        currentPax: 13,
-        maxPax: '명 참여 중',
-    },
-    {
-        id: 3,
-        status: 'closed',
-        category: 'hotel',
-        destination: '서귀포',
-        title: '5성급 오션뷰 호텔 풀빌라 쉐어하실 분',
-        startDate: '2026-05-01',
-        endDate: '2026-05-03',
-        currentPax: 21,
-        maxPax: '명 참여 중',
-    },
-    {
-        id: 4,
-        status: 'recruiting',
-        category: 'hotel',
-        destination: '방콕',
-        title: '시내 중심가 레지던스 장기 투숙 모집',
-        startDate: '2026-06-15',
-        endDate: '2026-06-20',
-        currentPax: 11,
-        maxPax: '명 참여 중',
-    },
-];
+let bookings = [];
 
 // 설정 도우미 함수들
-const getCategoryLabel = (cat) => ({ flight: '항공', hotel: '호텔', flight_hotel: '항공+호텔' }[cat] || '기타');
+const getCategoryLabel = (cat) => ({
+    flight: '항공',
+    roundtrip: '항공',
+    hotel: '호텔',
+    package: '항공+호텔',
+    flight_hotel: '항공+호텔',
+}[cat] || '기타');
 
 const getStatusConfig = (status) => {
     const configs = {
         recruiting: { label: '모집중', className: 'status-recruiting' },
         imminent: { label: '마감임박', className: 'status-imminent' },
-        closed: { label: '모집완료', className: 'status-closed' }
+        closed: { label: '모집완료', className: 'status-closed' },
+        open: { label: '모집중', className: 'status-recruiting' },
     };
     return configs[status] || { label: '미상', className: 'status-closed' };
 };
 
-const formatDate = (dateString) => dateString.substring(5).replace('-', '.');
+const formatDate = (dateString) => {
+    const s = String(dateString || '');
+    if (s.length >= 10) return s.substring(5, 10).replace('-', '.');
+    return s;
+};
+
+async function loadLiveGroupBookings() {
+    try {
+        const res = await fetch('/api/group-buy/posts', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const rows = await res.json();
+        const list = Array.isArray(rows) ? rows : [];
+        bookings = list.slice(0, 6).map((row) => {
+            const maxPeople = Number(row?.max_people || 4);
+            const currentPeople = Number(row?.current_people || 1);
+            const statusRaw = String(row?.status || 'open').toLowerCase();
+            const status = statusRaw === 'closed'
+                ? 'closed'
+                : ((maxPeople - currentPeople) <= 1 ? 'imminent' : 'recruiting');
+            return {
+                id: Number(row?.id || 0),
+                status,
+                category: String(row?.category || 'package').toLowerCase(),
+                destination: row?.city || row?.country || '여행지',
+                title: row?.title || '공동구매 모집글',
+                startDate: row?.start_date || '',
+                endDate: row?.end_date || '',
+                currentPax: currentPeople,
+                maxPax: '명 참여 중',
+            };
+        });
+    } catch (_e) {
+        bookings = [];
+    }
+    renderBookings();
+}
 
 // 렌더링 함수
 function renderBookings() {
     const listContainer = document.getElementById('booking-list');
+    if (!listContainer) return;
+    if (!bookings.length) {
+        listContainer.innerHTML = `
+            <div class="booking-item">
+                <div class="content-area">
+                    <h3 class="booking-title">진행 중인 공동구매가 없습니다.</h3>
+                </div>
+            </div>
+        `;
+        return;
+    }
     
     listContainer.innerHTML = bookings.map(booking => {
         const categoryLabel = getCategoryLabel(booking.category);
@@ -244,7 +251,7 @@ function renderBookings() {
                         <span class="dest">[${booking.destination}]</span>${booking.title}
                     </h3>
                     <div class="date-info">
-                        ${formatDate(booking.startDate)} — ${formatDate(booking.endDate)}
+                        ${formatDate(booking.startDate)}${booking.endDate ? ` — ${formatDate(booking.endDate)}` : ''}
                     </div>
                 </div>
                 <div class="pax-area">
@@ -296,14 +303,30 @@ function initAiTabs() {
 // 모든 초기화 로직을 하나로 합치기
 document.addEventListener('DOMContentLoaded', () => {
     initSlider();     // 슬라이더 초기화
-    renderBookings(); // 공동구매 리스트 초기화
+    loadLiveGroupBookings(); // 공동구매 리스트 DB 실시간 로드
     initAiTabs();     // AI 탭 초기화 (추가)
     initHomeSavedDrawer(); // 공통 장바구니/위시리스트 드로어
+});
+
+window.addEventListener('focus', () => {
+    loadLiveGroupBookings();
 });
 
 /* 홈 공통 저장목록(장바구니/위시리스트) */
 let homeSavedTab = 'cart';
 let homeSavedState = { cart: [], wishlist: [] };
+let homeAlertState = [];
+const HOME_SAVED_COUNTRY_IMAGE = {
+    japan: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=800&q=80',
+    vietnam: 'https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=800&q=80',
+    thailand: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?auto=format&fit=crop&w=800&q=80',
+    france: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=800&q=80',
+    usa: 'https://images.unsplash.com/photo-1485738422979-f5c462d49f74?auto=format&fit=crop&w=800&q=80',
+    italy: 'https://images.unsplash.com/photo-1525874684015-58379d421a52?auto=format&fit=crop&w=800&q=80',
+    spain: 'https://images.unsplash.com/photo-1543783207-ec64e4d95325?auto=format&fit=crop&w=800&q=80',
+    uk: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=800&q=80',
+    default: 'https://images.unsplash.com/photo-1488085061387-422e29b40080?auto=format&fit=crop&w=800&q=80',
+};
 
 async function homeSavedApi(path = '/api/saved-items', options = {}) {
     const res = await fetch(path, {
@@ -343,12 +366,38 @@ function homeSavedAirlineLogo(code) {
     return `https://images.kiwi.com/airlines/64x64/${encodeURIComponent(String(code).toUpperCase())}.png`;
 }
 
+function homeSavedTypeLabel(itemType) {
+    const type = String(itemType || '').toLowerCase();
+    if (type === 'flight') return '항공';
+    if (type === 'hotel' || type === 'stay' || type === 'accommodation') return '숙박';
+    if (type === 'groupbuy' || type === 'travel-group') return '공동구매';
+    return type ? type.toUpperCase() : 'ITEM';
+}
+
+function homeSavedCountryKey(country) {
+    const c = String(country || '').toLowerCase();
+    if (c.includes('일본') || c.includes('japan')) return 'japan';
+    if (c.includes('베트남') || c.includes('vietnam')) return 'vietnam';
+    if (c.includes('태국') || c.includes('thailand')) return 'thailand';
+    if (c.includes('프랑스') || c.includes('france')) return 'france';
+    if (c.includes('미국') || c.includes('usa') || c.includes('united states')) return 'usa';
+    if (c.includes('이탈리아') || c.includes('italy')) return 'italy';
+    if (c.includes('스페인') || c.includes('spain')) return 'spain';
+    if (c.includes('영국') || c.includes('uk') || c.includes('united kingdom')) return 'uk';
+    return 'default';
+}
+
 function homeSavedImageUrl(item) {
     const p = item?.payload || {};
     if (item?.item_type === 'flight') {
         return homeSavedAirlineLogo(p?.airline_code || '');
     }
-    return p?.image_url || p?.image || p?.thumbnail || p?.photo || (Array.isArray(p?.images) ? p.images[0] : '') || '';
+    const direct = p?.image_url || p?.image || p?.thumbnail || p?.photo || (Array.isArray(p?.images) ? p.images[0] : '');
+    if (direct) return direct;
+    if (String(item?.item_type || '').toLowerCase() === 'groupbuy' || String(item?.item_type || '').toLowerCase() === 'travel-group') {
+        return HOME_SAVED_COUNTRY_IMAGE[homeSavedCountryKey(p?.country)] || HOME_SAVED_COUNTRY_IMAGE.default;
+    }
+    return '';
 }
 
 function homeSavedMetaParts(item) {
@@ -362,7 +411,7 @@ function homeSavedMetaParts(item) {
 
 function homeSavedItemHtml(item) {
     const img = homeSavedImageUrl(item);
-    const kind = `${String(item?.item_type || 'item').toUpperCase()} · ${item?.source || 'saved-item'}`;
+    const kind = `${homeSavedTypeLabel(item?.item_type)} · ${item?.source || 'saved-item'}`;
     const meta = homeSavedMetaParts(item);
     const lines = (meta.lines || []).map((line) => `<div class="home-saved-line">${homeSavedEscape(line)}</div>`).join('');
     return `
@@ -397,6 +446,34 @@ async function loadHomeSavedItems() {
     renderHomeSavedDrawer();
 }
 
+async function loadHomeAlerts() {
+    try {
+        const res = await fetch('/api/group-buy/join-requests/inbox', { credentials: 'include' });
+        if (res.status === 401) {
+            homeAlertState = [];
+            return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        homeAlertState = Array.isArray(data) ? data : [];
+    } catch (_e) {
+        homeAlertState = [];
+    }
+}
+
+async function decideHomeAlert(requestId, action) {
+    const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}/decision`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+    });
+    if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d?.detail || `HTTP ${res.status}`);
+    }
+}
+
 function setHomeSavedDrawer(open) {
     const drawer = document.getElementById('homeSavedDrawer');
     const fab = document.getElementById('homeSavedFab');
@@ -415,7 +492,8 @@ function renderHomeSavedDrawer() {
 
     const cartCount = homeSavedState.cart?.length || 0;
     const wishCount = homeSavedState.wishlist?.length || 0;
-    const total = cartCount + wishCount;
+    const alertCount = homeAlertState?.length || 0;
+    const total = cartCount + wishCount + alertCount;
     if (countEl) {
         countEl.hidden = total === 0;
         countEl.textContent = String(total);
@@ -425,6 +503,52 @@ function renderHomeSavedDrawer() {
         const tab = btn.getAttribute('data-home-saved-tab');
         btn.classList.toggle('is-active', tab === homeSavedTab);
     });
+
+    if (homeSavedTab === 'alerts') {
+        if (!homeAlertState.length) {
+            listEl.innerHTML = '';
+            emptyEl.style.display = 'block';
+            emptyEl.textContent = '도착한 참여 요청 알림이 없습니다.';
+            return;
+        }
+        emptyEl.style.display = 'none';
+        listEl.innerHTML = homeAlertState.map((item) => {
+            const status = String(item.status || 'pending');
+            const statusLabel = status === 'accepted' ? '수락됨' : (status === 'rejected' ? '거절됨' : '대기중');
+            const incoming = String(item.direction || 'incoming') !== 'mine';
+            const reqTitle = incoming
+                ? `${homeSavedEscape(item.requester_name || '')}님이 요청했습니다`
+                : `${homeSavedEscape(item.requester_name || '작성자')}님의 응답`;
+            return `
+                <div class="home-saved-item" data-alert-id="${Number(item.id)}" style="grid-template-columns:1fr;">
+                    <div class="home-saved-meta">
+                        <div class="home-saved-kind">공동구매 · 참여요청</div>
+                        <div class="home-saved-name">${homeSavedEscape(item.post_title || '')}</div>
+                        <div class="home-saved-line">${reqTitle}</div>
+                        ${item.requester_email ? `<div class="home-saved-line">이메일: ${homeSavedEscape(item.requester_email || '')}</div>` : ''}
+                        ${item.message ? `<div class="home-saved-line">${homeSavedEscape(item.message || '')}</div>` : ''}
+                        <div class="home-saved-line">${statusLabel}</div>
+                        ${
+                            incoming && status === 'pending'
+                                ? `<div class="home-saved-line">
+                                    <button type="button" data-alert-action="accept" data-alert-id="${Number(item.id)}" class="home-saved-close">수락</button>
+                                    <button type="button" data-alert-action="reject" data-alert-id="${Number(item.id)}" class="home-saved-close">거절</button>
+                                </div>`
+                                : ''
+                        }
+                        ${
+                            status !== 'pending'
+                                ? `<div class="home-saved-line">
+                                    <button type="button" data-alert-remove="${Number(item.id)}" class="home-saved-close">알림 삭제</button>
+                                </div>`
+                                : ''
+                        }
+                    </div>
+                </div>
+            `;
+        }).join('');
+        return;
+    }
 
     const items = Array.isArray(homeSavedState[homeSavedTab]) ? homeSavedState[homeSavedTab] : [];
     if (!items.length) {
@@ -463,18 +587,55 @@ function initHomeSavedDrawer() {
     fab.addEventListener('click', () => {
         const open = !drawer.classList.contains('is-open');
         setHomeSavedDrawer(open);
-        if (open) loadHomeSavedItems();
+        if (open) {
+            loadHomeSavedItems();
+            loadHomeAlerts().then(renderHomeSavedDrawer);
+        }
     });
     closeBtn.addEventListener('click', () => setHomeSavedDrawer(false));
 
     document.querySelectorAll('[data-home-saved-tab]').forEach((btn) => {
         btn.addEventListener('click', () => {
             homeSavedTab = btn.getAttribute('data-home-saved-tab') || 'cart';
+            if (homeSavedTab === 'alerts') {
+                loadHomeAlerts().then(renderHomeSavedDrawer);
+                return;
+            }
             renderHomeSavedDrawer();
         });
     });
 
     listEl.addEventListener('click', (e) => {
+        const alertActionBtn = e.target.closest('[data-alert-action]');
+        if (alertActionBtn) {
+            const alertId = Number(alertActionBtn.getAttribute('data-alert-id'));
+            const action = String(alertActionBtn.getAttribute('data-alert-action') || '');
+            if (!alertId || !action) return;
+            decideHomeAlert(alertId, action)
+                .then(async () => {
+                    await loadHomeAlerts();
+                    await loadLiveGroupBookings();
+                    renderHomeSavedDrawer();
+                })
+                .catch((err) => alert(err?.message || '요청 처리 중 오류가 발생했습니다.'));
+            return;
+        }
+        const alertRemoveBtn = e.target.closest('[data-alert-remove]');
+        if (alertRemoveBtn) {
+            const alertId = Number(alertRemoveBtn.getAttribute('data-alert-remove'));
+            if (!alertId) return;
+            fetch(`/api/group-buy/join-requests/${alertId}`, { method: 'DELETE', credentials: 'include' })
+                .then(async (res) => {
+                    if (!res.ok) {
+                        const d = await res.json().catch(() => ({}));
+                        throw new Error(d?.detail || `HTTP ${res.status}`);
+                    }
+                    await loadHomeAlerts();
+                    renderHomeSavedDrawer();
+                })
+                .catch((err) => alert(err?.message || '알림 삭제 중 오류가 발생했습니다.'));
+            return;
+        }
         const removeBtn = e.target.closest('[data-saved-remove]');
         if (!removeBtn) return;
         const itemId = Number(removeBtn.getAttribute('data-saved-remove'));
@@ -489,8 +650,12 @@ function initHomeSavedDrawer() {
     });
 
     window.addEventListener('focus', () => {
-        if (drawer.classList.contains('is-open')) loadHomeSavedItems();
+        if (drawer.classList.contains('is-open')) {
+            loadHomeSavedItems();
+            loadHomeAlerts().then(renderHomeSavedDrawer);
+        }
     });
 
     loadHomeSavedItems();
+    loadHomeAlerts().then(renderHomeSavedDrawer);
 }

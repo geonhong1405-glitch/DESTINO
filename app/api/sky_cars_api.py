@@ -12,15 +12,24 @@ SKY_RAPIDAPI_KEY = os.getenv("SKY_RAPIDAPI_KEY")
 SKY_RAPIDAPI_HOST = os.getenv("SKY_RAPIDAPI_HOST", "flights-sky.p.rapidapi.com")
 
 
+def _clean_env_token(value: str | None) -> str:
+    s = str(value or "").strip()
+    if not s:
+        return ""
+    if "#" in s:
+        s = s.split("#", 1)[0].strip()
+    return s
+
+
 def _headers() -> dict[str, str]:
     return {
-        "x-rapidapi-key": SKY_RAPIDAPI_KEY or "",
-        "x-rapidapi-host": SKY_RAPIDAPI_HOST,
+        "x-rapidapi-key": _clean_env_token(SKY_RAPIDAPI_KEY),
+        "x-rapidapi-host": _clean_env_token(SKY_RAPIDAPI_HOST),
     }
 
 
 def _has_creds() -> bool:
-    return bool(SKY_RAPIDAPI_KEY and SKY_RAPIDAPI_HOST)
+    return bool(_clean_env_token(SKY_RAPIDAPI_KEY) and _clean_env_token(SKY_RAPIDAPI_HOST))
 
 
 def _parse_dt(value: str | None) -> _dt.datetime | None:
@@ -226,13 +235,53 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
     out: list[dict] = []
     seen: set[tuple] = set()
 
+    def _first_number(node: Any) -> float | None:
+        if isinstance(node, (int, float)):
+            return float(node)
+        if isinstance(node, str):
+            t = node.strip().replace(",", "")
+            m = re.search(r"-?\d+(?:\.\d+)?", t)
+            if m:
+                try:
+                    return float(m.group(0))
+                except Exception:
+                    return None
+            return None
+        if isinstance(node, dict):
+            # Prefer keys that look like price fields.
+            for k, v in node.items():
+                lk = str(k).lower()
+                if any(x in lk for x in ("price", "amount", "total", "fare", "cost", "pay")):
+                    n = _first_number(v)
+                    if n is not None:
+                        return n
+            # Fallback: scan nested values.
+            for v in node.values():
+                n = _first_number(v)
+                if n is not None:
+                    return n
+        if isinstance(node, list):
+            for v in node:
+                n = _first_number(v)
+                if n is not None:
+                    return n
+        return None
+
     for car in car_list:
         if not isinstance(car, dict):
             continue
         deals = car.get("deals") if isinstance(car.get("deals"), list) else []
         deal = deals[0] if deals and isinstance(deals[0], dict) else {}
 
-        name = str(deal.get("car_name") or car.get("car_name") or "").strip() or "Rental Car"
+        name = str(
+            deal.get("car_name")
+            or deal.get("name")
+            or car.get("car_name")
+            or car.get("name")
+            or car.get("vehicle_name")
+            or car.get("model")
+            or ""
+        ).strip() or "Rental Car"
         supplier = str(deal.get("vndr") or "").strip()
         if not supplier:
             prv_id = str(deal.get("prv_id") or "").strip()
@@ -244,9 +293,15 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
         price = deal.get("price")
         if price is None:
             price = car.get("min_price") or car.get("mean_price")
+        if price is None:
+            price = _first_number(deal)
+        if price is None:
+            price = _first_number(car)
         try:
             price_num = int(round(float(price))) if price is not None else None
         except Exception:
+            price_num = None
+        if price_num is not None and price_num < 100:
             price_num = None
 
         img = str(car.get("img") or deal.get("vndr_img") or "").strip() or None
@@ -271,6 +326,9 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
         except Exception:
             rating = None
 
+        if name.lower() in {"rental car", "렌터카 옵션"} and supplier:
+            name = f"{supplier} 렌터카"
+
         key = (name, supplier, price_num or 0)
         if key in seen:
             continue
@@ -293,4 +351,3 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
 
     out.sort(key=lambda x: x.get("price") or 10**12)
     return out[:24]
-

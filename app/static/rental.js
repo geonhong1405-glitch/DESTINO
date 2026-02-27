@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   if (window.lucide) lucide.createIcons();
   initRentalApp();
+  initRentalSavedUi();
 });
 
 const DESTINATION_REGIONS = [
@@ -584,4 +585,396 @@ function escapeHtml(s) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+let rentalSavedState = { cart: [], wishlist: [] };
+let rentalSavedTab = 'cart';
+let rentalAlertState = [];
+let rentalAuthState = { checkedAt: 0, loggedIn: false };
+
+function rentalKeyFromPayload(payload) {
+  const p = payload || {};
+  return [
+    String(p.name || '').trim().toLowerCase(),
+    String(p.supplier || '').trim().toLowerCase(),
+    String(p.price ?? '').trim(),
+    String(p.currency || '').trim().toLowerCase(),
+    String(p.pickup_at || '').trim(),
+    String(p.dropoff_at || '').trim(),
+  ].join('|');
+}
+
+function rentalSavedRowKey(row) {
+  if (!row) return '';
+  const payload = row.payload && typeof row.payload === 'object' ? row.payload : {};
+  if (String(row.item_type || '').toLowerCase() === 'rental') return rentalKeyFromPayload(payload);
+  return `${String(row.name || '').toLowerCase()}|${String(row.meta || '').toLowerCase()}`;
+}
+
+function parseRentalPayload(attrValue) {
+  try {
+    const row = JSON.parse(attrValue || '{}');
+    return row && typeof row === 'object' ? row : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+function buildRentalSavedPayload(raw, listType) {
+  const payload = raw && typeof raw === 'object' ? raw : null;
+  if (!payload || !payload.name) return null;
+  const metaParts = [];
+  if (payload.supplier) metaParts.push(String(payload.supplier));
+  if (payload.pickup_name) metaParts.push(`픽업 ${payload.pickup_name}`);
+  if (payload.dropoff_name) metaParts.push(`반납 ${payload.dropoff_name}`);
+  if (payload.pickup_at) metaParts.push(String(payload.pickup_at).slice(0, 10));
+  return {
+    list_type: listType,
+    item_type: 'rental',
+    name: String(payload.name || '').trim(),
+    meta: metaParts.join(' | '),
+    source: 'rental',
+    payload,
+  };
+}
+
+async function rentalSavedApi(path = '/api/saved-items', options = {}) {
+  const res = await fetch(path, {
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+    ...options,
+  });
+  if (res.status === 401) {
+    const e = new Error('LOGIN_REQUIRED');
+    e.code = 'LOGIN_REQUIRED';
+    throw e;
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.detail || `HTTP ${res.status}`);
+  return data;
+}
+
+async function loadRentalSavedState() {
+  try {
+    const data = await rentalSavedApi('/api/saved-items', { method: 'GET', headers: {} });
+    rentalSavedState = {
+      cart: Array.isArray(data?.cart) ? data.cart : [],
+      wishlist: Array.isArray(data?.wishlist) ? data.wishlist : [],
+    };
+  } catch (e) {
+    if (e?.code !== 'LOGIN_REQUIRED') console.warn('rental saved-items load failed', e);
+    rentalSavedState = { cart: [], wishlist: [] };
+  }
+}
+
+async function loadRentalAlerts() {
+  try {
+    const res = await fetch('/api/group-buy/join-requests/inbox', { credentials: 'include' });
+    if (res.status === 401) {
+      rentalAlertState = [];
+      return;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    rentalAlertState = Array.isArray(data) ? data : [];
+  } catch (_e) {
+    rentalAlertState = [];
+  }
+}
+
+function setRentalSavedDrawer(open) {
+  const drawer = document.getElementById('rentalSavedDrawer');
+  const fab = document.getElementById('rentalSavedFab');
+  if (!drawer || !fab) return;
+  drawer.classList.toggle('is-open', !!open);
+  drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
+  fab.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function updateRentalCardButtons() {
+  const wishRows = Array.isArray(rentalSavedState.wishlist) ? rentalSavedState.wishlist : [];
+  const cartRows = Array.isArray(rentalSavedState.cart) ? rentalSavedState.cart : [];
+  const wishKeys = new Set(wishRows.map((row) => rentalSavedRowKey(row)));
+  const cartKeys = new Set(cartRows.map((row) => rentalSavedRowKey(row)));
+
+  document.querySelectorAll('[data-rental-card]').forEach((card) => {
+    const wishBtn = card.querySelector('[data-rental-wish]');
+    const cartBtn = card.querySelector('[data-rental-cart]');
+    const payload = parseRentalPayload(wishBtn?.getAttribute('data-rental-wish') || cartBtn?.getAttribute('data-rental-cart') || '');
+    const key = rentalKeyFromPayload(payload);
+
+    const wished = !!key && wishKeys.has(key);
+    const inCart = !!key && cartKeys.has(key);
+
+    if (wishBtn) wishBtn.classList.toggle('is-active', wished);
+    if (cartBtn) {
+      cartBtn.classList.toggle('is-active', inCart);
+      cartBtn.textContent = inCart ? '담김' : '장바구니';
+    }
+  });
+}
+
+function renderRentalSavedDrawer() {
+  const listEl = document.getElementById('rentalSavedList');
+  const emptyEl = document.getElementById('rentalSavedEmpty');
+  const countEl = document.getElementById('rentalSavedFabCount');
+  const tabs = Array.from(document.querySelectorAll('[data-rental-saved-tab]'));
+  if (!listEl || !emptyEl) return;
+
+  const total = (rentalSavedState.cart?.length || 0) + (rentalSavedState.wishlist?.length || 0) + (rentalAlertState?.length || 0);
+  if (countEl) {
+    countEl.hidden = total === 0;
+    countEl.textContent = String(total || 0);
+  }
+
+  tabs.forEach((btn) => {
+    const active = btn.getAttribute('data-rental-saved-tab') === rentalSavedTab;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+
+  if (rentalSavedTab === 'alerts') {
+    if (!rentalAlertState.length) {
+      listEl.innerHTML = '';
+      emptyEl.style.display = 'block';
+      emptyEl.textContent = '도착한 참여 요청 알림이 없습니다.';
+      return;
+    }
+    emptyEl.style.display = 'none';
+    listEl.innerHTML = '';
+    rentalAlertState.forEach((item) => {
+      const status = String(item.status || 'pending');
+      const statusLabel = status === 'accepted' ? '수락됨' : (status === 'rejected' ? '거절됨' : '대기중');
+      const incoming = String(item.direction || 'incoming') !== 'mine';
+      const reqTitle = incoming
+        ? `${escapeHtml(item.requester_name || '-')}님이 요청했습니다`
+        : `${escapeHtml(item.requester_name || '작성자')}님의 응답`;
+      const li = document.createElement('li');
+      li.className = 'rental-saved-item';
+      li.style.gridTemplateColumns = '1fr';
+      li.innerHTML = `
+        <div>
+          <div class="rental-saved-item__type">공동구매 · 참여요청</div>
+          <div class="rental-saved-item__name">${escapeHtml(item.post_title || '-')}</div>
+          <div class="rental-saved-item__meta">${reqTitle}<br>${item.requester_email ? `이메일: ${escapeHtml(item.requester_email)}<br>` : ''}${statusLabel}${item.message ? `<br>${escapeHtml(item.message || '')}` : ''}</div>
+          ${incoming && status === 'pending' ? `
+            <div class="rental-saved-item__meta" style="margin-top:8px;">
+              <button type="button" data-rental-alert-action="accept" data-rental-alert-id="${Number(item.id)}" style="margin-right:6px;padding:4px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;">수락</button>
+              <button type="button" data-rental-alert-action="reject" data-rental-alert-id="${Number(item.id)}" style="padding:4px 8px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700;">거절</button>
+            </div>` : ''}
+          ${status !== 'pending' ? `
+            <div class="rental-saved-item__meta" style="margin-top:8px;">
+              <button type="button" data-rental-alert-remove="${Number(item.id)}" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#475569;font-size:12px;font-weight:700;">알림 삭제</button>
+            </div>` : ''}
+        </div>
+      `;
+      listEl.appendChild(li);
+    });
+    return;
+  }
+
+  const items = Array.isArray(rentalSavedState[rentalSavedTab]) ? rentalSavedState[rentalSavedTab] : [];
+  listEl.innerHTML = '';
+  emptyEl.style.display = items.length ? 'none' : 'block';
+  emptyEl.textContent = rentalSavedTab === 'wishlist' ? '위시리스트 항목이 없습니다.' : '장바구니 항목이 없습니다.';
+
+  items.forEach((item) => {
+    const payload = item?.payload && typeof item.payload === 'object' ? item.payload : {};
+    const imageUrl = String(payload?.image || '');
+    const li = document.createElement('li');
+    li.className = 'rental-saved-item';
+    li.innerHTML = `
+      <div class="rental-saved-item__thumb">${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="">` : ''}</div>
+      <div>
+        <div class="rental-saved-item__type">렌터카 · ${escapeHtml(item?.source || 'rental')}</div>
+        <div class="rental-saved-item__name">${escapeHtml(item?.name || '-')}</div>
+        ${item?.meta ? `<div class="rental-saved-item__meta">${escapeHtml(item.meta).replace(/\|/g, '<br>')}</div>` : ''}
+      </div>
+      <button type="button" class="rental-saved-item__remove" data-rental-saved-remove="${Number(item.id)}" title="삭제">×</button>
+    `;
+    listEl.appendChild(li);
+  });
+}
+
+async function toggleRentalSaved(rawPayload, listType) {
+  const payload = buildRentalSavedPayload(rawPayload, listType);
+  if (!payload) return false;
+  const targetList = Array.isArray(rentalSavedState[listType]) ? rentalSavedState[listType] : [];
+  const key = rentalKeyFromPayload(payload.payload);
+  const exists = targetList.find((row) => rentalSavedRowKey(row) === key);
+  try {
+    if (exists) {
+      await rentalSavedApi(`/api/saved-items/${Number(exists.id)}`, { method: 'DELETE', headers: {} });
+    } else {
+      await rentalSavedApi('/api/saved-items', { method: 'POST', body: JSON.stringify(payload) });
+    }
+    await loadRentalSavedState();
+    renderRentalSavedDrawer();
+    updateRentalCardButtons();
+    return true;
+  } catch (e) {
+    if (e?.code === 'LOGIN_REQUIRED') {
+      alert('로그인 후 이용 가능합니다.\n확인을 누르면 로그인 페이지로 이동합니다.');
+      const next = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.href = `/login?next=${next}`;
+      return false;
+    }
+    alert(e?.message || '저장 처리 중 오류가 발생했습니다.');
+    return false;
+  }
+}
+
+async function isRentalLoggedIn(force = false) {
+  const now = Date.now();
+  if (!force && now - Number(rentalAuthState.checkedAt || 0) < 5000) {
+    return !!rentalAuthState.loggedIn;
+  }
+  try {
+    const res = await fetch('/api/me', { credentials: 'include' });
+    rentalAuthState = { checkedAt: now, loggedIn: res.ok };
+    return res.ok;
+  } catch (_e) {
+    rentalAuthState = { checkedAt: now, loggedIn: false };
+    return false;
+  }
+}
+
+async function ensureRentalLoggedIn() {
+  const ok = await isRentalLoggedIn(false);
+  if (ok) return true;
+  alert('로그인 후 이용 가능합니다.\n확인을 누르면 로그인 페이지로 이동합니다.');
+  const next = encodeURIComponent(window.location.pathname + window.location.search);
+  window.location.href = `/login?next=${next}`;
+  return false;
+}
+
+async function sendRentalAlertDecision(requestId, action) {
+  const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}/decision`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.detail || `HTTP ${res.status}`);
+  }
+}
+
+function initRentalSavedUi() {
+  const fab = document.getElementById('rentalSavedFab');
+  const drawer = document.getElementById('rentalSavedDrawer');
+  const listEl = document.getElementById('rentalSavedList');
+  if (!fab || !drawer || !listEl) return;
+
+  fab.addEventListener('click', () => {
+    setRentalSavedDrawer(!drawer.classList.contains('is-open'));
+    if (drawer.classList.contains('is-open') && rentalSavedTab === 'alerts') {
+      loadRentalAlerts().then(renderRentalSavedDrawer);
+    }
+  });
+
+  document.querySelectorAll('[data-rental-saved-close]').forEach((el) => {
+    el.addEventListener('click', () => setRentalSavedDrawer(false));
+  });
+
+  document.querySelectorAll('[data-rental-saved-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      rentalSavedTab = btn.getAttribute('data-rental-saved-tab') || 'cart';
+      if (rentalSavedTab === 'alerts') {
+        loadRentalAlerts().then(renderRentalSavedDrawer);
+        return;
+      }
+      renderRentalSavedDrawer();
+    });
+  });
+
+  document.addEventListener('click', async (e) => {
+    const wishBtn = e.target.closest('[data-rental-wish]');
+    if (wishBtn) {
+      if (!(await ensureRentalLoggedIn())) return;
+      const payload = parseRentalPayload(wishBtn.getAttribute('data-rental-wish'));
+      await toggleRentalSaved(payload, 'wishlist');
+      return;
+    }
+
+    const cartBtn = e.target.closest('[data-rental-cart]');
+    if (cartBtn) {
+      if (!(await ensureRentalLoggedIn())) return;
+      const payload = parseRentalPayload(cartBtn.getAttribute('data-rental-cart'));
+      await toggleRentalSaved(payload, 'cart');
+      return;
+    }
+
+    const reserveBtn = e.target.closest('[data-rental-reserve]');
+    if (reserveBtn) {
+      if (!(await ensureRentalLoggedIn())) return;
+      const payload = parseRentalPayload(reserveBtn.getAttribute('data-rental-reserve'));
+      const ok = await toggleRentalSaved(payload, 'cart');
+      if (ok) alert('장바구니에 담았습니다. 예약 연동은 다음 단계에서 연결됩니다.');
+      return;
+    }
+
+    const actionBtn = e.target.closest('[data-rental-alert-action]');
+    if (actionBtn) {
+      const requestId = Number(actionBtn.getAttribute('data-rental-alert-id'));
+      const action = actionBtn.getAttribute('data-rental-alert-action');
+      sendRentalAlertDecision(requestId, action)
+        .then(async () => {
+          await loadRentalAlerts();
+          renderRentalSavedDrawer();
+        })
+        .catch((err) => alert(err?.message || '요청 처리 중 오류가 발생했습니다.'));
+      return;
+    }
+
+    const alertRemoveBtn = e.target.closest('[data-rental-alert-remove]');
+    if (alertRemoveBtn) {
+      const requestId = Number(alertRemoveBtn.getAttribute('data-rental-alert-remove'));
+      fetch(`/api/group-buy/join-requests/${requestId}`, { method: 'DELETE', credentials: 'include' })
+        .then(async (res) => {
+          if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            throw new Error(d?.detail || `HTTP ${res.status}`);
+          }
+          await loadRentalAlerts();
+          renderRentalSavedDrawer();
+        })
+        .catch((err) => alert(err?.message || '알림 삭제 중 오류가 발생했습니다.'));
+      return;
+    }
+
+    const removeBtn = e.target.closest('[data-rental-saved-remove]');
+    if (removeBtn) {
+      const itemId = Number(removeBtn.getAttribute('data-rental-saved-remove'));
+      rentalSavedApi(`/api/saved-items/${itemId}`, { method: 'DELETE', headers: {} })
+        .then(async () => {
+          await loadRentalSavedState();
+          renderRentalSavedDrawer();
+          updateRentalCardButtons();
+        })
+        .catch((err) => {
+          if (err?.code === 'LOGIN_REQUIRED') return;
+          alert(err?.message || '삭제 중 오류가 발생했습니다.');
+        });
+      return;
+    }
+
+    if (!drawer.classList.contains('is-open')) return;
+    if (drawer.contains(e.target) || fab.contains(e.target)) return;
+    setRentalSavedDrawer(false);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && drawer.classList.contains('is-open')) setRentalSavedDrawer(false);
+  });
+
+  Promise.all([loadRentalSavedState(), loadRentalAlerts()]).finally(() => {
+    renderRentalSavedDrawer();
+    updateRentalCardButtons();
+    if (window.lucide) lucide.createIcons();
+  });
 }

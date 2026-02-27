@@ -17,16 +17,16 @@ const SERVER_USER = (() => {
     };
 })();
 const DEFAULT_USER = {
-    id: 'destino_traveler',
-    name: '김데스티노',
-    nickname: '여행자김씨',
-    email: 'traveler@destino.com',
-    phone: '010-1234-5678',
-    isLoggedIn: true,
+    id: '',
+    name: '',
+    nickname: '',
+    email: '',
+    phone: '',
+    isLoggedIn: false,
 };
 
 // 브라우저 저장소(localStorage)에서 사용자 정보를 불러오거나 없으면 기본값 사용
-let user = (SERVER_USER.isLoggedIn ? SERVER_USER : (JSON.parse(localStorage.getItem('destino_user')) || DEFAULT_USER));
+let user = (SERVER_USER.isLoggedIn ? SERVER_USER : { ...(JSON.parse(localStorage.getItem('destino_user')) || DEFAULT_USER), isLoggedIn: false });
 
 // 예약 데이터 (빈 배열로 초기화)
 const bookings = [];
@@ -36,6 +36,9 @@ let savedItemsState = {
     wishlist: [],
     cart: [],
 };
+let joinRequestInboxState = [];
+let cartSubTab = 'cart';
+let myTripPostsState = [];
 
 /**
  * 탭 전환 함수
@@ -57,6 +60,13 @@ function switchTab(tabId) {
     }
 
     if (tabId !== 'settings') toggleEditMode(false);
+    if (tabId === 'cart') {
+        renderCartSubTab();
+        loadJoinRequestInbox();
+    }
+    if (tabId === 'post') {
+        loadMyTripPosts();
+    }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -290,14 +300,67 @@ function getSavedItemImageUrl(item) {
     );
 }
 
+function getItemTypeLabel(itemType) {
+    const type = String(itemType || '').toLowerCase();
+    if (type === 'flight') return '항공';
+    if (type === 'hotel' || type === 'stay' || type === 'accommodation') return '숙박';
+    if (type === 'rental' || type === 'car' || type === 'rentcar') return '렌터카';
+    if (type === 'groupbuy' || type === 'travel-group') return '공동구매';
+    return type ? type.toUpperCase() : 'ITEM';
+}
+
 function formatSavedItemMeta(item) {
     const raw = String(item?.meta || '').trim();
-    if (!raw) return { price: '', details: [] };
-    const parts = raw.split('|').map((v) => v.trim()).filter(Boolean);
-    return {
-        price: parts[0] || '',
-        details: parts.slice(1, 3),
+    const parts = raw ? raw.split('|').map((v) => v.trim()).filter(Boolean) : [];
+    const payload = item?.payload && typeof item.payload === 'object' ? item.payload : {};
+    const itemType = String(item?.item_type || '').toLowerCase();
+
+    const looksLikePrice = (text) => {
+        const s = String(text || '').trim();
+        if (!s) return false;
+        return /\d/.test(s) && /(krw|jpy|usd|eur|aed|thb|vnd|sgd|twd|원|\$|€|¥)/i.test(s);
     };
+
+    const payloadPriceText = (() => {
+        const cur = String(payload?.currency || '').trim();
+        const rawPrice = payload?.price;
+        const num = Number(rawPrice);
+        if (Number.isFinite(num) && num > 0) {
+            return `${num.toLocaleString()} ${cur}`.trim();
+        }
+        const txt = String(rawPrice ?? '').trim();
+        if (txt) return `${txt} ${cur}`.trim();
+        return '';
+    })();
+
+    let price = '';
+    let details = [];
+    if (parts.length) {
+        if (looksLikePrice(parts[0])) {
+            price = parts[0];
+            details = parts.slice(1, 3);
+        } else {
+            details = parts.slice(0, 3);
+        }
+    }
+
+    if (!price && itemType === 'rental') {
+        price = payloadPriceText;
+    }
+
+    return {
+        price,
+        details,
+    };
+}
+
+function getWishlistCategory(item) {
+    const type = String(item?.item_type || '').toLowerCase();
+    if (type === 'flight') return '항공';
+    if (type === 'hotel' || type === 'stay' || type === 'accommodation') return '숙박';
+    if (type === 'rental' || type === 'car' || type === 'rentcar') return '렌터카';
+    if (type === 'groupbuy' || type === 'travel-group') return '공동구매';
+    return '기타';
 }
 
 async function loadSavedItems() {
@@ -322,8 +385,143 @@ async function loadSavedItems() {
     updateDisplay();
 }
 
+async function loadJoinRequestInbox() {
+    try {
+        const res = await fetch('/api/group-buy/join-requests/inbox', { credentials: 'include' });
+        if (res.status === 401) {
+            joinRequestInboxState = [];
+            renderJoinRequestInbox();
+            return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        joinRequestInboxState = Array.isArray(data) ? data : [];
+    } catch (_e) {
+        joinRequestInboxState = [];
+    }
+    renderJoinRequestInbox();
+}
+
+function switchCartSubTab(tab) {
+    cartSubTab = tab === 'alerts' ? 'alerts' : 'cart';
+    renderCartSubTab();
+}
+
+function renderCartSubTab() {
+    const cartBtn = document.getElementById('mypage-cart-subtab-cart');
+    const alertsBtn = document.getElementById('mypage-cart-subtab-alerts');
+    const cartList = document.getElementById('mypage-cart-list');
+    const alertsList = document.getElementById('mypage-cart-alerts-list');
+    if (!cartBtn || !alertsBtn || !cartList || !alertsList) return;
+
+    const cartActive = cartSubTab === 'cart';
+    cartBtn.classList.toggle('bg-white', cartActive);
+    cartBtn.classList.toggle('text-[#00AEEF]', cartActive);
+    cartBtn.classList.toggle('text-gray-500', !cartActive);
+    alertsBtn.classList.toggle('bg-white', !cartActive);
+    alertsBtn.classList.toggle('text-[#00AEEF]', !cartActive);
+    alertsBtn.classList.toggle('text-gray-500', cartActive);
+
+    cartList.classList.toggle('hidden', !cartActive);
+    alertsList.classList.toggle('hidden', cartActive);
+}
+
+async function decideJoinRequest(requestId, action) {
+    try {
+        const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}/decision`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action }),
+        });
+        if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            throw new Error(d?.detail || `HTTP ${res.status}`);
+        }
+        await loadJoinRequestInbox();
+        await loadMyTripPosts();
+    } catch (e) {
+        alert(e?.message || '요청 처리 중 오류가 발생했습니다.');
+    }
+}
+
+async function removeJoinAlert(requestId) {
+    try {
+        const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}`, {
+            method: 'DELETE',
+            credentials: 'include',
+        });
+        if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            throw new Error(d?.detail || `HTTP ${res.status}`);
+        }
+        await loadJoinRequestInbox();
+    } catch (e) {
+        alert(e?.message || '알림 삭제 중 오류가 발생했습니다.');
+    }
+}
+
+function renderJoinRequestInbox() {
+    const container = document.getElementById('mypage-cart-alerts-list');
+    if (!container) return;
+
+    if (!joinRequestInboxState.length) {
+        container.innerHTML = `
+            <div class="col-span-full flex flex-col items-center justify-center py-12">
+                <p class="text-gray-400 text-sm">도착한 참여 요청 알림이 없습니다.</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = joinRequestInboxState
+        .map((item) => {
+            const status = String(item.status || 'pending');
+            const statusLabel = status === 'accepted' ? '수락됨' : (status === 'rejected' ? '거절됨' : '대기중');
+            const statusClass = status === 'accepted' ? 'text-emerald-600' : (status === 'rejected' ? 'text-rose-600' : 'text-amber-600');
+            const incoming = String(item.direction || 'incoming') !== 'mine';
+            const reqTitle = incoming
+                ? `${escapeHtml(item.requester_name || '')}님이 요청했습니다`
+                : `${escapeHtml(item.requester_name || '작성자')}님의 응답`;
+            return `
+                <div class="p-4 rounded-2xl border border-gray-100 bg-white shadow-sm">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="text-[11px] font-bold text-gray-400">공동구매 참여요청</p>
+                            <p class="text-sm font-bold text-gray-800 mt-0.5">${escapeHtml(item.post_title || '')}</p>
+                            <p class="text-xs text-gray-500 mt-1">${reqTitle}</p>
+                            ${item.requester_email ? `<p class="text-xs text-gray-500 mt-1">이메일: ${escapeHtml(item.requester_email)}</p>` : ''}
+                            ${item.message ? `<p class="text-xs text-gray-500 mt-1">${escapeHtml(item.message)}</p>` : ''}
+                        </div>
+                        <p class="text-xs font-bold ${statusClass}">${statusLabel}</p>
+                    </div>
+                    ${
+                        incoming && status === 'pending'
+                            ? `
+                        <div class="mt-3 flex gap-2">
+                            <button onclick="decideJoinRequest(${Number(item.id)}, 'accept')" class="px-3 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-bold">수락</button>
+                            <button onclick="decideJoinRequest(${Number(item.id)}, 'reject')" class="px-3 py-1.5 rounded-lg bg-rose-500 text-white text-xs font-bold">거절</button>
+                        </div>
+                    `
+                            : ''
+                    }
+                    ${
+                        status !== 'pending'
+                            ? `
+                        <div class="mt-3 flex gap-2">
+                            <button onclick="removeJoinAlert(${Number(item.id)})" class="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold">알림 삭제</button>
+                        </div>
+                    `
+                            : ''
+                    }
+                </div>
+            `;
+        })
+        .join('');
+}
+
 function buildSavedItemCard(item, listType) {
-    const category = item?.item_type ? `${String(item.item_type).toUpperCase()} · ${item.source || 'saved-item'}` : (item.source || 'saved-item');
+    const category = `${getItemTypeLabel(item?.item_type)} · ${item?.source || 'saved-item'}`;
     const title = item?.name || '(이름 없음)';
     const metaData = formatSavedItemMeta(item);
     const iconHtml = listType === 'wishlist'
@@ -357,12 +555,37 @@ function renderSavedItemsList(container, listType, items) {
     if (!items.length) {
         container.innerHTML = `
             <div class="col-span-full flex flex-col items-center justify-center py-12">
-                <p class="text-gray-400 text-sm">${listType === 'wishlist' ? '찜한 내역이 없습니다.' : '장바구니가 비어 있습니다.'}</p>
+                <p class="text-gray-400 text-sm">${listType === 'wishlist' ? '위시리스트 내역이 없습니다.' : '장바구니가 비어 있습니다.'}</p>
             </div>
         `;
         return;
     }
     container.innerHTML = items.map((item) => buildSavedItemCard(item, listType)).join('');
+}
+
+function renderWishlistGrouped(container, items) {
+    if (!container) return;
+    const groups = { 항공: [], 숙박: [], 렌터카: [], 공동구매: [] };
+    (items || []).forEach((item) => {
+        const key = getWishlistCategory(item);
+        if (groups[key]) groups[key].push(item);
+    });
+    const sections = ['항공', '숙박', '렌터카', '공동구매']
+        .map((label) => {
+            const rows = groups[label] || [];
+            return `
+                <section class="col-span-full">
+                    <h5 class="text-sm font-bold text-gray-700 mb-3">${label} (${rows.length})</h5>
+                    ${
+                        rows.length
+                            ? `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${rows.map((item) => buildSavedItemCard(item, 'wishlist')).join('')}</div>`
+                            : '<p class="text-xs text-gray-400 mb-4">저장된 항목이 없습니다.</p>'
+                    }
+                </section>
+            `;
+        })
+        .join('');
+    container.innerHTML = sections;
 }
 
 function renderSavedItems() {
@@ -371,11 +594,16 @@ function renderSavedItems() {
     const wishTitle = document.getElementById('mypage-wishlist-title');
     const cartTitle = document.getElementById('mypage-cart-title');
 
-    if (wishTitle) wishTitle.innerText = `찜한 여행지 (${savedItemsState.wishlist.length})`;
+    if (wishTitle) wishTitle.innerText = `위시리스트 (${savedItemsState.wishlist.length})`;
     if (cartTitle) cartTitle.innerText = `장바구니 (${savedItemsState.cart.length})`;
 
-    renderSavedItemsList(wishContainer, 'wishlist', savedItemsState.wishlist);
+    if ((savedItemsState.wishlist || []).length === 0) {
+        renderSavedItemsList(wishContainer, 'wishlist', []);
+    } else {
+        renderWishlistGrouped(wishContainer, savedItemsState.wishlist);
+    }
     renderSavedItemsList(cartContainer, 'cart', savedItemsState.cart);
+    renderCartSubTab();
     renderRecentCartPreview();
     lucide.createIcons();
 }
@@ -455,14 +683,29 @@ function renderBookings() {
     lucide.createIcons();
 }
 
-/* 내가 쓴 공동구매 게시글 렌더링 (추가) */
+async function loadMyTripPosts() {
+    try {
+        const res = await fetch('/api/group-buy/my-posts', { credentials: 'include', cache: 'no-store' });
+        if (res.status === 401) {
+            myTripPostsState = [];
+            renderMyTripPosts();
+            return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        myTripPostsState = Array.isArray(data) ? data : [];
+    } catch (_e) {
+        myTripPostsState = [];
+    }
+    renderMyTripPosts();
+}
+
+/* 내가 쓴 공동구매 게시글 렌더링 */
 function renderMyTripPosts() {
     const container = document.getElementById('my-trip-posts-list');
     if (!container) return;
 
-    const myPosts = JSON.parse(localStorage.getItem('myTripPosts')) || [];
-
-    if (myPosts.length === 0) {
+    if (myTripPostsState.length === 0) {
         container.innerHTML = `
             <div class="col-span-full flex flex-col items-center justify-center py-16 bg-gray-50 rounded-3xl border border-dashed border-gray-200">
                 <i data-lucide="file-text" class="text-gray-300 mb-4" size="48"></i>
@@ -474,7 +717,7 @@ function renderMyTripPosts() {
         return;
     }
 
-    container.innerHTML = myPosts
+    container.innerHTML = myTripPostsState
         .map(
             (post) => `
         <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all relative border-l-4 border-l-[#00AEEF]">
@@ -488,16 +731,16 @@ function renderMyTripPosts() {
             <div class="space-y-1">
                 <div class="flex items-center gap-2 text-xs text-gray-500">
                     <i data-lucide="calendar" size="12"></i>
-                    <span>${post.start} 출발</span>
+                    <span>${String(post.start_date || post.start || '').slice(0, 7)} 출발</span>
                 </div>
                 <div class="flex items-center gap-2 text-xs text-gray-500">
                     <i data-lucide="wallet" size="12"></i>
-                    <span class="font-semibold text-gray-700">${post.budget}</span>
+                    <span class="font-semibold text-gray-700">${post.budget || ''}</span>
                 </div>
             </div>
             <div class="mt-4 pt-3 border-t border-gray-50 flex justify-between items-center">
-                <span class="text-[10px] text-gray-400">작성일: ${new Date(post.id).toLocaleDateString()}</span>
-                <span class="text-xs font-bold text-[#00AEEF]">모집 중</span>
+                <span class="text-[10px] text-gray-400">작성일: ${post.created_at ? new Date(post.created_at).toLocaleDateString() : '-'}</span>
+                <span class="text-xs font-bold ${post.status === 'closed' ? 'text-gray-400' : 'text-[#00AEEF]'}">${post.status === 'closed' ? '마감' : '모집 중'}</span>
             </div>
         </div>
     `
@@ -507,23 +750,38 @@ function renderMyTripPosts() {
     lucide.createIcons();
 }
 
-/*내가 쓴 글 삭제 기능 (추가 선택사항)*/
-function deleteMyPost(postId) {
+/* 내가 쓴 글 삭제 기능 */
+async function deleteMyPost(postId) {
     if (!confirm('게시글을 삭제하시겠습니까?')) return;
-    
-    let myPosts = JSON.parse(localStorage.getItem('myTripPosts')) || [];
-    myPosts = myPosts.filter(p => p.id !== postId);
-    localStorage.setItem('myTripPosts', JSON.stringify(myPosts));
-    
-    renderMyTripPosts(); // 새로고침 없이 화면 갱신
+    try {
+        const res = await fetch(`/api/group-buy/posts/${Number(postId)}`, {
+            method: 'DELETE',
+            credentials: 'include',
+        });
+        if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            throw new Error(d?.detail || `HTTP ${res.status}`);
+        }
+        await loadMyTripPosts();
+        await loadJoinRequestInbox();
+    } catch (e) {
+        alert(e?.message || '게시글 삭제에 실패했습니다.');
+    }
 }
 
 /*페이지 로드 시 실행*/
 window.onload = () => {
+    if (!SERVER_USER.isLoggedIn) {
+        alert('로그인 세션이 만료되었거나 로그인이 필요합니다. 다시 로그인해주세요.');
+        window.location.href = '/login';
+        return;
+    }
     updateDisplay();
     renderBookings();
     loadSavedItems();
-    renderMyTripPosts();
+    loadMyTripPosts();
+    loadJoinRequestInbox();
+    renderCartSubTab();
 
     const logoutBtn = document.querySelector('.logout-btn');
     if (logoutBtn) {
@@ -538,4 +796,6 @@ window.onload = () => {
 
 window.addEventListener('focus', () => {
     loadSavedItems();
+    loadMyTripPosts();
+    loadJoinRequestInbox();
 });

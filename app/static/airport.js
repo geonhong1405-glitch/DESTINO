@@ -48,6 +48,7 @@ let passengerState = {
 let flightSortState = 'price';
 let savedItemState = { wishlist: [], cart: [] };
 let flightSavedDrawerTab = 'cart';
+let flightAlertState = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     renderForm();
@@ -66,6 +67,14 @@ function getSavedItemKey(item) {
 function hasSavedItem(listType, item) {
     const key = getSavedItemKey(item);
     return (savedItemState[listType] || []).some((x) => getSavedItemKey(x) === key);
+}
+
+function getSavedItemTypeLabel(itemType) {
+    const type = String(itemType || '').toLowerCase();
+    if (type === 'flight') return '항공';
+    if (type === 'hotel' || type === 'stay' || type === 'accommodation') return '숙박';
+    if (type === 'groupbuy' || type === 'travel-group') return '공동구매';
+    return type || 'item';
 }
 
 async function savedItemsApi(path = '/api/saved-items', options = {}) {
@@ -118,6 +127,34 @@ async function loadSavedItems() {
     }
 }
 
+async function loadFlightAlerts() {
+    try {
+        const res = await fetch('/api/group-buy/join-requests/inbox', { credentials: 'include' });
+        if (res.status === 401) {
+            flightAlertState = [];
+            return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        flightAlertState = Array.isArray(data) ? data : [];
+    } catch (_e) {
+        flightAlertState = [];
+    }
+}
+
+async function decideFlightAlert(requestId, action) {
+    const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}/decision`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+    });
+    if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d?.detail || `HTTP ${res.status}`);
+    }
+}
+
 function setFlightSavedDrawer(open) {
     const drawer = document.getElementById('flightSavedDrawer');
     const fab = document.getElementById('flightSavedFab');
@@ -133,8 +170,7 @@ function renderFlightSavedDrawer() {
     const countEl = document.getElementById('flightSavedFabCount');
     const tabs = Array.from(document.querySelectorAll('[data-flight-saved-tab]'));
     if (!listEl || !emptyEl) return;
-    const items = Array.isArray(savedItemState[flightSavedDrawerTab]) ? savedItemState[flightSavedDrawerTab] : [];
-    const total = (savedItemState.cart?.length || 0) + (savedItemState.wishlist?.length || 0);
+    const total = (savedItemState.cart?.length || 0) + (savedItemState.wishlist?.length || 0) + (flightAlertState?.length || 0);
     if (countEl) {
         countEl.hidden = total === 0;
         countEl.textContent = String(total || 0);
@@ -144,6 +180,45 @@ function renderFlightSavedDrawer() {
         btn.classList.toggle('is-active', active);
         btn.setAttribute('aria-selected', active ? 'true' : 'false');
     });
+    if (flightSavedDrawerTab === 'alerts') {
+        listEl.innerHTML = '';
+        emptyEl.style.display = flightAlertState.length ? 'none' : 'block';
+        emptyEl.textContent = '도착한 참여 요청 알림이 없습니다.';
+        flightAlertState.forEach((item) => {
+            const status = String(item.status || 'pending');
+            const statusLabel = status === 'accepted' ? '수락됨' : (status === 'rejected' ? '거절됨' : '대기중');
+            const incoming = String(item.direction || 'incoming') !== 'mine';
+            const reqTitle = incoming
+                ? `${escapeHtml(item.requester_name || '-')}님이 요청했습니다`
+                : `${escapeHtml(item.requester_name || '작성자')}님의 응답`;
+            const li = document.createElement('li');
+            li.className = 'flight-saved-item';
+            li.innerHTML = `
+                <div class="flight-saved-item__type">공동구매 · 참여요청</div>
+                <div class="flight-saved-item__name">${escapeHtml(item.post_title || '-')}</div>
+                <div class="flight-saved-item__meta">${reqTitle}<br>${item.requester_email ? `이메일: ${escapeHtml(item.requester_email)}<br>` : ''}${statusLabel}${item.message ? `<br>${escapeHtml(item.message || '')}` : ''}</div>
+                ${
+                    incoming && status === 'pending'
+                        ? `<div class="flight-saved-item__meta">
+                            <button type="button" data-flight-alert-action="accept" data-flight-alert-id="${Number(item.id)}" title="수락" style="margin-right:6px;padding:4px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;">수락</button>
+                            <button type="button" data-flight-alert-action="reject" data-flight-alert-id="${Number(item.id)}" title="거절" style="padding:4px 8px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700;">거절</button>
+                        </div>`
+                        : ''
+                }
+                ${
+                    status !== 'pending'
+                        ? `<div class="flight-saved-item__meta">
+                            <button type="button" data-flight-alert-remove="${Number(item.id)}" title="알림 삭제" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#475569;font-size:12px;font-weight:700;">알림 삭제</button>
+                        </div>`
+                        : ''
+                }
+            `;
+            listEl.appendChild(li);
+        });
+        return;
+    }
+
+    const items = Array.isArray(savedItemState[flightSavedDrawerTab]) ? savedItemState[flightSavedDrawerTab] : [];
     listEl.innerHTML = '';
     emptyEl.style.display = items.length ? 'none' : 'block';
     emptyEl.textContent = flightSavedDrawerTab === 'wishlist' ? '위시리스트 항목이 없습니다.' : '장바구니 항목이 없습니다.';
@@ -151,9 +226,9 @@ function renderFlightSavedDrawer() {
         const li = document.createElement('li');
         li.className = 'flight-saved-item';
         li.innerHTML = `
-            <div class="flight-saved-item__type">${escapeHtml(item.item_type || 'item')}</div>
+            <div class="flight-saved-item__type">${escapeHtml(getSavedItemTypeLabel(item.item_type))}</div>
             <div class="flight-saved-item__name">${escapeHtml(item.name || '-')}</div>
-            ${item.meta ? `<div class="flight-saved-item__meta">${escapeHtml(item.meta)}</div>` : ''}
+            ${item.meta ? `<div class="flight-saved-item__meta">${escapeHtml(item.meta).replace(/\|/g, '<br>')}</div>` : ''}
             <button type="button" class="flight-saved-item__remove" data-flight-saved-remove="${item.id}" title="삭제">×</button>
         `;
         listEl.appendChild(li);
@@ -167,6 +242,9 @@ function initFlightSavedDrawer() {
     if (!fab || !drawer) return;
     fab.addEventListener('click', () => {
         setFlightSavedDrawer(!drawer.classList.contains('is-open'));
+        if (drawer.classList.contains('is-open')) {
+            loadFlightAlerts().then(renderFlightSavedDrawer);
+        }
     });
     document.querySelectorAll('[data-flight-saved-close]').forEach((el) => {
         el.addEventListener('click', () => setFlightSavedDrawer(false));
@@ -174,10 +252,45 @@ function initFlightSavedDrawer() {
     document.querySelectorAll('[data-flight-saved-tab]').forEach((btn) => {
         btn.addEventListener('click', () => {
             flightSavedDrawerTab = btn.getAttribute('data-flight-saved-tab') || 'cart';
+            if (flightSavedDrawerTab === 'alerts') {
+                loadFlightAlerts().then(renderFlightSavedDrawer);
+                return;
+            }
             renderFlightSavedDrawer();
         });
     });
     listEl?.addEventListener('click', async (e) => {
+        const alertBtn = e.target.closest('[data-flight-alert-action]');
+        if (alertBtn) {
+            const requestId = Number(alertBtn.getAttribute('data-flight-alert-id'));
+            const action = String(alertBtn.getAttribute('data-flight-alert-action') || '');
+            if (!requestId || !action) return;
+            try {
+                await decideFlightAlert(requestId, action);
+                await loadFlightAlerts();
+                renderFlightSavedDrawer();
+            } catch (err) {
+                alert(err?.message || '요청 처리 중 오류가 발생했습니다.');
+            }
+            return;
+        }
+        const alertRemoveBtn = e.target.closest('[data-flight-alert-remove]');
+        if (alertRemoveBtn) {
+            const requestId = Number(alertRemoveBtn.getAttribute('data-flight-alert-remove'));
+            if (!requestId) return;
+            try {
+                const res = await fetch(`/api/group-buy/join-requests/${requestId}`, { method: 'DELETE', credentials: 'include' });
+                if (!res.ok) {
+                    const d = await res.json().catch(() => ({}));
+                    throw new Error(d?.detail || `HTTP ${res.status}`);
+                }
+                await loadFlightAlerts();
+                renderFlightSavedDrawer();
+            } catch (err) {
+                alert(err?.message || '알림 삭제 중 오류가 발생했습니다.');
+            }
+            return;
+        }
         const btn = e.target.closest('[data-flight-saved-remove]');
         if (!btn) return;
         const itemId = Number(btn.getAttribute('data-flight-saved-remove'));
@@ -190,6 +303,11 @@ function initFlightSavedDrawer() {
         } catch (err) {
             if (err?.code === 'LOGIN_REQUIRED') return requireLoginMessage();
             alert(err?.message || '삭제 중 오류가 발생했습니다.');
+        }
+    });
+    window.addEventListener('focus', () => {
+        if (drawer.classList.contains('is-open')) {
+            loadFlightAlerts().then(renderFlightSavedDrawer);
         }
     });
     renderFlightSavedDrawer();

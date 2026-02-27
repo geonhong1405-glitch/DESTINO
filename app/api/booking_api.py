@@ -10,6 +10,31 @@ BOOKING_RAPIDAPI_KEY = os.getenv("BOOKING_RAPIDAPI_KEY")
 BOOKING_RAPIDAPI_HOST = os.getenv("BOOKING_RAPIDAPI_HOST")
 
 
+def _clean_env_token(value):
+    s = str(value or "").strip()
+    if not s:
+        return ""
+    # .env 값 뒤 주석(#...)이 붙어도 실제 토큰만 사용
+    if "#" in s:
+        s = s.split("#", 1)[0].strip()
+    return s
+
+
+def _ascii_header_value(value):
+    s = _clean_env_token(value)
+    if not s:
+        return ""
+    return s.encode("ascii", "ignore").decode("ascii").strip()
+
+
+def _safe_country_location(value, default="US"):
+    s = str(value or "").strip().upper()
+    s = "".join(ch for ch in s if "A" <= ch <= "Z")
+    if len(s) == 2:
+        return s
+    return default
+
+
 def _parse_booking_datetime(value):
     s = str(value or "").strip()
     if not s:
@@ -83,10 +108,15 @@ def search_car_rentals(
     currency_code="USD",
     location="US",
 ):
-    url = f"https://{BOOKING_RAPIDAPI_HOST}/api/v1/cars/searchCarRentals"
+    rapidapi_host = _ascii_header_value(BOOKING_RAPIDAPI_HOST)
+    rapidapi_key = _ascii_header_value(BOOKING_RAPIDAPI_KEY)
+    if not rapidapi_host or not rapidapi_key:
+        return {"error": "렌터카 API 설정이 올바르지 않습니다. 관리자에게 문의해 주세요."}
+
+    url = f"https://{rapidapi_host}/api/v1/cars/searchCarRentals"
     headers = {
-        "x-rapidapi-key": BOOKING_RAPIDAPI_KEY,
-        "x-rapidapi-host": BOOKING_RAPIDAPI_HOST,
+        "x-rapidapi-key": rapidapi_key,
+        "x-rapidapi-host": rapidapi_host,
     }
     base_params = {
         "pick_up_latitude": pick_up_lat,
@@ -99,7 +129,7 @@ def search_car_rentals(
         "drop_off_time": _booking_time_part(drop_off_time, include_seconds=False),
         "driver_age": driver_age,
         "currency_code": currency_code,
-        "location": location,
+        "location": _safe_country_location(location),
     }
 
     attempts = []
