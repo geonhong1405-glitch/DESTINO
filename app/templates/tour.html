@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+        {% if nickname %}
+        <script>window.nickname = '{{ nickname }}';</script>
+        {% else %}
+        <script>window.nickname = '';</script>
+        {% endif %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DESTINO - 투어 & 액티비티</title>
@@ -8,6 +13,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
     <link rel="stylesheet" href="../static/tour.css">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Font Awesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
@@ -84,218 +91,353 @@
     <section class="container" style="padding-bottom: 60px;">
         <h2 class="section-title">지금 가장 인기있는 <span>투어</span></h2>
         <div class="tour-grid">
-            <a href="/tdetail" class="tour-card">
+            <a class="tour-card">
                 <div class="tour-image tImg1">
-                    <div class="badge">BEST</div>
+                    <div class="badge">인기</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
-                    <p class="tour-loc">오스트리아 • 비엔나</p>
-                    <h3 class="tour-name">[음악의 도시] 비엔나 필하모닉 공연&궁전 투어 6일 #모차르트카페</h3>
+                    <p class="tour-loc">노르웨이 · 베르겐</p>
+                    <h3 class="tour-name">노르웨이 피오르드 럭셔리 크루즈 원데이 투어</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">2,950,000</span>
+                        <span class="price-val">240,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
-            <a href="/tdetail" class="tour-card">
+            <a class="tour-card">
                 <div class="tour-image tImg2">
-                    <div class="badge">오늘마감</div>
+                    <div class="badge">인기</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
-                    <p class="tour-loc">노르웨이 • 오슬로</p>
-                    <h3 class="tour-name">피오르드 대자연 탐험 8일 #플롬열차 #베르겐크루즈</h3>
+                    <p class="tour-loc">노르웨이 · 베르겐</p>
+                    <h3 class="tour-name">노르웨이 피오르드 럭셔리 크루즈 원데이 투어</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">4,580,000</span>
+                        <span class="price-val">240,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
-            <a href="/tdetail" class="tour-card">
+            <a class="tour-card">
                 <div class="tour-image tImg3">
-                    <div class="badge">슈퍼특가</div>
+                    <div class="badge">시즌</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
                     <p class="tour-loc">네덜란드 • 암스테르담</p>
-                    <h3 class="tour-name">튤립 축제와 풍차 마을 7일 #운하크루즈 #고흐미술관</h3>
+                    <h3 class="tour-name">암스테르담 큐켄호프 튤립 축제 입장권 & 셔틀</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">2,850,000</span>
+                        <span class="price-val">65,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
-            <a href="/tdetail" class="tour-card">
+            <a class="tour-card">
                 <div class="tour-image tImg4">
-                    <div class="badge">MD추천</div>
+                    <div class="badge">야경</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
                     <p class="tour-loc">체코 • 프라하</p>
-                    <h3 class="tour-name">중세의 낭만 프라하 산책 6일 #체스키크룸로프 #야경투어</h3>
+                    <h3 class="tour-name">프라하 올드타운 미드나잇 고스트 워킹 투어</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">2,350,000</span>
+                        <span class="price-val">35,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
             <!-- 추가 -->
-            <a href="/tdetail" class="tour-card">
+            <a class="tour-card">
                 <div class="tour-image tImg5">
-                    <div class="badge">BEST</div>
+                    <div class="badge">포토존</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
                     <p class="tour-loc">벨기에 • 브뤼헤</p>
-                    <h3 class="tour-name">초콜릿과 맥주의 나라 5일 #그랑플라스 #안트베르펜코스</h3>
+                    <h3 class="tour-name">브뤼헤 운하 프라이빗 보트 & 와플 테이스팅</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">2,150,000</span>
+                        <span class="price-val">85,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
             <a href="/tdetail" class="tour-card">
                 <div class="tour-image tImg6">
-                    <div class="badge">오늘마감</div>
+                    <div class="badge">익스트림</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
                     <p class="tour-loc">뉴질랜드 • 퀸스타운</p>
-                    <h3 class="tour-name">남섬 액티비티 천국 8일 #밀포드사운드 #와카티푸호수</h3>
+                    <h3 class="tour-name">퀸즈타운 상공 15,000ft 탠덤 스카이다이빙</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">3,890,000</span>
+                        <span class="price-val">380,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
             <a href="/tdetail" class="tour-card">
                 <div class="tour-image tImg7">
-                    <div class="badge">MD추천</div>
+                    <div class="badge">이색체험</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
                     <p class="tour-loc">핀란드 • 로바니에미</p>
-                    <h3 class="tour-name">산타마을 공식 방문 7일 #허스키썰매 #이글루호텔체험</h3>
+                    <h3 class="tour-name">라플란드 순록 썰매 & 오로라 헌팅 투어</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">4,250,000</span>
+                        <span class="price-val">195,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
             <a href="/tdetail" class="tour-card">
                 <div class="tour-image tImg8">
-                    <div class="badge">슈퍼특가</div>
+                    <div class="badge">액션</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
-                    <p class="tour-loc">아르헨티나 • 부에노스아이레스</p>
-                    <h3 class="tour-name">남미의 파리 탱고 여행 10일 #이구아수폭포 #파타고니아</h3>
+                    <p class="tour-loc">브라질 · 이구아수</p>
+                    <h3 class="tour-name">이구아수 폭포 마쿠코 보트 사파리 (우비 필수)</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">6,100,000</span>
+                        <span class="price-val">110,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
             <a href="/tdetail" class="tour-card">
                 <div class="tour-image tImg9">
-                    <div class="badge">MD추천</div>
+                    <div class="badge">강력추천</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
-                    <p class="tour-loc">헝가리 • 부다페스트</p>
-                    <h3 class="tour-name">다뉴브강의 진주 6일 #세체니온천 #국회의사당야경</h3>
+                    <p class="tour-loc">인도네시아 · 발리</p>
+                    <h3 class="tour-name">발리 우붓 정글 스윙 & 테라스 하이킹</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">2,280,000</span>
+                        <span class="price-val">45,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
             <a href="/tdetail" class="tour-card">
                 <div class="tour-image tImg10">
-                    <div class="badge">BEST</div>
+                    <div class="badge">베스트</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
-                    <p class="tour-loc">아일랜드 • 더블린</p>
-                    <h3 class="tour-name">기네스의 고향 아일랜드 7일 #모허절벽 #아이리쉬펍투어</h3>
+                    <p class="tour-loc">아이슬란드 · 레이캬비크</p>
+                    <h3 class="tour-name">아이슬란드 남부 해안 빙하 하이킹 원데이 투어</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">3,250,000</span>
+                        <span class="price-val">215,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
             <a href="/tdetail" class="tour-card">
                 <div class="tour-image tImg11">
-                    <div class="badge">오늘마감</div>
+                    <div class="badge">한정수량</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
-                    <p class="tour-loc">남아공 • 케이프타운</p>
-                    <h3 class="tour-name">희망봉 아프리카 대륙 투어 9일 #테이블마운틴 #펭귄비치</h3>
+                    <p class="tour-loc">UAE · 두바이</p>
+                    <h3 class="tour-name">두바이 사막 사파리 & 듄 베이싱 어드벤처</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">4,980,000</span>
+                        <span class="price-val">78,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
             <a href="/tdetail" class="tour-card">
                 <div class="tour-image tImg12">
-                    <div class="badge">슈퍼특가</div>
+                    <div class="badge">익스트림</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
-                    <p class="tour-loc">페루 • 쿠스코</p>
-                    <h3 class="tour-name">잉카 문명 마추픽추 탐험 11일 #성스러운계곡 #쿠스코시티</h3>
+                    <p class="tour-loc">스위스 · 인터라켄</p>
+                    <h3 class="tour-name">인터라켄 시티뷰 패러글라이딩 비행</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">5,850,000</span>
+                        <span class="price-val">195,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
             <a href="/tdetail" class="tour-card">
                 <div class="tour-image tImg13">
-                    <div class="badge">MD추천</div>
+                    <div class="badge">포토존</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
-                    <p class="tour-loc">브라질 • 리우데자네이루</p>
-                    <h3 class="tour-name">삼바의 열정 속으로 10일 #예수동상 #코파카바나해변</h3>
+                    <p class="tour-loc">터키 · 카파도키아</p>
+                    <h3 class="tour-name">카파도키아 선라이즈 열기구 탑승권</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">5,500,000</span>
+                        <span class="price-val">320,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
             <a href="/tdetail" class="tour-card">
                 <div class="tour-image tImg14">
-                    <div class="badge">BEST</div>
+                    <div class="badge">이색체험</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
-                    <p class="tour-loc">멕시코 • 칸쿤</p>
-                    <h3 class="tour-name">카리브해의 지상낙원 6일 #올인클루시브 #치첸이사투어</h3>
+                    <p class="tour-loc">일본 · 교토</p>
+                    <h3 class="tour-name">교토 기온 지구 기모노 대여 & 스냅 촬영</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">3,450,000</span>
+                        <span class="price-val">55,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
             <a href="/tdetail" class="tour-card">
                 <div class="tour-image tImg15">
-                    <div class="badge">오늘마감</div>
+                    <div class="badge">강력추천</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
-                    <p class="tour-loc">덴마크 • 코펜하겐</p>
-                    <h3 class="tour-name">휘게 라이프 감성 7일 #니하운운하 #안데르센인어공주</h3>
+                    <p class="tour-loc">모로코 · 메르주가</p>
+                    <h3 class="tour-name">모로코 사하라 사막 1박 2일 캠핑 투어</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">3,180,000</span>
+                        <span class="price-val">155,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
             <a href="/tdetail" class="tour-card">
                 <div class="tour-image tImg16">
-                    <div class="badge">슈퍼특가</div>
+                    <div class="badge">베스트</div>
+                    <button class="tour-wishlist-btn" title="위시리스트">
+                        <i class="fa-regular fa-heart"></i>
+                    </button>
                 </div>
                 <div class="tour-body">
-                    <p class="tour-loc">우즈베키스탄 • 사마르칸트</p>
-                    <h3 class="tour-name">실크로드의 푸른 도시 6일 #레기스탄광장 #전통시장투어</h3>
+                    <p class="tour-loc">호주 · 케언즈</p>
+                    <h3 class="tour-name">호주 그레이트 배리어 리프 스노클링 원데이</h3>
                     <div class="tour-price">
                         <span style="font-size:12px; color:#999;">1인 기준</span>
-                        <span class="price-val">1,450,000</span>
+                        <span class="price-val">185,000</span>
+                    </div>
+                    <div class="tour-action-btns" style="margin-top:8px; display:flex; gap:10px;">
+                        <button class="tour-cart-text-btn" onclick="addTourToCart(this, event)" style="background:none; border:none; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer;">장바구니</button>
+                        <button class="tour-pay-text-btn" onclick="payTourProduct(this, event)" style="background:none; border:none; color:#ef4444; font-size:13px; font-weight:700; cursor:pointer;">결제하기</button>
                     </div>
                 </div>
             </a>
         </div>
     </section>
 
+    <!-- 장바구니/위시리스트 플로팅 버튼 -->
+    <!-- 중복된 장바구니 플로팅 버튼/드로어 완전 삭제 -->
+
+<button id="tourSavedFab" class="tour-saved-fab" type="button" aria-expanded="false" aria-controls="tourSavedDrawer" title="장바구니 열기">
+    <span class="tour-saved-fab__icon">🧺</span>
+    <span class="tour-saved-fab__label">장바구니</span>
+    <span id="tourSavedFabCount" class="tour-saved-fab__count" hidden>0</span>
+</button>
+<div id="tourSavedDrawer" class="tour-saved-drawer" aria-hidden="true">
+    <div class="tour-saved-drawer__backdrop" data-tour-saved-close></div>
+    <section class="tour-saved-drawer__panel">
+        <div class="tour-saved-drawer__grab"></div>
+        <div class="tour-saved-drawer__header">
+            <div class="tour-saved-tabs" role="tablist" aria-label="저장 항목 탭">
+                <button type="button" class="tour-saved-tab is-active" data-tour-saved-tab="cart" aria-selected="true">장바구니</button>
+                <button type="button" class="tour-saved-tab" data-tour-saved-tab="wishlist" aria-selected="false">위시리스트</button>
+            </div>
+            <button type="button" class="tour-saved-drawer__close" data-tour-saved-close>닫기</button>
+        </div>
+        <ul id="tourSavedList" class="tour-saved-list"></ul>
+        <div id="tourSavedEmpty" class="tour-saved-empty">저장된 항목이 없습니다.</div>
+    </section>
+</div>
 <footer class="footer">
     <div class="footer-container">
         <div class="footer-top">
