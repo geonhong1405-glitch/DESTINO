@@ -861,23 +861,23 @@ function buildFlightCardsHtml(data) {
                         <div class="flight-airline-name">${escapeHtml(airline.name)}</div>
                     </div>
                     <div class="flight-leg-list">
-                        ${itineraries.map((it) => renderItineraryLine(it)).join('')}
+                        ${itineraries.map((it) => renderItineraryLine(it)).join("")}
                     </div>
                 </div>
                 <aside class="flight-card-price">
                     <button
                         type="button"
-                        class="flight-heart-btn ${inWishlist ? 'is-active' : ''}"
+                        class="flight-heart-btn ${inWishlist ? "is-active" : ""}"
                         data-save-payload="${payloadAttr}"
                         aria-label="위시리스트 담기"
                         title="위시리스트"
                     >♥</button>
                     <div class="flight-offer-count">총 ${itineraries.length}구간</div>
                     <div class="flight-price-main">${getDisplayPrice(f)}</div>
-                    <div class="flight-price-sub">${escapeHtml(f?.price?.currency || '')} ${escapeHtml(f?.price?.total || '')}</div>
+                    <div class="flight-price-sub">${escapeHtml(f?.price?.currency || "")} ${escapeHtml(f?.price?.total || "")}</div>
                     <div class="flight-card-actions">
-                        <button type="button" class="flight-select-btn" data-save-payload="${payloadAttr}">${inCart ? '담김' : '장바구니'}</button>
-                        <button type="button" class="flight-pay-btn" data-save-payload="${payloadAttr}">결제하기</button>
+                        <button type="button" class="flight-select-btn" data-save-payload="${payloadAttr}">${inCart ? "담김" : "장바구니"}</button>
+                        <button type="button" class="flight-pay-btn" data-save-payload="${payloadAttr}">예약하기</button>
                     </div>
                 </aside>
             </article>
