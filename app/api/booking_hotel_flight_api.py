@@ -4,6 +4,7 @@ import requests
 from dotenv import load_dotenv
 from datetime import datetime
 import math
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 load_dotenv()
@@ -17,10 +18,50 @@ def log_debug(msg):
 
 
 def rapid_headers():
+    # Reload .env at request time so updated keys are reflected without process restart.
+    load_dotenv(override=True)
+    key = os.getenv("BOOKING_RAPIDAPI_KEY") or BOOKING_RAPIDAPI_KEY
+    host = os.getenv("BOOKING_RAPIDAPI_HOST") or BOOKING_RAPIDAPI_HOST
     return {
-        "x-rapidapi-key": BOOKING_RAPIDAPI_KEY,
-        "x-rapidapi-host": BOOKING_RAPIDAPI_HOST,
+        "x-rapidapi-key": key,
+        "x-rapidapi-host": host,
     }
+
+
+def rapid_host() -> str:
+    load_dotenv(override=True)
+    return os.getenv("BOOKING_RAPIDAPI_HOST") or BOOKING_RAPIDAPI_HOST
+
+
+def _get_with_retry(url: str, *, headers: dict, params: dict, timeout: int, max_attempts: int = 4) -> requests.Response:
+    """
+    Retry transient Booking API failures (especially 429) with short backoff.
+    """
+    backoff_sec = [0.8, 1.4, 2.2]
+    last_resp: Optional[requests.Response] = None
+    last_exc: Optional[Exception] = None
+    attempts = max(1, int(max_attempts))
+    for i in range(attempts):
+        try:
+            resp = requests.get(url, headers=headers, params=params, timeout=timeout)
+            last_resp = resp
+            # Retry on rate-limit or temporary upstream errors.
+            if resp.status_code in {429, 500, 502, 503, 504} and i < attempts - 1:
+                time.sleep(backoff_sec[min(i, len(backoff_sec) - 1)])
+                continue
+            return resp
+        except requests.RequestException as e:
+            last_exc = e
+            if i < attempts - 1:
+                time.sleep(backoff_sec[min(i, len(backoff_sec) - 1)])
+                continue
+            raise
+
+    if last_resp is not None:
+        return last_resp
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("Booking API request failed without response.")
 
 def search_hotels(city, checkin_date, checkout_date, adults=2, currency_code="KRW", page_number=1, languagecode="ko"):
     # 1. 도시명으로 dest_id 조회
@@ -93,9 +134,9 @@ def search_flights(origin, destination, departure_date, return_date=None, adults
 
 
 def search_destination(query: str):
-    url = f"https://{BOOKING_RAPIDAPI_HOST}/api/v1/hotels/searchDestination"
+    url = f"https://{rapid_host()}/api/v1/hotels/searchDestination"
     params = {"query": query}
-    response = requests.get(url, headers=rapid_headers(), params=params, timeout=15)
+    response = _get_with_retry(url, headers=rapid_headers(), params=params, timeout=15)
     response.raise_for_status()
     return response.json()
 
@@ -111,7 +152,7 @@ def search_hotels_by_dest_id(
     languagecode: str = "ko",
     page_number: int = 1,
 ):
-    url = f"https://{BOOKING_RAPIDAPI_HOST}/api/v1/hotels/searchHotels"
+    url = f"https://{rapid_host()}/api/v1/hotels/searchHotels"
     params = {
         "dest_id": dest_id,
         "search_type": search_type,
@@ -123,7 +164,7 @@ def search_hotels_by_dest_id(
         "languagecode": languagecode,
         "page_number": page_number,
     }
-    response = requests.get(url, headers=rapid_headers(), params=params, timeout=20)
+    response = _get_with_retry(url, headers=rapid_headers(), params=params, timeout=20)
     response.raise_for_status()
     return response.json()
 

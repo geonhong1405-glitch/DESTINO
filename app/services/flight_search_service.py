@@ -1,46 +1,18 @@
-import json
 import re
 from datetime import datetime
 from typing import Any, Optional
 
 from app.api.amadeus_api import (
-    COUNTRY_ALIASES as AMADEUS_COUNTRY_ALIASES,
-    LOCATION_ALIASES as AMADEUS_LOCATION_ALIASES,
     resolve_location_to_iata as amadeus_resolve_location_to_iata,
     search_flight_offers_raw,
 )
 from app.api.booking_hotel_flight_api import search_flights as booking_search_flights
 from app.api.exchange_rate import get_exchange_rate
+from app.services.location_alias_service import LOCATION_ALIASES, COUNTRY_ALIASES
 
 DEFAULT_FX_TO_KRW = {"KRW": 1.0, "USD": 1350.0, "EUR": 1470.0, "JPY": 9.0}
-SERVICE_LOCATION_ALIASES = {
-    # English aliases commonly produced by LLM parsing
-    "seoul": "SEL",
-    "incheon": "ICN",
-    "gimpo": "GMP",
-    "busan": "PUS",
-    "jeju": "CJU",
-    "tokyo": "TYO",
-    "osaka": "OSA",
-    "fukuoka": "FUK",
-    "sapporo": "SPK",
-    "narita": "NRT",
-    "haneda": "HND",
-    "newyork": "NYC",
-    "london": "LON",
-    "paris": "PAR",
-    "rome": "ROM",
-    "bangkok": "BKK",
-    "danang": "DAD",
-    "hanoi": "HAN",
-    "hochiminh": "SGN",
-    "hochiminhcity": "SGN",
-    "saigon": "SGN",
-    "singapore": "SIN",
-    "sydney": "SYD",
-    "melbourne": "MEL",
-    "brisbane": "BNE",
-}
+LOCATION_ALIASES_NORM = {str(k).replace(" ", "").lower(): v for k, v in LOCATION_ALIASES.items()}
+COUNTRY_ALIASES_NORM = {str(k).replace(" ", "").lower(): v for k, v in COUNTRY_ALIASES.items()}
 
 
 def _to_float(v: Any) -> Optional[float]:
@@ -52,19 +24,68 @@ def _to_float(v: Any) -> Optional[float]:
         return None
 
 
+def _format_money_amount(v: float) -> str:
+    # Keep string shape stable for downstream renderers while trimming unnecessary zeros.
+    s = f"{float(v):.2f}"
+    return s.rstrip("0").rstrip(".")
+
+
+def _sum_traveler_pricing_total(offer: dict[str, Any]) -> tuple[Optional[float], Optional[str]]:
+    traveler_pricings = offer.get("travelerPricings") or []
+    if not isinstance(traveler_pricings, list) or not traveler_pricings:
+        return None, None
+
+    total = 0.0
+    currency = None
+    counted = 0
+    for tp in traveler_pricings:
+        if not isinstance(tp, dict):
+            continue
+        tp_price = tp.get("price") or {}
+        tp_total = _to_float(tp_price.get("total"))
+        tp_currency = str(tp_price.get("currency") or "").upper().strip()
+        if tp_total is None or not tp_currency:
+            continue
+        if currency is None:
+            currency = tp_currency
+        elif currency != tp_currency:
+            return None, None
+        total += tp_total
+        counted += 1
+
+    if counted == 0 or currency is None:
+        return None, None
+    return total, currency
+
+
+def _normalize_offer_totals_from_travelers(data: dict[str, Any]) -> None:
+    for offer in data.get("data", []) or []:
+        if not isinstance(offer, dict):
+            continue
+        summed_total, summed_currency = _sum_traveler_pricing_total(offer)
+        if summed_total is None or not summed_currency:
+            continue
+        price_obj = offer.setdefault("price", {})
+        if not isinstance(price_obj, dict):
+            continue
+        price_obj["total"] = _format_money_amount(summed_total)
+        price_obj["currency"] = summed_currency
+
+
 def _norm_iata(keyword: str) -> Optional[str]:
     if not keyword:
         return None
     cleaned = str(keyword).strip()
     compact = cleaned.replace(" ", "")
     compact_lower = compact.lower()
-    # Service-level aliases: absorb user/LLM English city names during refactor.
-    if compact_lower in SERVICE_LOCATION_ALIASES:
-        return SERVICE_LOCATION_ALIASES[compact_lower]
-    if compact in AMADEUS_LOCATION_ALIASES:
-        return AMADEUS_LOCATION_ALIASES[compact]
-    if compact in AMADEUS_COUNTRY_ALIASES:
-        return AMADEUS_COUNTRY_ALIASES[compact]
+    if compact in LOCATION_ALIASES:
+        return LOCATION_ALIASES[compact]
+    if compact in COUNTRY_ALIASES:
+        return COUNTRY_ALIASES[compact]
+    if compact_lower in LOCATION_ALIASES_NORM:
+        return LOCATION_ALIASES_NORM[compact_lower]
+    if compact_lower in COUNTRY_ALIASES_NORM:
+        return COUNTRY_ALIASES_NORM[compact_lower]
     if len(cleaned) == 3 and cleaned.isalpha():
         return cleaned.upper()
     # Retry API lookup with original and title-cased English form.
@@ -82,10 +103,16 @@ def _search_flights(
     departure_date: str,
     return_date: Optional[str] = None,
     adults: int = 1,
+    children: int = 0,
+    infants: int = 0,
     max_price: Optional[float] = None,
     cabin: Optional[str] = None,
     max_results: int = 30,
 ) -> dict[str, Any]:
+    adults = int(adults or 1)
+    children = int(children or 0)
+    infants = int(infants or 0)
+
     origin_iata = _norm_iata(origin)
     destination_iata = _norm_iata(destination)
     if not origin_iata or not destination_iata:
@@ -99,6 +126,8 @@ def _search_flights(
             departure_date=departure_date,
             return_date=return_date,
             adults=adults,
+            children=children,
+            infants=infants,
             cabin=cabin,
             max_results=max_results,
         )
@@ -115,6 +144,9 @@ def _search_flights(
     if amadeus_error:
         data["amadeus_error"] = amadeus_error
 
+    # Normalize total price by summing traveler-level pricing when present.
+    _normalize_offer_totals_from_travelers(data)
+
     if max_price is not None:
         data["data"] = [
             x for x in data.get("data", [])
@@ -128,6 +160,8 @@ def _search_flights(
         "departure_date": departure_date,
         "return_date": return_date,
         "adults": adults,
+        "children": children,
+        "infants": infants,
         "max_price": max_price,
         "cabin": cabin,
     }
@@ -223,23 +257,45 @@ def _simplify(raw: dict[str, Any]) -> list[dict[str, Any]]:
     rows, seen = [], set()
     for offer in raw.get("data", []):
         itineraries = offer.get("itineraries", [])
-        key = json.dumps(itineraries, ensure_ascii=False)
+        # De-duplicate by rendered itinerary shape (carrier/airports/timestamps/durations),
+        # ignoring noisy metadata fields that can differ while the displayed route is identical.
+        sig_itins = []
+        for itin in itineraries:
+            sig_segs = []
+            for seg in itin.get("segments", []):
+                sig_segs.append(
+                    "|".join(
+                        [
+                            str(seg.get("carrierCode") or ""),
+                            str((seg.get("departure") or {}).get("iataCode") or ""),
+                            str((seg.get("departure") or {}).get("at") or ""),
+                            str((seg.get("arrival") or {}).get("iataCode") or ""),
+                            str((seg.get("arrival") or {}).get("at") or ""),
+                            str(seg.get("duration") or ""),
+                        ]
+                    )
+                )
+            sig_itins.append(">".join(sig_segs))
+        key = "||".join(sig_itins)
         if key in seen:
             continue
         seen.add(key)
         segs = []
+        itinerary_segments = []
         for itin in itineraries:
+            leg_segs = []
             for seg in itin.get("segments", []):
-                segs.append(
-                    {
-                        "airline": seg.get("carrierCode", "-"),
-                        "departure_iata": (seg.get("departure") or {}).get("iataCode", "-"),
-                        "arrival_iata": (seg.get("arrival") or {}).get("iataCode", "-"),
-                        "departure": (seg.get("departure") or {}).get("at", "-"),
-                        "arrival": (seg.get("arrival") or {}).get("at", "-"),
-                        "duration": seg.get("duration", "-"),
-                    }
-                )
+                seg_obj = {
+                    "airline": seg.get("carrierCode", "-"),
+                    "departure_iata": (seg.get("departure") or {}).get("iataCode", "-"),
+                    "arrival_iata": (seg.get("arrival") or {}).get("iataCode", "-"),
+                    "departure": (seg.get("departure") or {}).get("at", "-"),
+                    "arrival": (seg.get("arrival") or {}).get("at", "-"),
+                    "duration": seg.get("duration", "-"),
+                }
+                segs.append(seg_obj)
+                leg_segs.append(seg_obj)
+            itinerary_segments.append(leg_segs)
         dur = itineraries[0].get("duration") if itineraries else None
         rows.append(
             {
@@ -248,6 +304,7 @@ def _simplify(raw: dict[str, Any]) -> list[dict[str, Any]]:
                 "price_krw": (offer.get("price") or {}).get("krwTotal"),
                 "currency": (offer.get("price") or {}).get("currency"),
                 "segments": segs,
+                "itinerary_segments": itinerary_segments,
                 "itinerary_duration": dur,
                 "duration_min": _duration_min(dur),
                 "first_departure": segs[0]["departure"] if segs else None,

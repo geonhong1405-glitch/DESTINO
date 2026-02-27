@@ -17,20 +17,31 @@ def parse_flight_slots(
     parse_rel_date_for_correction_fn: Callable[[str], Any],
     parse_abs_monthday_range_fn: Callable[[str], dict[str, Optional[str]]],
 ) -> dict[str, Any]:
+    def _coerce_nonneg_int(v: Any, default: int) -> int:
+        try:
+            n = int(v)
+        except Exception:
+            return default
+        return n if n >= 0 else default
+
     today = datetime.now().strftime("%Y-%m-%d")
     prompt = (
         f"오늘 날짜는 {today}. 아래 JSON만 출력:\n"
-        '{"origin":null,"destination":null,"departure_date":null,"return_date":null,"adults":1,"sort_by":null,"trip_type":null,"limit":null}\n'
+        '{"origin":null,"destination":null,"departure_date":null,"return_date":null,"adults":1,"children":0,"infants":0,"sort_by":null,"trip_type":null,"limit":null}\n'
         "규칙: 저렴=price_asc, 빠른=fastest, 빠르고 저렴=fastest_cheap, "
         "출발시간 가장 빠른/가장 이른 출발=earliest_departure, 왕복이면 trip_type=round.\n"
         f"입력:{message}\n대화:{context}"
     )
     parsed = llm_json_fn("항공권 검색 JSON만 출력", prompt)
+    if not isinstance(parsed, dict):
+        parsed = {}
     parsed.setdefault("origin", None)
     parsed.setdefault("destination", None)
     parsed.setdefault("departure_date", None)
     parsed.setdefault("return_date", None)
     parsed.setdefault("adults", 1)
+    parsed.setdefault("children", 0)
+    parsed.setdefault("infants", 0)
     parsed.setdefault("sort_by", None)
     parsed.setdefault("trip_type", None)
     parsed.setdefault("limit", None)
@@ -38,6 +49,14 @@ def parse_flight_slots(
     parsed.setdefault("time_pref", None)
     parsed.setdefault("departure_window", None)
     parsed.setdefault("direct_only", None)
+    # Backward-compatible keys that LLM may still emit.
+    if parsed.get("children") is None and parsed.get("child") is not None:
+        parsed["children"] = parsed.get("child")
+    if parsed.get("infants") is None and parsed.get("infant") is not None:
+        parsed["infants"] = parsed.get("infant")
+    parsed["adults"] = _coerce_nonneg_int(parsed.get("adults"), 1) or 1
+    parsed["children"] = _coerce_nonneg_int(parsed.get("children"), 0)
+    parsed["infants"] = _coerce_nonneg_int(parsed.get("infants"), 0)
 
     if is_date_correction_message_fn(message) and not has_location_signal_fn(message):
         parsed["origin"] = None
@@ -86,9 +105,17 @@ def parse_flight_slots(
     if parsed.get("return_date"):
         parsed["trip_type"] = parsed.get("trip_type") or "round"
 
-    if "인도" in (message or "") or "india" in msg_l:
-        if (parsed.get("destination") or "").upper() in {"", "IND", "IN"}:
-            parsed["destination"] = "DEL"
+    # Passenger-count heuristic fallback when LLM misses explicit counts.
+    msg = message or ""
+    m_adult = re.search(r"(?:성인|어른)\s*(\d+)\s*(?:명)?", msg)
+    m_child = re.search(r"(?:소아|아동|아이|어린이)\s*(\d+)\s*(?:명)?", msg)
+    m_infant = re.search(r"(?:유아)\s*(\d+)\s*(?:명)?", msg)
+    if m_adult:
+        parsed["adults"] = max(1, _coerce_nonneg_int(m_adult.group(1), parsed.get("adults", 1)))
+    if m_child:
+        parsed["children"] = _coerce_nonneg_int(m_child.group(1), parsed.get("children", 0))
+    if m_infant:
+        parsed["infants"] = _coerce_nonneg_int(m_infant.group(1), parsed.get("infants", 0))
 
     if contains_fn(message, ["저렴", "싼", "가성비"]):
         parsed["sort_by"] = "price_asc"
@@ -97,6 +124,45 @@ def parse_flight_slots(
     if contains_fn(message, ["가장 빨리", "최단", "빠르게"]):
         parsed["sort_by"] = "fastest_cheap" if parsed.get("sort_by") == "price_asc" else "fastest"
     return parsed
+
+
+def _extract_relative_range_dates(message: str) -> tuple[Optional[str], Optional[str]]:
+    t = str(message or "").lower()
+    compact = re.sub(r"\s+", "", t)
+    if not compact:
+        return None, None
+    has_range_connector = any(k in compact for k in ["\uc5d0\uc11c", "\ubd80\ud130", "~", "-", "to", "\uae4c\uc9c0"])
+    if not has_range_connector:
+        return None, None
+
+    token_offsets = {
+        "\uc624\ub298": 0,
+        "\ub0b4\uc77c": 1,
+        "\ub0b4\uc77c\ubaa8\ub808": 2,
+        "\ub0b4\uc77c\ubaa8\ub798": 2,
+        "\ubaa8\ub808": 2,
+        "\uae00\ud53c": 3,
+    }
+    token_pat = re.compile(
+        r"\ub0b4\uc77c\ubaa8\ub808|\ub0b4\uc77c\ubaa8\ub798|\uae00\ud53c|\ubaa8\ub808|\ub0b4\uc77c|\uc624\ub298"
+    )
+    found = [(m.start(), m.group(0)) for m in token_pat.finditer(compact)]
+    if len(found) < 2:
+        return None, None
+
+    first = found[0][1]
+    second = found[1][1]
+    d1 = token_offsets.get(first)
+    d2 = token_offsets.get(second)
+    if d1 is None or d2 is None:
+        return None, None
+
+    now = datetime.now().date()
+    checkin = now + timedelta(days=d1)
+    checkout = now + timedelta(days=d2)
+    if checkout <= checkin:
+        checkout = checkin + timedelta(days=1)
+    return checkin.strftime("%Y-%m-%d"), checkout.strftime("%Y-%m-%d")
 
 
 def parse_hotel_slots(
@@ -118,6 +184,8 @@ def parse_hotel_slots(
         f"입력:{message}\n대화:{context}"
     )
     parsed = llm_json_fn("호텔 추천 JSON만 출력", prompt)
+    if not isinstance(parsed, dict):
+        parsed = {}
     parsed.setdefault("query", None)
     parsed.setdefault("checkin_date", None)
     parsed.setdefault("checkout_date", None)
@@ -155,6 +223,12 @@ def parse_hotel_slots(
         d = parse_rel_date_fn(message)
         if d:
             parsed["checkin_date"] = d.strftime("%Y-%m-%d")
+
+    rel_start, rel_end = _extract_relative_range_dates(message)
+    if rel_start and rel_end:
+        # Deterministic override for "내일에서 내일모레" style inputs.
+        parsed["checkin_date"] = rel_start
+        parsed["checkout_date"] = rel_end
 
     if "후기" in (message or ""):
         parsed["bucket"] = "review_top"

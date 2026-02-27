@@ -28,6 +28,15 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
         parsed["departure_date"] = None
         parsed["return_date"] = None
     state = _merge_state(prev_state, parsed)
+    # Shared travel dates can come from non-flight intents (hotel/rentalcar).
+    if not state.get("departure_date") and prev_state.get("travel_checkin"):
+        state["departure_date"] = prev_state.get("travel_checkin")
+    if not state.get("return_date") and prev_state.get("travel_checkout"):
+        state["return_date"] = prev_state.get("travel_checkout")
+    if state.get("departure_date"):
+        state["travel_checkin"] = state.get("departure_date")
+    if state.get("return_date"):
+        state["travel_checkout"] = state.get("return_date")
     missing = _missing_questions(state)
     if missing:
         SESSION_STATE[sid] = state
@@ -39,6 +48,8 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
         departure_date=state["departure_date"],
         return_date=state.get("return_date"),
         adults=state.get("adults", 1),
+        children=state.get("children", 0),
+        infants=state.get("infants", 0),
         max_price=state.get("max_price"),
         max_results=30,
     )
@@ -67,6 +78,12 @@ def _handle_rentalcar_intent(req: Any, prev_state: dict, SESSION_STATE: dict, si
     html, delta = rentalcar_service.answer_rentalcar_from_message(req.message, prev_state)
     state = dict(prev_state)
     state.update(delta or {})
+    rental_state = (delta or {}).get("rental_state") if isinstance(delta, dict) else None
+    if isinstance(rental_state, dict):
+        if rental_state.get("pickup_date"):
+            state["travel_checkin"] = rental_state.get("pickup_date")
+        if rental_state.get("dropoff_date"):
+            state["travel_checkout"] = rental_state.get("dropoff_date")
     state["last_intent"] = "rentalcar"
     SESSION_STATE[sid] = state
     return {"response": html}
@@ -96,6 +113,11 @@ def _resolve_effective_intent(req: Any, context: str, prev_state: dict, _resolve
         and _has_date_signal(req.message)
         and not _contains((req.message or "").lower(), ["항공", "비행", "flight", "일정", "코스", "itinerary"])
     ):
+        intent = "hotel"
+
+    has_hotel_signal = _contains((req.message or "").lower(), ["호텔", "숙소", "숙박", "체크인", "체크아웃"])
+    has_flight_signal = _contains((req.message or "").lower(), ["항공", "항공권", "비행", "flight", "출발", "도착", "직항", "경유", "왕복", "편도"])
+    if has_hotel_signal and not has_flight_signal:
         intent = "hotel"
 
     if intent == "flight" and _should_keep_knowledge_followup(req.message, prev_state):
@@ -158,6 +180,78 @@ def handle_chat_request(
         context = _build_context(history)
         prev_state = SESSION_STATE.get(sid, {})
 
+        # Hard gate: ignore non-travel queries unless we are clearly in an active travel slot-filling flow.
+        msg_l = (req.message or "").lower()
+        has_travel_signal = _contains(
+            msg_l,
+            [
+                "여행", "trip", "travel",
+                "항공", "항공권", "비행", "flight", "출발", "도착", "직항", "경유",
+                "호텔", "숙소", "숙박", "hotel", "체크인", "체크아웃",
+                "렌터카", "렌트카", "rental", "car",
+                "일정", "코스", "itinerary", "plan",
+                "맛집", "명소", "관광", "교통", "비자", "환전", "치안",
+            ],
+        )
+        has_core_travel_product_signal = _contains(
+            msg_l,
+            [
+                "항공", "항공권", "비행", "flight", "출발", "도착", "직항", "경유",
+                "호텔", "숙소", "숙박", "hotel", "체크인", "체크아웃",
+                "렌터카", "렌트카", "rental", "pickup", "dropoff",
+                "일정", "코스", "itinerary", "plan", "day",
+                "맛집", "명소", "관광", "교통", "비자", "환전", "치안",
+            ],
+        )
+        has_non_travel_entertainment_topic = _contains(
+            msg_l,
+            [
+                "노래", "음악", "뮤직", "music", "song", "playlist", "플레이리스트",
+                "영화", "드라마", "예능", "웹툰", "게임", "축구", "야구",
+            ],
+        )
+        active_travel_followup = bool(
+            prev_state.get("hotel_context")
+            or prev_state.get("last_intent") in {"flight", "hotel", "rentalcar", "itinerary"}
+        )
+        domain = _classify_travel_domain_with_llm(req.message, context)
+        domain_is_non_travel = bool(domain and (domain.get("is_travel") is False))
+        try:
+            domain_conf = float((domain or {}).get("confidence") or 0)
+        except Exception:
+            domain_conf = 0.0
+        if (
+            (not active_travel_followup)
+            and (
+                (domain_is_non_travel and (domain_conf >= 0.45 or not has_travel_signal))
+                or (has_non_travel_entertainment_topic and not has_core_travel_product_signal)
+            )
+        ):
+            state = dict(prev_state)
+            state["last_intent"] = "knowledge"
+            SESSION_STATE[sid] = state
+            return {"response": "<div>여행 관련 질문만 답변할 수 있어요.</div>"}
+
+        # Persist shared travel dates across intents (not only flight flow).
+        # If a user mentions dates in any turn, keep them for later hotel/itinerary follow-ups.
+        if _has_date_signal(req.message):
+            try:
+                parsed_for_dates = _parse_flight_slots(req.message, context) or {}
+            except Exception:
+                parsed_for_dates = {}
+            dep = parsed_for_dates.get("departure_date")
+            ret = parsed_for_dates.get("return_date")
+            if dep or ret:
+                seeded = dict(prev_state)
+                if dep:
+                    seeded["departure_date"] = dep
+                    seeded["travel_checkin"] = dep
+                if ret:
+                    seeded["return_date"] = ret
+                    seeded["travel_checkout"] = ret
+                prev_state = seeded
+                SESSION_STATE[sid] = seeded
+
         if _is_smalltalk_greeting(req.message):
             state = dict(prev_state)
             state["last_intent"] = "knowledge"
@@ -169,8 +263,7 @@ def handle_chat_request(
                 )
             }
 
-        domain = _classify_travel_domain_with_llm(req.message, context)
-        if domain and (domain.get("is_travel") is False) and float(domain.get("confidence") or 0) >= 0.6:
+        if (not active_travel_followup) and domain and (domain.get("is_travel") is False) and float(domain.get("confidence") or 0) >= 0.6:
             state = dict(prev_state)
             state["last_intent"] = "knowledge"
             SESSION_STATE[sid] = state
@@ -192,6 +285,12 @@ def handle_chat_request(
             and _has_date_signal(req.message)
             and not _contains((req.message or "").lower(), ["항공", "비행", "flight", "일정", "코스", "itinerary"])
         ):
+            intent = "hotel"
+
+        # Deterministic override: explicit hotel requests should not be swallowed by LLM flight guesses.
+        has_hotel_signal = _contains((req.message or "").lower(), ["호텔", "숙소", "숙박", "체크인", "체크아웃"])
+        has_flight_signal = _contains((req.message or "").lower(), ["항공", "항공권", "비행", "flight", "출발", "도착", "직항", "경유", "왕복", "편도"])
+        if has_hotel_signal and not has_flight_signal:
             intent = "hotel"
 
         # Keep contextual knowledge follow-ups out of the flight default path.
@@ -260,5 +359,5 @@ def handle_chat_request(
             msg = "Amadeus \uc9c1\ud56d\ud68c \uc9c1\ud56d\ud68c \uc9c1\ud56d\uc9c1\ud56d\ud68c \uc9c1\ud56d\uc9c1\ud56d\uc9c1\ud56d. \uc9c1\ud56d\ud68c \uc9c1\ud56d \uc9c1\ud56d\ud68c \uc9c1\ud56d\uc9c1\ud56d \uc9c1\ud56d \ud68c \uc9c1\ud56d \uc9c1\ud56d\ud68c \uc9c1\ud56d\ud68c."
             history.append({"role": "assistant", "text": msg})
             return {"response": f"<div>{msg}</div>"}
-        history.append({"role": "assistant", "text": f"\uc9c1\ud56d \uc9c1\ud56d \uc9c1\ud56d: {err_text}"})
-        return {"response": f"<pre>\uc9c1\ud56d \uc9c1\ud56d \uc9c1\ud56d: {err_text}</pre>"}
+        history.append({"role": "assistant", "text": f"처리 중 오류: {err_text}"})
+        return {"response": f"<pre>처리 중 오류: {err_text}</pre>"}
