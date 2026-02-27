@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import requests
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from openai import OpenAI
 from pydantic import BaseModel
 
@@ -24,6 +24,7 @@ from app.services import knowledge_helpers_service
 from app.services import chat_orchestrator_service
 from app.services import chat_heuristics_service
 from app.endpoints.rag_api import answer_rag_question
+from app.session import get_user_id_from_session
 
 try:
     from pinecone import Pinecone
@@ -690,7 +691,12 @@ def api_flight_search(
 
 
 @router.post("/chat")
-def chat(req: ChatRequest):
+def chat(req: ChatRequest, request: Request):
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+
     return chat_orchestrator_service.handle_chat_request(
         req,
         SESSION_HISTORY=SESSION_HISTORY,

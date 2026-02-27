@@ -82,6 +82,83 @@ def _extract_iata(text: str | None) -> str | None:
     return None
 
 
+# Unicode-safe alias candidates for car entity autocomplete.
+def _entity_query_candidates(name: str | None) -> list[str]:
+    q = (name or "").strip()
+    if not q:
+        return []
+
+    out: list[str] = []
+
+    def _add(v: str | None):
+        s = str(v or "").strip()
+        if s and s not in out:
+            out.append(s)
+
+    iata = _extract_iata(q)
+    if iata:
+        _add(iata.upper())
+
+    _add(q)
+
+    q_compact = re.sub(r"\s+", "", q).lower()
+
+    alias_map: dict[str, list[str]] = {
+        # KR
+        "\uC778\uCC9C": ["ICN", "Incheon Airport", "Incheon", "Seoul"],
+        "\uAE40\uD3EC": ["GMP", "Gimpo Airport", "Gimpo", "Seoul"],
+        "\uC11C\uC6B8": ["Seoul", "SEL", "ICN"],
+        "\uBD80\uC0B0": ["PUS", "Busan"],
+        # JP
+        "\uB098\uB9AC\uD0C0": ["NRT", "Narita Airport", "Narita", "Tokyo"],
+        "\uD558\uB124\uB2E4": ["HND", "Haneda Airport", "Haneda", "Tokyo"],
+        "\uB3C4\uCFC4": ["Tokyo", "TYO", "NRT", "HND"],
+        "\uC624\uC0AC\uCE74": ["Osaka", "OSA", "KIX"],
+        "\uAC04\uC0AC\uC774": ["KIX", "Kansai Airport", "Osaka"],
+        "\uC0BF\uD3EC\uB85C": ["CTS", "Sapporo"],
+        "\uD6C4\uCFE0\uC624\uCE74": ["FUK", "Fukuoka"],
+        # US
+        "\uB274\uC695": ["NYC", "JFK", "EWR", "LGA", "New York"],
+        # EU
+        "\uB7F0\uB358": ["LON", "LHR", "LGW", "London"],
+        "\uD30C\uB9AC": ["PAR", "CDG", "ORY", "Paris"],
+        "\uB85C\uB9C8": ["ROM", "FCO", "Rome"],
+        # APAC
+        "\uBC29\uCF55": ["BKK", "Bangkok"],
+        "\uD558\uB178\uC774": ["HAN", "Hanoi"],
+        "\uD638\uCE58\uBBFC": ["SGN", "Ho Chi Minh"],
+        "\uB2E4\uB0AD": ["DAD", "Da Nang"],
+        "\uC2F1\uAC00\uD3EC\uB974": ["SIN", "Singapore"],
+        "\uB300\uB9CC": ["TPE", "Taipei"],
+        "\uC2DC\uB4DC\uB2C8": ["SYD", "Sydney"],
+        "\uBA5C\uBC84\uB978": ["MEL", "Melbourne"],
+        "\uB450\uBC14\uC774": ["DXB", "Dubai"],
+        # EN / codes
+        "jfk": ["JFK", "New York"],
+        "ewr": ["EWR", "Newark"],
+        "lga": ["LGA", "LaGuardia"],
+        "icn": ["ICN", "Incheon"],
+        "nrt": ["NRT", "Narita"],
+        "hnd": ["HND", "Haneda"],
+        "lhr": ["LHR", "London"],
+        "cdg": ["CDG", "Paris"],
+        "fco": ["FCO", "Rome"],
+        "bkk": ["BKK", "Bangkok"],
+        "sin": ["SIN", "Singapore"],
+        "syd": ["SYD", "Sydney"],
+    }
+
+    for k, vals in alias_map.items():
+        if k in q_compact:
+            for v in vals:
+                _add(v)
+
+    if len(q.strip()) == 3 and q.strip().isalpha():
+        _add(q.strip().upper())
+
+    return out
+
+
 def _distance_sq(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return (lat1 - lat2) ** 2 + (lon1 - lon2) ** 2
 
@@ -115,12 +192,6 @@ def resolve_sky_car_entity(
     q = (name or "").strip()
     if not q:
         return None
-    iata = _extract_iata(q)
-    query = iata or q
-    raw = sky_cars_autocomplete(query, limit=15)
-    items = raw.get("data") if isinstance(raw, dict) else None
-    if not isinstance(items, list) or not items:
-        return None
 
     def parse_loc(item: dict) -> tuple[float | None, float | None]:
         try:
@@ -130,37 +201,45 @@ def resolve_sky_car_entity(
         except Exception:
             return None, None
 
-    if iata:
-        for item in items:
-            ename = str(item.get("entity_name") or "")
-            if f"({iata})" in ename:
-                return item
+    for cand in _entity_query_candidates(q):
+        iata = _extract_iata(cand) or (cand.upper() if len(cand) == 3 and cand.isalpha() else None)
+        raw = sky_cars_autocomplete(cand, limit=15)
+        items = raw.get("data") if isinstance(raw, dict) else None
+        if not isinstance(items, list) or not items:
+            continue
 
-    if lat is not None and lon is not None:
-        best = None
-        best_d = None
-        for item in items:
-            ilat, ilon = parse_loc(item)
-            if ilat is None or ilon is None:
-                continue
-            d = _distance_sq(lat, lon, ilat, ilon)
-            if best_d is None or d < best_d:
-                best = item
-                best_d = d
-        if best is not None:
-            return best
+        if iata:
+            for item in items:
+                ename = str(item.get("entity_name") or "")
+                if f"({iata})" in ename or str(item.get("iata") or "").upper() == iata:
+                    return item
 
-    q_lower = q.lower()
-    # Prefer airport when query looks like airport.
-    wants_airport = ("공항" in q) or ("airport" in q_lower) or bool(iata)
-    if wants_airport:
+        if lat is not None and lon is not None:
+            best = None
+            best_d = None
+            for item in items:
+                ilat, ilon = parse_loc(item)
+                if ilat is None or ilon is None:
+                    continue
+                d = _distance_sq(lat, lon, ilat, ilon)
+                if best_d is None or d < best_d:
+                    best = item
+                    best_d = d
+            if best is not None:
+                return best
+
+        cand_l = cand.lower()
+        wants_airport = ("airport" in cand_l) or bool(iata)
+        if wants_airport:
+            for item in items:
+                if str(item.get("class") or "").lower() == "airport":
+                    return item
         for item in items:
-            if str(item.get("class") or "").lower() == "airport":
+            if str(item.get("class") or "").lower() in {"city", "airport"}:
                 return item
-    for item in items:
-        if str(item.get("class") or "").lower() in {"city", "airport"}:
-            return item
-    return items[0]
+        return items[0]
+
+    return None
 
 
 def search_sky_car_rentals(

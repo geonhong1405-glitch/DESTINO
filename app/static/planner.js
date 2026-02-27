@@ -213,6 +213,26 @@
         }
     }
 
+    async function ensureLoggedInForChat() {
+        try {
+            const res = await fetch("/api/me", { credentials: "same-origin", cache: "no-store" });
+            if (!res.ok) {
+                return false;
+            }
+            const data = await res.json().catch(() => ({}));
+            return !!(data && data.ok && data.user);
+        } catch (_e) {
+            return false;
+        }
+    }
+
+    function promptLoginForChat() {
+        if (confirm("채팅은 로그인 후 이용 가능합니다. 로그인 페이지로 이동할까요?")) {
+            const next = encodeURIComponent(location.pathname + location.search + location.hash);
+            location.href = `/login?next=${next}`;
+        }
+    }
+
     async function refreshSavedItems() {
         try {
             const data = await savedItemsApi("/api/saved-items", { method: "GET", headers: {} });
@@ -1128,6 +1148,12 @@
         const message = promptInput.value.trim();
         if (!message) return;
 
+        const canChat = await ensureLoggedInForChat();
+        if (!canChat) {
+            promptLoginForChat();
+            return;
+        }
+
         collapseHeroForChat();
         appendUserMessage(message);
         promptInput.value = "";
@@ -1136,6 +1162,7 @@
         try {
             const res = await fetch("/chat", {
                 method: "POST",
+                credentials: "same-origin",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     message,
@@ -1143,10 +1170,15 @@
                 }),
             });
 
+            if (res.status === 401) {
+                loadingItem.remove();
+                promptLoginForChat();
+                return;
+            }
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
             const data = await res.json();
-            const html = data?.response || "응답을 받지 못했습니다.";
+            const html = data?.response || "??? ?? ?????.";
             loadingItem.innerHTML = `
                 <div class="ai-msg__meta">DESTINO AI</div>
                 <div class="ai-msg__bubble"><div class="ai-msg__content">${html}</div></div>
@@ -1157,7 +1189,7 @@
         } catch (error) {
             loadingItem.innerHTML = `
                 <div class="ai-msg__meta">DESTINO AI</div>
-                <div class="ai-msg__bubble ai-msg__bubble--error">요청 중 오류가 발생했습니다.</div>
+                <div class="ai-msg__bubble ai-msg__bubble--error">?? ? ??? ??????.</div>
             `;
             scrollToBottom(true);
         }

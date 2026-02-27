@@ -24,9 +24,6 @@ def _handle_hotel_intent(req: Any, prev_state: dict, context: str, SESSION_STATE
 
 def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STATE: dict, sid: str, NeedMoreInfoError: type, _parse_flight_slots, _has_date_signal, _merge_state, _missing_questions, flight_search_service, chat_renderers):
     parsed = _parse_flight_slots(req.message, context)
-    if not _has_date_signal(req.message):
-        parsed["departure_date"] = None
-        parsed["return_date"] = None
     state = _merge_state(prev_state, parsed)
     # Shared travel dates can come from non-flight intents (hotel/rentalcar).
     if not state.get("departure_date") and prev_state.get("travel_checkin"):
@@ -286,6 +283,19 @@ def handle_chat_request(
             and not _contains((req.message or "").lower(), ["항공", "비행", "flight", "일정", "코스", "itinerary"])
         ):
             intent = "hotel"
+
+        # Rental follow-up guard: date/location-only replies after rental prompts
+        # should continue rental flow instead of falling to knowledge.
+        if (
+            prev_state.get("rental_context")
+            and not _contains((req.message or "").lower(), ["flight", "hotel", "itinerary", "schedule", "plan"])
+            and (
+                _has_date_signal(req.message)
+                or _contains((req.message or "").lower(), ["pickup", "dropoff", "rental", "rent car", "car rental"])
+                or ("에서" in (req.message or ""))
+            )
+        ):
+            intent = "rentalcar"
 
         # Deterministic override: explicit hotel requests should not be swallowed by LLM flight guesses.
         has_hotel_signal = _contains((req.message or "").lower(), ["호텔", "숙소", "숙박", "체크인", "체크아웃"])

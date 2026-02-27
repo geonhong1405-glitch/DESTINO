@@ -4,6 +4,61 @@ from typing import Any, Callable, Optional
 
 def detect_intent(message: str, prev_state: dict[str, Any], *, contains_fn: Callable[[str, list[str]], bool]) -> str:
     m = (message or "").lower()
+    msg = str(message or "")
+
+    # Unicode-safe Korean intent cues (works even when source file has mojibake literals).
+    has_ko_flight = bool(re.search("(\uD56D\uACF5|\uD56D\uACF5\uD3B8|\uBE44\uD589\uAE30|\uC655\uBCF5|\uD3B8\uB3C4|\uCD9C\uBC1C|\uB3C4\uCC29|\uC9C1\uD56D|\uACBD\uC720)", msg))
+    has_ko_hotel = bool(re.search("(\uD638\uD154|\uC219\uC18C|\uCCB4\uD06C\uC778|\uCCB4\uD06C\uC544\uC6C3)", msg))
+    has_ko_rental = bool(re.search("(\uB80C\uD130\uCE74|\uB80C\uD2B8\uCE74|\uCC28\uB7C9)", msg))
+    has_ko_itin = bool(re.search("(\uC77C\uC815|\uCF54\uC2A4|\uB8E8\uD2B8|\uD50C\uB79C)", msg))
+    has_ko_pref = bool(re.search("(\uCD5C\uC800\uAC00|\uC800\uB834|\uAC00\uACA9|\uBE60\uB978|\uC18C\uC694\uC2DC\uAC04|\uAC00\uC131\uBE44|\uCD94\uCC9C)", msg))
+
+    if has_ko_flight and not has_ko_hotel:
+        return "flight"
+    if has_ko_hotel and not has_ko_flight:
+        return "hotel"
+    if has_ko_rental and not has_ko_flight and not has_ko_hotel:
+        return "rentalcar"
+    if has_ko_itin and not has_ko_flight and not has_ko_hotel:
+        return "itinerary"
+
+    # Dynamic follow-up: preference-only utterances inherit last product context.
+    if has_ko_pref and not has_ko_hotel and not has_ko_flight:
+        last = str(prev_state.get("last_intent") or "")
+        if last in {"flight", "hotel", "rentalcar", "itinerary"}:
+            return last
+
+    # Dynamic product-intent routing: combine current utterance signals + recent context.
+    flight_terms = ["flight", "airfare", "round trip", "roundtrip", "one way", "oneway", "항공", "항공편", "왕복", "편도", "출발", "도착", "직항", "경유"]
+    hotel_terms = ["hotel", "호텔", "숙소", "체크인", "체크아웃"]
+    rental_terms = ["rental car", "rent car", "car rental", "렌터카", "렌트카", "차량"]
+    itinerary_terms = ["itinerary", "plan", "route", "일정", "코스", "루트", "플랜"]
+
+    # Sorting/preference words are interpreted by recent product context.
+    pref_terms = ["cheap", "cheapest", "price", "fast", "fastest", "earliest", "sort", "최저가", "저렴", "가격", "빠른", "소요시간", "가성비", "추천", "top"]
+
+    score = {"flight": 0, "hotel": 0, "rentalcar": 0, "itinerary": 0}
+    if contains_fn(m, flight_terms):
+        score["flight"] += 3
+    if contains_fn(m, hotel_terms):
+        score["hotel"] += 3
+    if contains_fn(m, rental_terms):
+        score["rentalcar"] += 3
+    if contains_fn(m, itinerary_terms):
+        score["itinerary"] += 3
+
+    if contains_fn(m, pref_terms):
+        last_intent = str(prev_state.get("last_intent") or "")
+        if last_intent in score:
+            score[last_intent] += 2
+
+    # hotel_context is weak prior, not a hard override.
+    if prev_state.get("hotel_context") and not contains_fn(m, flight_terms):
+        score["hotel"] += 1
+
+    best = max(score, key=score.get)
+    if score[best] >= 3:
+        return best
     if contains_fn(m, ["여행지", "추천지", "가볼만", "관광지", "즐길만", "놀거리", "할만한"]):
         if not contains_fn(m, ["항공", "항공권", "비행기", "출발", "도착"]):
             return "knowledge"
@@ -36,10 +91,16 @@ def detect_intent(message: str, prev_state: dict[str, Any], *, contains_fn: Call
     if prev_state.get("last_intent") == "hotel" and not contains_fn(m, ["항공", "비행기", "출발", "도착"]):
         return "hotel"
 
+    # Flight-followup modifiers after results (e.g. "왕복편으로", "편도로", "직항으로")
+    if prev_state.get("last_intent") == "flight" and contains_fn(
+        m, ["왕복", "편도", "귀국", "복귀", "직항", "경유", "round trip", "one way"]
+    ):
+        return "flight"
+
     has_any_travel_signal = contains_fn(
         m,
         [
-            "항공", "항공권", "비행기", "flight", "출발", "도착", "직항", "경유",
+            "항공", "항공권", "비행기", "flight", "출발", "도착", "직항", "경유", "왕복", "편도", "귀국", "복귀",
             "호텔", "숙소", "숙박", "hotel", "체크인", "체크아웃",
             "렌터카", "렌트카", "rental", "car",
             "일정", "itinerary", "plan", "루트", "코스",

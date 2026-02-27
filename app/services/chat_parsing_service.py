@@ -39,6 +39,24 @@ def parse_flight_slots(
     parsed.setdefault("destination", None)
     parsed.setdefault("departure_date", None)
     parsed.setdefault("return_date", None)
+
+    def _none_like(v: Any):
+        if v is None:
+            return None
+        if isinstance(v, str) and v.strip().lower() in {"", "null", "none", "unknown", "n/a", "-"}:
+            return None
+        return v
+
+    for key in ["origin", "destination", "departure_date", "return_date", "sort_by", "trip_type", "limit"]:
+        parsed[key] = _none_like(parsed.get(key))
+
+    # Deterministic absolute date-range extraction (e.g., 3/1~3/4, 3/1?? 3/4??).
+    abs_md_early = parse_abs_monthday_range_fn(message)
+    if abs_md_early.get("departure_date"):
+        parsed["departure_date"] = abs_md_early["departure_date"]
+    if abs_md_early.get("return_date"):
+        parsed["return_date"] = abs_md_early["return_date"]
+        parsed["trip_type"] = parsed.get("trip_type") or "round"
     parsed.setdefault("adults", 1)
     parsed.setdefault("children", 0)
     parsed.setdefault("infants", 0)
