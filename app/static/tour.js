@@ -6,7 +6,7 @@ window.payTourProduct = payTourProduct;
 // 장바구니/위시리스트 기능
 loadTourSavedItems();
 initTourSavedDrawer();
-initTourSavedItemActions();
+// initTourSavedItemActions(); // 위임 방식만 사용, 중복 이벤트 방지 위해 주석처리
 
 // 카드 클릭 방지 함수
 function preventCardClick(e) {
@@ -14,88 +14,67 @@ function preventCardClick(e) {
     e.stopPropagation();
 }
 
-// 상세페이지 이동 완전 차단 및 버튼 기능 보장
-function setupTourCardClicks() {
-    document.querySelectorAll('.tour-card').forEach((card, index) => {
-        card.addEventListener('click', function(e) {
-            // 버튼 클릭 시 상세페이지 이동 완전 차단
-            if (
-                e.target.classList.contains('tour-cart-text-btn') ||
-                e.target.classList.contains('tour-pay-text-btn') ||
-                e.target.tagName === 'BUTTON'
-            ) {
-                e.stopPropagation();
-                e.preventDefault();
-                return;
-            }
-            const tourData = extractTourData(card, index);
-            localStorage.setItem('selectedTour', JSON.stringify(tourData));
-            window.location.href = '/tdetail';
-        });
-    });
-}
-window.addEventListener('DOMContentLoaded', setupTourCardClicks);
 
-// Toast message utility
-function showTourToast(msg) {
-    let toast = document.getElementById('tourToastMsg');
-    if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'tourToastMsg';
-        toast.style.position = 'fixed';
-        toast.style.top = '32px';
-        toast.style.left = '50%';
-        toast.style.transform = 'translateX(-50%)';
-        toast.style.background = 'rgba(34,34,34,0.92)';
-        toast.style.color = '#fff';
-        toast.style.padding = '12px 28px';
-        toast.style.borderRadius = '24px';
-        toast.style.fontSize = '16px';
-        toast.style.zIndex = '9999';
-        toast.style.boxShadow = '0 2px 8px rgba(0,0,0,0.18)';
-        toast.style.opacity = '0';
-        toast.style.transition = 'opacity 0.2s';
-        document.body.appendChild(toast);
+// tour-card 클릭 이벤트를 이벤트 위임 방식으로 처리
+document.addEventListener('click', function(e) {
+    const card = e.target.closest('.tour-card');
+    if (!card) return;
+    // 상세페이지 이동: 버튼 클릭이 아닌 경우만 (wishlist/cart/pay 버튼 클릭 시 return)
+    if (
+        e.target.closest('.tour-wishlist-btn') ||
+        e.target.closest('.tour-cart-text-btn') ||
+        e.target.closest('.tour-pay-text-btn')
+    ) {
+        // 혹시라도 이벤트가 여기까지 오면 무조건 차단
+        e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+        return;
     }
-    toast.textContent = msg;
-    toast.style.opacity = '1';
-    setTimeout(() => { toast.style.opacity = '0'; }, 1400);
-}
+    const index = Array.from(document.querySelectorAll('.tour-card')).indexOf(card);
+    if (index !== -1) {
+        const tourData = extractTourData(card, index);
+        window.location.href = `/tour-detail?tour_id=${tourData.id}`;
+    }
+});
 
-// Tour Card Wishlist Heart Button Handler
-window.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.tour-wishlist-btn').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            e.preventDefault();
-            if (!isLoggedIn) {
-                requireLoginMessage();
-                return;
-            }
-            // Find card index
-            const card = btn.closest('.tour-card');
-            const index = Array.from(document.querySelectorAll('.tour-card')).indexOf(card);
-            // Toggle wishlist
-            if (index !== -1) {
-                const tourData = extractTourData(card, index);
-                const wishIdx = tourSavedState.wishlist.findIndex(item => item.name === tourData.name);
-                if (wishIdx === -1) {
-                    tourSavedState.wishlist.push(tourData);
-                    btn.querySelector('i').classList.remove('fa-regular');
-                    btn.querySelector('i').classList.add('fa-solid');
-                    alert(`'${tourData.name || tourData.title || ''}' 상품이 위시리스트에 담겼습니다.`);
-                } else {
-                    tourSavedState.wishlist.splice(wishIdx, 1);
-                    btn.querySelector('i').classList.remove('fa-solid');
-                    btn.querySelector('i').classList.add('fa-regular');
-                    alert(`'${tourData.name || tourData.title || ''}' 상품이 위시리스트에서 빠졌습니다.`);
-                }
-                saveTourItems();
-                tourSavedDrawerTab = 'wishlist';
-                setTourSavedDrawer(true);
-            }
-        });
-    });
+// Tour Card Wishlist Heart Button Handler (이벤트 위임)
+
+// Tour Card Wishlist Heart Button Handler (이벤트 위임, stopImmediatePropagation 사용)
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.tour-wishlist-btn');
+    if (!btn) return;
+    e.stopPropagation();
+    e.preventDefault();
+    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    if (!isLoggedIn) {
+        requireLoginMessage();
+        return;
+    }
+    const card = btn.closest('.tour-card');
+    const index = Array.from(document.querySelectorAll('.tour-card')).indexOf(card);
+    if (index !== -1) {
+        const tourData = extractTourData(card, index);
+        // 중복 추가 방지
+        const exists = tourSavedState.wishlist.some(item => getTourSavedKey(item) === getTourSavedKey(tourData));
+        if (!exists) {
+            tourSavedState.wishlist.push(tourData);
+            saveTourItems();
+        }
+        // 상태 진단용 콘솔 출력
+        console.log('[위시리스트 클릭] tourSavedState.wishlist:', tourSavedState.wishlist);
+        console.log('[위시리스트 클릭] localStorage:', localStorage.getItem('tourWishlist'));
+        // 아이콘 즉시 반영
+        const icon = btn.querySelector('i');
+        if (icon) {
+            icon.classList.remove('fa-regular');
+            icon.classList.add('fa-solid');
+        }
+        tourSavedDrawerTab = 'wishlist';
+        renderTourSavedDrawer();
+        setTourSavedDrawer(true);
+        // 렌더 후 상태도 출력
+        console.log('[위시리스트 클릭 후 렌더] tourSavedState.wishlist:', tourSavedState.wishlist);
+    }
 });
 
 // Wishlist Floating Button Click Handler
@@ -134,7 +113,7 @@ function addTourToCart(btn, event) {
     saveTourItems();
     renderTourSavedDrawer();
     setTourSavedDrawer(true);
-    alert(`'${name}' 상품이 장바구니에 담겼습니다.`);
+    // 문구 제거
 }
 
 function payTourProduct(btn, event) {
@@ -148,7 +127,7 @@ function payTourProduct(btn, event) {
     }
     const card = btn.closest('.tour-card');
     const name = card.querySelector('.tour-name')?.innerText || '';
-    alert(`'${name}' 상품 결제 페이지로 이동합니다.`);
+    // 문구 제거
 }
 
 // 외부에서 호출 가능하도록 window에 등록 (중복 없이 한 번만)
@@ -162,6 +141,7 @@ window.payTourProduct = payTourProduct;
 
 window.onload = function () {
     // Lucide 아이콘 초기화
+    // Lucide 아이콘 초기화
     lucide.createIcons();
 
     const destInput = document.getElementById('dest-input');
@@ -171,53 +151,52 @@ window.onload = function () {
     const resultsList = document.getElementById('results-list');
     const searchWidget = document.getElementById('searchWidget');
 
-    /**
-     * 입력창 클릭 시 팝업 활성화
-     */
-    destInput.addEventListener('click', (e) => {
-        e.stopPropagation();
-        tourPopover.classList.add('active');
-    });
+    // 입력창 클릭 시 팝업 활성화
+    if (destInput && tourPopover) {
+        destInput.addEventListener('click', (e) => {
+            e.stopPropagation();
+            tourPopover.classList.add('active');
+        });
+    }
 
-    /**
-     * 입력어에 따른 실시간 제안 리스트 업데이트
-     */
-    destInput.addEventListener('input', (e) => {
-        const val = e.target.value;
+    // 입력어에 따른 실시간 제안 리스트 업데이트
+    if (destInput && defaultSugg && searchResults && resultsList) {
+        destInput.addEventListener('input', (e) => {
+            const val = e.target.value;
 
-        if (val.trim().length > 0) {
-            // 인기 여행지 숨기고 검색 결과 표시
-            defaultSugg.style.display = 'none';
-            searchResults.style.display = 'block';
+            if (val.trim().length > 0) {
+                // 인기 여행지 숨기고 검색 결과 표시
+                defaultSugg.style.display = 'none';
+                searchResults.style.display = 'block';
+                // 검색 제안 템플릿 업데이트
+                resultsList.innerHTML = `
+                    <div class="search-suggestion-item" onclick="selectDest('${val}')">
+                        <i data-lucide="map-pin" size="16"></i>
+                        <span><strong>'${val}'</strong> 검색 결과 보기</span>
+                    </div>
+                    <div class="search-suggestion-item" onclick="selectDest('${val} 인기 명소')">
+                        <i data-lucide="star" size="16"></i>
+                        <span>${val} 인기 명소/어트랙션 찾기</span>
+                    </div>
+                `;
+                // 새로 생성된 아이콘 렌더링
+                lucide.createIcons();
+            } else {
+                // 입력창이 비었을 때 초기 상태로 복구
+                defaultSugg.style.display = 'block';
+                searchResults.style.display = 'none';
+            }
+        });
+    }
 
-            // 검색 제안 템플릿 업데이트
-            resultsList.innerHTML = `
-                <div class="search-suggestion-item" onclick="selectDest('${val}')">
-                    <i data-lucide="map-pin" size="16"></i>
-                    <span><strong>'${val}'</strong> 검색 결과 보기</span>
-                </div>
-                <div class="search-suggestion-item" onclick="selectDest('${val} 인기 명소')">
-                    <i data-lucide="star" size="16"></i>
-                    <span>${val} 인기 명소/어트랙션 찾기</span>
-                </div>
-            `;
-            // 새로 생성된 아이콘 렌더링
-            lucide.createIcons();
-        } else {
-            // 입력창이 비었을 때 초기 상태로 복구
-            defaultSugg.style.display = 'block';
-            searchResults.style.display = 'none';
-        }
-    });
-
-    /**
-     * 검색 위젯 외부 클릭 시 팝업 닫기
-     */
-    document.addEventListener('click', (e) => {
-        if (!searchWidget.contains(e.target)) {
-            tourPopover.classList.remove('active');
-        }
-    });
+    // 검색 위젯 외부 클릭 시 팝업 닫기
+    if (searchWidget && tourPopover) {
+        document.addEventListener('click', (e) => {
+            if (!searchWidget.contains(e.target)) {
+                tourPopover.classList.remove('active');
+            }
+        });
+    }
 };
 
 /**
@@ -240,29 +219,16 @@ function handleSearch() {
     const query = destInput.value;
 
     if (!query) {
-        alert('여행지 또는 어트랙션을 입력해주세요.');
+        // 문구 제거
         return;
     }
 
     // 실제 서비스에서는 검색 결과 페이지로 이동 로직이 들어갑니다.
-    alert(`'${query}' 상품 정보를 불러오고 있습니다.`);
+    // 문구 제거
 }
 
 // 메인 페이지에서 카드를 클릭했을 때 실행될 함수
-document.addEventListener('DOMContentLoaded', () => {
-    // 기존 카드 클릭 상세페이지 이동
-    const tourCards = document.querySelectorAll('.tour-card');
-    tourCards.forEach((card, index) => {
-        card.addEventListener('click', (e) => {
-            e.preventDefault();
-            const tourData = extractTourData(card, index);
-            localStorage.setItem('selectedTour', JSON.stringify(tourData));
-            window.location.href = '/tdetail';
-        });
-    });
-
-    // 장바구니/결제 버튼 완전 삭제, 기존 카드 클릭 상세페이지 이동만 유지
-});
+// (중복 카드 클릭 상세페이지 이동 코드 제거, 이벤트 위임 방식만 유지)
 
 // 투어 장바구니/위시리스트 상태
 // 로그인 상태 체크 (템플릿에서 nickname 변수 전달)
@@ -275,7 +241,7 @@ function requireLoginMessage() {
 }
 
 function getTourSavedKey(item) {
-    return `${String(item?.id || '').toLowerCase()}__${String(item?.title || '').toLowerCase()}`;
+    return `${String(item?.title || '').toLowerCase()}__${String(item?.location || '').toLowerCase()}__${String(item?.price || '').toLowerCase()}`;
 }
 
 function hasTourSaved(listType, item) {
@@ -330,7 +296,7 @@ function renderTourSavedDrawer() {
     });
     listEl.innerHTML = '';
     emptyEl.style.display = items.length ? 'none' : 'block';
-    emptyEl.textContent = tourSavedDrawerTab === 'wishlist' ? '위시리스트 항목이 없습니다.' : '장바구니 항목이 없습니다.';
+    emptyEl.textContent = '';
     items.forEach((item, idx) => {
         const li = document.createElement('li');
         li.className = 'tour-saved-item';
@@ -351,7 +317,7 @@ function renderTourSavedDrawer() {
         checkoutBtn.textContent = '장바구니 결제하기';
         checkoutBtn.style = 'margin-top:18px;width:100%;height:48px;font-size:18px;font-weight:700;background:#2563eb;color:#fff;border-radius:12px;border:none;cursor:pointer;';
         checkoutBtn.onclick = function() {
-            alert('장바구니 결제 페이지로 이동합니다.');
+            // 문구 제거
         };
         listEl.parentNode.appendChild(checkoutBtn);
     }
@@ -387,26 +353,7 @@ function initTourSavedDrawer() {
 }
 
 function initTourSavedItemActions() {
-    document.querySelectorAll('.tour-heart-btn').forEach((btn, idx) => {
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!isLoggedIn) return requireLoginMessage();
-            const card = btn.closest('.tour-card');
-            if (!card) return;
-            const tourData = extractTourData(card, idx);
-            const savedIdx = tourSavedState.wishlist.findIndex(x => getTourSavedKey(x) === getTourSavedKey(tourData));
-            if (savedIdx >= 0) {
-                tourSavedState.wishlist.splice(savedIdx, 1);
-                btn.classList.remove('is-active');
-            } else {
-                tourSavedState.wishlist.push(tourData);
-                btn.classList.add('is-active');
-            }
-            saveTourItems();
-            renderTourSavedDrawer();
-        });
-    });
+    // .tour-heart-btn 클릭 이벤트 제거 (이벤트 위임 방식만 사용)
     document.querySelectorAll('.tour-cart-btn').forEach((btn, idx) => {
         btn.addEventListener('click', (e) => {
             e.preventDefault();
@@ -430,12 +377,15 @@ function initTourSavedItemActions() {
 }
 
 function extractTourData(card, idx) {
+    const location = card.querySelector('.tour-loc')?.innerText || '';
+    const title = card.querySelector('.tour-name')?.innerText || '';
+    const price = card.querySelector('.price-val')?.innerText.replace(/,/g, '') || '';
     return {
-        id: idx,
+        id: `${title}__${location}__${price}`,
         image: getComputedStyle(card.querySelector('.tour-image')).backgroundImage.replace(/url\((['"])?(.*?)\1\)/, '$2'),
-        location: card.querySelector('.tour-loc')?.innerText || '',
-        title: card.querySelector('.tour-name')?.innerText || '',
-        price: card.querySelector('.price-val')?.innerText.replace(/,/g, '') || '',
+        location,
+        title,
+        price,
         badge: card.querySelector('.badge')?.innerText || ''
     };
 }

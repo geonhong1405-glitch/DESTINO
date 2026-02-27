@@ -1477,6 +1477,12 @@ def tour_page(request: Request):
     nickname = get_nickname_from_request(request)
     return templates.TemplateResponse("tour.html", {"request": request, "nickname": nickname})
 
+# 신규 투어 상세 페이지 라우트 추가
+@app.get("/tour-detail", response_class=HTMLResponse)
+def tour_detail(request: Request, tour_id: str = Query(None)):
+    nickname = get_nickname_from_request(request)
+    # TODO: tour_id로 DB에서 투어 정보 조회 후 전달
+    return templates.TemplateResponse("tour-detail.html", {"request": request, "nickname": nickname, "tour_id": tour_id})
 
 @app.get("/join", response_class=HTMLResponse)
 def join(request: Request):
