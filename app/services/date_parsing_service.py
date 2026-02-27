@@ -8,25 +8,25 @@ def parse_rel_date(text: str):
     t = re.sub(r"\s+", "", (text or "").lower())
     now = datetime.now(ZoneInfo("Asia/Seoul"))
 
-    if "\uc624\ub298" in t:
+    if "오늘" in t:
         return now.date()
-    if "\ub0b4\uc77c" in t and ("\ub0b4\uc77c\ubaa8\ub808" not in t) and ("\ub0b4\uc77c\ubaa8\ub798" not in t):
+    if "내일" in t and ("내일모레" not in t) and ("내일모래" not in t):
         return (now + timedelta(days=1)).date()
-    if ("\ub0b4\uc77c\ubaa8\ub808" in t) or ("\ub0b4\uc77c\ubaa8\ub798" in t) or ("\ubaa8\ub808" in t):
+    if ("내일모레" in t) or ("내일모래" in t) or ("모레" in t):
         return (now + timedelta(days=2)).date()
-    if "\uae00\ud53c" in t:
+    if "글피" in t:
         return (now + timedelta(days=3)).date()
-    if any(x in t for x in ["\uc77c\uc8fc\uc77c\ub4a4", "\uc77c\uc8fc\uc77c\ud6c4", "1\uc8fc\uc77c\ub4a4", "1\uc8fc\uc77c\ud6c4"]):
+    if any(x in t for x in ["일주일뒤", "일주일후", "1주일뒤", "1주일후"]):
         return (now + timedelta(days=7)).date()
-    if ("\ub2e4\uc74c\uc8fc" in t) or ("\ucc28\uc8fc" in t):
+    if ("다음주" in t) or ("차주" in t):
         return (now + timedelta(days=7)).date()
-    if "\ub2e4\ub2e4\uc74c\uc8fc" in t:
+    if "다다음주" in t:
         return (now + timedelta(days=14)).date()
 
-    m = re.search(r"(\d+)\uc77c(?:\ub4a4|\ud6c4)", t)
+    m = re.search(r"(\d+)일(?:뒤|후)", t)
     if m:
         return (now + timedelta(days=int(m.group(1)))).date()
-    m = re.search(r"(\d+)\uc8fc(?:\uc77c)?(?:\ub4a4|\ud6c4)", t)
+    m = re.search(r"(\d+)주(?:일)?(?:뒤|후)", t)
     if m:
         return (now + timedelta(days=int(m.group(1)) * 7)).date()
     return None
@@ -40,16 +40,16 @@ def has_date_signal(text: str, *, contains_fn: Callable[[str, list[str]], bool])
         return True
     if re.search(r"\b\d{1,2}[/-]\d{1,2}\b", t):
         return True
-    if re.search(r"\d+\s*\uc77c\s*(?:\ub4a4|\ud6c4)", t):
+    if re.search(r"\d+\s*일\s*(?:뒤|후)", t):
         return True
-    if re.search(r"\d+\s*\uc8fc(?:\uc77c)?\s*(?:\ub4a4|\ud6c4)", t):
+    if re.search(r"\d+\s*주(?:일)?\s*(?:뒤|후)", t):
         return True
     return contains_fn(
         t,
         [
-            "\uc624\ub298", "\ub0b4\uc77c", "\ubaa8\ub808", "\uae00\ud53c",
-            "\ub2e4\uc74c\uc8fc", "\ub2e4\ub2e4\uc74c\uc8fc", "\uc774\ubc88\uc8fc", "\uc8fc\ub9d0",
-            "\uc77c\uc8fc\uc77c\ub4a4", "\uc77c\uc8fc\uc77c\ud6c4", "\uc77c\uc8fc\uc77c \ub4a4", "\uc77c\uc8fc\uc77c \ud6c4",
+            "오늘", "내일", "모레", "글피",
+            "다음주", "다다음주", "이번주", "주말",
+            "일주일뒤", "일주일후", "일주일 뒤", "일주일 후",
         ],
     )
 
@@ -83,48 +83,55 @@ def parse_abs_monthday_range(text: str, *, now_dt: datetime) -> dict[str, Option
             return None
 
     compact = re.sub(r"\s+", "", s)
-    m_iso_range = re.search(r"(20\d{2})[./-](\d{1,2})[./-](\d{1,2}).{0,6}?(20\d{2})[./-](\d{1,2})[./-](\d{1,2})", compact)
+    # Normalize Korean month/day markers without relying on locale source encoding.
+    compact_norm = (
+        compact
+        .replace(chr(0xC6D4), "/")  # 월
+        .replace(chr(0xC77C), "")   # 일
+    )
+
+    # yyyy-mm-dd ... yyyy-mm-dd
+    m_iso_range = re.search(
+        r"(20\d{2})[./-](\d{1,2})[./-](\d{1,2}).{0,8}?(20\d{2})[./-](\d{1,2})[./-](\d{1,2})",
+        compact_norm,
+    )
     if m_iso_range:
         return {
             "departure_date": _to_iso(int(m_iso_range.group(1)), int(m_iso_range.group(2)), int(m_iso_range.group(3))),
             "return_date": _to_iso(int(m_iso_range.group(4)), int(m_iso_range.group(5)), int(m_iso_range.group(6))),
         }
 
-    m_range = re.search(r"(?:(20\d{2})년?)?(\d{1,2})월(\d{1,2})일(?:부터|에서|~|-|—|–|to)(?:(?:(20\d{2})년?)?(\d{1,2})월)?(\d{1,2})일", compact)
+    # 3/1부터3/4까지, 3/1~3/4, 3/1-3/4, 3/1to3/4
+    m_range = re.search(
+        r"(?:(20\d{2})[./-])?(\d{1,2})[./-](\d{1,2})\D{0,8}(?:(20\d{2})[./-])?(\d{1,2})[./-](\d{1,2})",
+        compact_norm,
+    )
     if m_range:
         y1 = _infer_year(int(m_range.group(2)), int(m_range.group(3)), int(m_range.group(1)) if m_range.group(1) else None)
         m1, d1 = int(m_range.group(2)), int(m_range.group(3))
-        m2 = int(m_range.group(5)) if m_range.group(5) else m1
-        d2 = int(m_range.group(6))
-        y2 = _infer_year(m2, d2, int(m_range.group(4)) if m_range.group(4) else y1)
+        y2 = _infer_year(int(m_range.group(5)), int(m_range.group(6)), int(m_range.group(4)) if m_range.group(4) else y1)
+        m2, d2 = int(m_range.group(5)), int(m_range.group(6))
         return {"departure_date": _to_iso(y1, m1, d1), "return_date": _to_iso(y2, m2, d2)}
 
-    m_single = re.search(r"(?:(20\d{2})년?)?(\d{1,2})월(\d{1,2})일", compact)
+    # single date: 3/1 / 3-1 / 3월1일(정규화 후 3/1)
+    m_single = re.search(r"(?:(20\d{2})[./-])?(\d{1,2})[./-](\d{1,2})", compact_norm)
     if m_single:
         m1, d1 = int(m_single.group(2)), int(m_single.group(3))
         y1 = _infer_year(m1, d1, int(m_single.group(1)) if m_single.group(1) else None)
         return {"departure_date": _to_iso(y1, m1, d1), "return_date": None}
-
-    m_short_range = re.search(r"(\d{1,2})[/-](\d{1,2}).{0,4}?(?:~|-|—|–|to)(\d{1,2})[/-](\d{1,2})", compact)
-    if m_short_range:
-        m1, d1 = int(m_short_range.group(1)), int(m_short_range.group(2))
-        m2, d2 = int(m_short_range.group(3)), int(m_short_range.group(4))
-        y1 = _infer_year(m1, d1, None)
-        y2 = _infer_year(m2, d2, y1)
-        return {"departure_date": _to_iso(y1, m1, d1), "return_date": _to_iso(y2, m2, d2)}
 
     return {"departure_date": None, "return_date": None}
 
 
 def is_date_correction_message(text: str, *, contains_fn: Callable[[str, list[str]], bool], has_date_signal_fn: Callable[[str], bool]) -> bool:
     t = text or ""
-    has_correction = contains_fn(t, ["\uc544\ub2c8\ub2e4", "\uc544\ub2c8", "\ucde8\uc18c", "\ubcc0\uacbd", "\ub9d0\uace0"])
+    has_correction = contains_fn(t, ["아니다", "아니", "취소", "변경", "말고"])
     return bool(has_correction and has_date_signal_fn(t))
 
 
 def parse_rel_date_for_correction(text: str, *, parse_rel_date_fn: Callable[[str], Any]):
     t = text or ""
-    markers = ["\ub9d0\uace0", "\uc544\ub2c8\ub2e4", "\uc544\ub2c8", "\ubcc0\uacbd", "\ucde8\uc18c"]
+    markers = ["말고", "아니다", "아니", "변경", "취소"]
     for marker in markers:
         if marker in t:
             tail = t.split(marker)[-1].strip()

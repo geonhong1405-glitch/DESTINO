@@ -2,32 +2,69 @@ import datetime as dt
 import re
 from typing import Any, Optional
 
-from app.api.rental_helper import search_rental_locations
+from app.api.rental_helper import search_rental_locations, parse_rental_search_results
 from app.api.sky_cars_api import parse_sky_car_search_results, search_sky_car_rentals
+from app.services.location_alias_service import LOCATION_ALIASES, COUNTRY_ALIASES
+from app.services import date_parsing_service
 
 
 def _detect_country_code(message: str, prev_state: dict[str, Any]) -> Optional[str]:
-    m = (message or "").lower()
-    if any(k in m for k in ["일본", "japan", "jp"]):
-        return "JP"
-    if any(k in m for k in ["한국", "대한민국", "korea", "kr"]):
-        return "KR"
-    if any(k in m for k in ["미국", "usa", "us", "america"]):
-        return "US"
-    if any(k in m for k in ["프랑스", "france"]):
-        return "FR"
-    if any(k in m for k in ["태국", "thailand"]):
-        return "TH"
-    if any(k in m for k in ["베트남", "vietnam"]):
-        return "VN"
-    if any(k in m for k in ["싱가포르", "singapore"]):
-        return "SG"
-    if any(k in m for k in ["대만", "taiwan"]):
-        return "TW"
-    if any(k in m for k in ["호주", "australia"]):
-        return "AU"
-    if any(k in m for k in ["두바이", "uae", "아랍에미리트"]):
-        return "AE"
+    m = str(message or "").lower()
+
+    # Unicode-safe Korean + English country cues.
+    country_patterns = [
+        ("JP", ["\uC77C\uBCF8", "japan", "jp"]),
+        ("KR", ["\uD55C\uAD6D", "\uB300\uD55C\uBBFC\uAD6D", "korea", "kr"]),
+        ("US", ["\uBBF8\uAD6D", "usa", "us", "america", "united states"]),
+        ("GB", ["\uC601\uAD6D", "uk", "united kingdom", "england", "gb"]),
+        ("FR", ["\uD504\uB791\uC2A4", "france", "fr"]),
+        ("IT", ["\uC774\uD0C8\uB9AC\uC544", "italy", "it"]),
+        ("TH", ["\uD0DC\uAD6D", "thailand", "th"]),
+        ("VN", ["\uBCA0\uD2B8\uB0A8", "vietnam", "vn"]),
+        ("SG", ["\uC2F1\uAC00\uD3EC\uB974", "singapore", "sg"]),
+        ("TW", ["\uB300\uB9CC", "taiwan", "tw"]),
+        ("AU", ["\uD638\uC8FC", "australia", "au"]),
+        ("AE", ["\uB450\uBC14\uC774", "\uC544\uB78D\uC5D0\uBBF8\uB9AC\uD2B8", "uae", "dubai", "ae"]),
+    ]
+    for cc, kws in country_patterns:
+        if any(k in m for k in kws):
+            return cc
+
+    # City-level cues when country name is omitted.
+    city_cc_patterns = [
+        ("JP", ["\uB3C4\uCFC4", "\uC624\uC0AC\uCE74", "\uB098\uB9AC\uD0C0", "\uD558\uB124\uB2E4", "tokyo", "osaka", "narita", "haneda"]),
+        ("KR", ["\uC11C\uC6B8", "\uC778\uCC9C", "\uBD80\uC0B0", "seoul", "incheon", "busan"]),
+        ("US", ["\uB274\uC695", "\uB77C\uC2A4\uBCA0\uAC00\uC2A4", "new york", "jfk", "ewr", "lga", "los angeles", "lax"]),
+        ("GB", ["\uB7F0\uB358", "london", "lhr", "lgw"]),
+        ("FR", ["\uD30C\uB9AC", "paris", "cdg", "ory"]),
+        ("IT", ["\uB85C\uB9C8", "rome", "fco"]),
+        ("TH", ["\uBC29\uCF55", "bangkok", "bkk"]),
+        ("VN", ["\uD558\uB178\uC774", "\uD638\uCE58\uBBFC", "\uB2E4\uB0AD", "hanoi", "ho chi minh", "saigon", "danang", "han", "sgn", "dad"]),
+        ("SG", ["\uC2F1\uAC00\uD3EC\uB974", "singapore", "sin"]),
+        ("TW", ["\uB300\uB9CC", "\uD0C0\uC774\uD398\uC774", "taipei", "taiwan", "tpe"]),
+        ("AU", ["\uC2DC\uB4DC\uB2C8", "\uBA5C\uBC84\uB978", "sydney", "melbourne", "syd", "mel"]),
+        ("AE", ["\uB450\uBC14\uC774", "dubai", "dxb"]),
+    ]
+    for cc, kws in city_cc_patterns:
+        if any(k in m for k in kws):
+            return cc
+
+    # Country aliases map fallback (English keys are stable even if mojibake exists).
+    m_compact = re.sub(r"\s+", "", m)
+    for key, iata in COUNTRY_ALIASES.items():
+        kk = str(key or "").strip().lower().replace(" ", "")
+        if not kk:
+            continue
+        if kk in m_compact:
+            iata_u = str(iata or "").upper()
+            iata_to_cc = {
+                "SEL": "KR", "TYO": "JP", "NYC": "US", "LON": "GB", "PAR": "FR", "ROM": "IT",
+                "BKK": "TH", "SGN": "VN", "SIN": "SG", "TPE": "TW", "SYD": "AU", "DXB": "AE",
+                "DEL": "IN", "MNL": "PH", "KUL": "MY",
+            }
+            if iata_u in iata_to_cc:
+                return iata_to_cc[iata_u]
+
     rs = (prev_state or {}).get("rental_state") or {}
     return rs.get("country_code")
 
@@ -47,62 +84,78 @@ def _parse_age(message: str, prev_state: dict[str, Any]) -> Optional[int]:
 
 
 def _parse_city_query(message: str, prev_state: dict[str, Any]) -> Optional[str]:
-    msg = message or ""
-    m = re.search(r"([가-힣A-Za-z\s]{1,30})에서", msg)
+    msg = str(message or "")
+
+    # "X??" pattern.
+    m = re.search(r"([\uAC00-\uD7A3A-Za-z\s]{1,40})\uC5D0\uC11C", msg)
     if m:
-        cand = m.group(1).strip()
-        if cand and cand not in {"일본", "한국", "미국"}:
+        cand = m.group(1).strip(" ,.")
+        if cand and len(cand) >= 2:
             return cand
-    # fallback city mentions
-    for cand in [
-        "도쿄", "오사카", "교토", "후쿠오카", "삿포로", "나고야", "나하", "벳푸",
-        "서울", "부산", "제주", "뉴욕", "런던", "파리", "로마", "방콕",
-        "하노이", "호치민", "다낭", "싱가포르", "타이베이", "시드니", "멜버른", "브리즈번", "두바이",
-    ]:
-        if cand in msg:
-            return cand
+
+    ml = msg.lower()
+    # Shared location aliases fallback (multi-country).
+    keys = sorted([str(k) for k in LOCATION_ALIASES.keys() if str(k).strip()], key=len, reverse=True)
+    for k in keys:
+        ks = k.lower()
+        if ks and ks in ml:
+            return k
+
+    # IATA code fallback
+    m_iata = re.search(r"\b([A-Z]{3})\b", msg.upper())
+    if m_iata:
+        return m_iata.group(1)
+
     rs = (prev_state or {}).get("rental_state") or {}
     return rs.get("city_query")
 
 
 def _parse_date_ymd(text: str, now: Optional[dt.date] = None) -> Optional[str]:
     now = now or dt.datetime.now().date()
-    t = text or ""
-    m = re.search(r"\b(20\d{2})-(\d{1,2})-(\d{1,2})\b", t)
+    s = str(text or "").strip()
+    if not s:
+        return None
+
+    # Use shared date parser first (single absolute date or range start).
+    try:
+        parsed = date_parsing_service.parse_abs_monthday_range(
+            s,
+            now_dt=dt.datetime(now.year, now.month, now.day),
+        )
+        dep = parsed.get("departure_date") if isinstance(parsed, dict) else None
+        if dep:
+            return dep
+    except Exception:
+        pass
+
+    # Fallback for fully qualified yyyy-mm-dd
+    m = re.search(r"(20\d{2})-(\d{1,2})-(\d{1,2})", s)
     if m:
         try:
             return dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
-        except Exception:
-            return None
-    m = re.search(r"(\d{1,2})\s*월\s*(\d{1,2})\s*일", t)
-    if m:
-        try:
-            y = now.year
-            d = dt.date(y, int(m.group(1)), int(m.group(2)))
-            if d < now - dt.timedelta(days=1):
-                d = dt.date(y + 1, int(m.group(1)), int(m.group(2)))
-            return d.isoformat()
         except Exception:
             return None
     return None
 
 
 def _parse_pickup_dropoff_dates(message: str, prev_state: dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
-    msg = message or ""
+    msg = str(message or "")
     rs = (prev_state or {}).get("rental_state") or {}
     pickup = rs.get("pickup_date")
     dropoff = rs.get("dropoff_date")
 
-    m_pick = re.search(r"(?:픽업일(?:은|은요|은요)?|픽업(?:은|일은)?)[^\d]*(20\d{2}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일)", msg)
+    # 1) Explicit pickup/dropoff markers with absolute date expressions.
+    m_pick = re.search(r"(?:pick\s*up|pickup|\uD53D\uC5C5|\uC778\uC218|\uB300\uC5EC)[^\d]*(20\d{2}-\d{1,2}-\d{1,2}|\d{1,2}\s*[/-]\s*\d{1,2}|\d{1,2}\s*\uC6D4\s*\d{1,2}\s*\uC77C)", msg, re.IGNORECASE)
     if m_pick:
         pickup = _parse_date_ymd(m_pick.group(1)) or pickup
-    m_drop = re.search(r"(?:반납일(?:은|은요)?|반납(?:은|일은)?)[^\d]*(20\d{2}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일)", msg)
+
+    m_drop = re.search(r"(?:drop\s*off|dropoff|\uBC18\uB0A9|\uBC18\uB0A9\uC77C|\uBC18\uB0A9\uC77C\uC740)[^\d]*(20\d{2}-\d{1,2}-\d{1,2}|\d{1,2}\s*[/-]\s*\d{1,2}|\d{1,2}\s*\uC6D4\s*\d{1,2}\s*\uC77C)", msg, re.IGNORECASE)
     if m_drop:
         dropoff = _parse_date_ymd(m_drop.group(1)) or dropoff
 
-    # fallback: if two dates appear in order
+    # 2) Fallback absolute date scan (first->pickup, second->dropoff).
     dates = []
-    for m in re.finditer(r"(20\d{2}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일)", msg):
+    for m in re.finditer(r"(20\d{2}-\d{1,2}-\d{1,2}|\d{1,2}\s*[/-]\s*\d{1,2}|\d{1,2}\s*\uC6D4\s*\d{1,2}\s*\uC77C)", msg):
         parsed = _parse_date_ymd(m.group(1))
         if parsed:
             dates.append(parsed)
@@ -114,6 +167,32 @@ def _parse_pickup_dropoff_dates(message: str, prev_state: dict[str, Any]) -> tup
             pickup = dates[0]
         elif dropoff is None and pickup != dates[0]:
             dropoff = dates[0]
+
+    # 3) Relative day range fallback (e.g. "?????? ????").
+    compact = re.sub(r"\s+", "", msg)
+    has_range_connector = any(k in compact for k in ["\uBD80\uD130", "\uAE4C\uC9C0", "\uC5D0\uC11C", "~", "-"]) or ("from" in compact.lower() and "to" in compact.lower())
+    token_offsets = {
+        "\uC624\uB298": 0,
+        "\uB0B4\uC77C": 1,
+        "\uB0B4\uC77C\uBAA8\uB808": 2,
+        "\uB0B4\uC77C\uBAA8\uB798": 2,
+        "\uBAA8\uB808": 2,
+        "\uAE00\uD53C": 3,
+    }
+    token_pat = re.compile(r"\uB0B4\uC77C\uBAA8\uB808|\uB0B4\uC77C\uBAA8\uB798|\uAE00\uD53C|\uBAA8\uB808|\uB0B4\uC77C|\uC624\uB298")
+    found = [m.group(0) for m in token_pat.finditer(compact)]
+    if found:
+        now = dt.datetime.now().date()
+        if has_range_connector and len(found) >= 2:
+            d1 = now + dt.timedelta(days=token_offsets.get(found[0], 0))
+            d2 = now + dt.timedelta(days=token_offsets.get(found[1], token_offsets.get(found[0], 0) + 1))
+            if d2 <= d1:
+                d2 = d1 + dt.timedelta(days=1)
+            pickup = pickup or d1.isoformat()
+            dropoff = dropoff or d2.isoformat()
+        elif len(found) == 1:
+            d1 = now + dt.timedelta(days=token_offsets.get(found[0], 0))
+            pickup = pickup or d1.isoformat()
 
     return pickup, dropoff
 
@@ -214,7 +293,7 @@ def _rental_cards_html_v2(city_label: str, pickup_date: str, dropoff_date: str, 
 
 def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, Any]] = None) -> tuple[str, dict[str, Any]]:
     prev_state = prev_state or {}
-    country_code = _detect_country_code(message, prev_state) or "JP"
+    country_code = _detect_country_code(message, prev_state) or "KR"
     city_query = _parse_city_query(message, prev_state)
     pickup_date, dropoff_date = _parse_pickup_dropoff_dates(message, prev_state)
     driver_age = _parse_age(message, prev_state) or 30
@@ -277,12 +356,16 @@ def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, A
     )
     cars = parse_sky_car_search_results(raw)
     if not cars:
+        # Fallback parser for provider schema drift.
+        cars = parse_rental_search_results(raw)
+    if not cars:
         msg = ""
         if isinstance(raw, dict):
             msg = str(raw.get("message") or raw.get("errors") or "").strip()
-        detail = f" ({msg})" if msg else ""
+        msg_l = msg.lower()
+        detail = " (?? ???? ?? ??? ??? ????)" if msg_l == "successful" else (f" ({msg})" if msg else "")
         return (
-            f"<div>렌터카 검색 결과를 찾지 못했어요. 다른 도시/날짜로 다시 시도해 주세요.{detail}</div>",
+            f"<div>??? ?? ??? ?? ????. ?? ??/??? ?? ??? ???.{detail}</div>",
             {"rental_context": True, "rental_state": rental_state},
         )
 
