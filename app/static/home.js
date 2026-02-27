@@ -210,7 +210,7 @@ async function loadLiveGroupBookings() {
                 startDate: row?.start_date || '',
                 endDate: row?.end_date || '',
                 currentPax: currentPeople,
-                maxPax: '명 참여 중',
+                maxPax: maxPeople,
             };
         });
     } catch (_e) {
@@ -234,7 +234,9 @@ function renderBookings() {
         return;
     }
     
-    listContainer.innerHTML = bookings.map(booking => {
+    // 최대 4개까지만 노출
+    const limitedBookings = bookings.slice(0, 4);
+    listContainer.innerHTML = limitedBookings.map(booking => {
         const categoryLabel = getCategoryLabel(booking.category);
         const stat = getStatusConfig(booking.status);
         const isClosed = booking.status === 'closed';
@@ -257,7 +259,7 @@ function renderBookings() {
                 <div class="pax-area">
                     <div class="pax-count">
                         <span class="pax-current ${isClosed ? 'is-closed' : ''}">${booking.currentPax}</span>
-                        <span class="pax-max"> ${booking.maxPax}</span>
+                        <span class="pax-max"> / ${booking.maxPax}</span>
                     </div>
                 </div>
             </div>

@@ -317,16 +317,10 @@ ul {list-style: none;}
 }
 
 /* group-cont */
-.group-cont {
-    width: 100%;
-    min-height: 400px;
-    margin: 60px 0 0 0;
-}
+.group-cont {width: 100%; margin: 60px 0 0 0;}
 
 .booking-card {
     width: 100%;
-    /* max-width: 42rem; */
-    /* background: white; */
     border-radius: 1rem;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     overflow: hidden;
@@ -423,7 +417,9 @@ ul {list-style: none;}
 
 .booking-item.active:hover .booking-title { color: var(--blue-600); }
 .booking-title .dest { color: var(--gray-800); font-weight: 600; margin-right: 4px; }
-.booking-item:nth-child(3) .booking-title .dest { color: var(--gray-400); font-weight: 600; margin-right: 4px; }
+.booking-item.closed .booking-title .dest {
+    color: #9ca3af;
+}
 .booking-item.closed .booking-title { color: var(--gray-400); }
 
 .date-info { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
@@ -468,20 +464,20 @@ ul {list-style: none;}
 
 .box1 {
     font-size: 0;
-    background: url(https://cdn.pixabay.com/photo/2020/03/23/02/52/pension-4959272_1280.jpg) no-repeat center -25px / auto 120%;
+    background: url(https://media.istockphoto.com/id/507913346/ko/%EC%82%AC%EC%A7%84/%EC%99%93-%EC%95%84%EB%A3%AC-%EC%82%AC%EC%9B%90-%EC%9D%BC%EB%AA%B0-%EB%B0%A9%EC%BD%95-%ED%83%9C%EA%B5%AD.webp?b=1&s=612x612&w=0&k=20&c=ZxSPBZzCjM7QkBfi88k64D2q2LveSG08dXJQTDx_Ztw=) no-repeat center -25px / auto 120%;
 }
 .box2 {
     font-size: 0;
-    background: url(	https://cdn.pixabay.com/photo/2017/03/27/07/27/republic-of-the-philippines-2177616_1280.jpg) no-repeat center / 100% auto;
+    background: url(https://media.istockphoto.com/id/951167452/ko/%EC%82%AC%EC%A7%84/%EB%82%B4-%EB%AA%BD%EA%B3%A0%EC%97%90%EB%8A%94-%ED%95%98.jpg?b=1&s=1024x1024&w=0&k=20&c=ZZK3qzRcuxtdjZqyQJxnRR_-N9iSXw8zPzMD3KBsMWU=) no-repeat center /auto 100% ;
 }
 .box3 {
     font-size: 0;
-    background: url(https://cdn.pixabay.com/photo/2018/08/19/15/17/sydney-3616865_1280.jpg) no-repeat center / auto 100%;
+    background: url(https://cdn.pixabay.com/photo/2021/07/24/15/47/venice-6489813_1280.jpg) no-repeat center / 100% auto;
 }
 
 .box4 {
     font-size: 0;
-    background: url(https://media.istockphoto.com/id/475124388/ko/%EC%82%AC%EC%A7%84/%EC%9D%B8%EB%AA%85%EB%B3%84-%EA%B5%90%ED%9A%8C%EB%A5%BC-%EC%9D%B4%EC%95%84-%EB%A7%88%EC%9D%84-%EA%B7%B8%EB%A6%AC%EC%8A%A4-%EC%82%B0%ED%86%A0%EB%A6%AC%EB%8B%88-%EB%8F%84%EC%84%9C%EC%A7%80%EC%97%AD.webp?b=1&s=612x612&w=0&k=20&c=K_cKHfM0QMeqj3jySJ6HBGfD8XqjwN-dDfZtjvPIPtw=) no-repeat center / auto 100%;
+    background: url(https://cdn.pixabay.com/photo/2020/09/04/08/02/cityscape-5543223_1280.jpg) no-repeat center / auto 100%;
 }
 
 .info-box {padding: 14px 20px 20px 20px;}
