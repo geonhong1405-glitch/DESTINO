@@ -11,7 +11,7 @@ const sliderData = [
     },
     {
     sub: "Tour",
-    title: "대만 투어&티켓 할인 혜택",
+    title: "대만 티켓 할인 혜택",
     desc: "타이베이 101부터 지우펀 홍등까지,<br>가장 똑똑하게 예약하는 방법",
     img: "https://media.istockphoto.com/id/479711387/ko/%EC%82%AC%EC%A7%84/taipei-taiwan.jpg?b=1&s=1024x1024&w=0&k=20&c=xsLCTGo6uqq_lGoReEoVyleyoIj-bOFE5LPlE94hKcc=",
     },
