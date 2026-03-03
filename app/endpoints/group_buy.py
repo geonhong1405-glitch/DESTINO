@@ -7,6 +7,56 @@ from app.db.models import GroupBuyJoinRequest, GroupBuyPost, User, UserSavedItem
 from app.session import get_user_id_from_session
 
 router = APIRouter(prefix="/api/group-buy", tags=["group-buy"])
+_LINKED_ITEMS_MARKER = "\n\n[[LINKED_ITEMS_JSON]]\n"
+
+
+def _normalize_linked_items(raw) -> list[dict]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict] = []
+    for item in raw[:20]:
+        if not isinstance(item, dict):
+            continue
+        item_type = str(item.get("item_type") or "").strip().lower()[:40]
+        name = str(item.get("name") or "").strip()[:255]
+        meta = str(item.get("meta") or "").strip()[:512]
+        source = str(item.get("source") or "").strip()[:50]
+        payload = item.get("payload")
+        if not item_type or not name:
+            continue
+        clean = {
+            "item_type": item_type,
+            "name": name,
+            "meta": meta,
+            "source": source,
+            "payload": payload if isinstance(payload, (dict, list, str, int, float, bool)) or payload is None else None,
+        }
+        out.append(clean)
+    return out
+
+
+def _split_desc_and_linked_items(raw_desc: str | None) -> tuple[str, list[dict]]:
+    text = str(raw_desc or "")
+    if _LINKED_ITEMS_MARKER not in text:
+        return text, []
+    desc, linked_blob = text.split(_LINKED_ITEMS_MARKER, 1)
+    desc = desc.strip()
+    linked_items = []
+    try:
+        parsed = json.loads(linked_blob.strip())
+        linked_items = _normalize_linked_items(parsed)
+    except Exception:
+        linked_items = []
+    return desc, linked_items
+
+
+def _pack_desc_with_linked_items(desc: str, linked_items: list[dict]) -> str:
+    clean_desc = str(desc or "").strip()
+    clean_items = _normalize_linked_items(linked_items)
+    if not clean_items:
+        return clean_desc
+    linked_json = json.dumps(clean_items, ensure_ascii=False, separators=(",", ":"))
+    return f"{clean_desc}{_LINKED_ITEMS_MARKER}{linked_json}"
 
 
 def _require_user_id(request: Request) -> int:
@@ -18,6 +68,7 @@ def _require_user_id(request: Request) -> int:
 
 
 def _serialize_post(row: GroupBuyPost, me: int | None = None, owner_nickname: str | None = None) -> dict:
+    clean_desc, linked_items = _split_desc_and_linked_items(row.description or "")
     return {
         "id": row.id,
         "owner_user_id": row.owner_user_id,
@@ -30,7 +81,8 @@ def _serialize_post(row: GroupBuyPost, me: int | None = None, owner_nickname: st
         "end_date": row.end_date,
         "departure": row.departure or "?몄쿇",
         "budget": row.budget or "",
-        "description": row.description or "",
+        "description": clean_desc,
+        "linked_items": linked_items,
         "status": row.status or "open",
         "current_people": row.current_people or 1,
         "max_people": row.max_people or 4,
@@ -82,6 +134,7 @@ async def create_post(request: Request):
     title = str(payload.get("title") or "").strip()
     country = str(payload.get("country") or "").strip()
     start_date = str(payload.get("start_date") or "").strip()
+    linked_items = _normalize_linked_items(payload.get("linked_items"))
     if not title or not country or not start_date:
         raise HTTPException(status_code=400, detail="title/country/start_date???꾩닔?낅땲??")
 
@@ -101,7 +154,7 @@ async def create_post(request: Request):
         end_date=str(payload.get("end_date") or "").strip()[:20] or None,
         departure=str(payload.get("departure") or "?몄쿇").strip()[:100],
         budget=str(payload.get("budget") or "").strip()[:80],
-        description=str(payload.get("description") or "").strip(),
+        description=_pack_desc_with_linked_items(str(payload.get("description") or "").strip(), linked_items),
         status="open",
         current_people=1,
         max_people=max_people,
@@ -359,5 +412,3 @@ def delete_join_request_alert(request_id: int, request: Request):
         return {"ok": True}
     finally:
         db.close()
-
-

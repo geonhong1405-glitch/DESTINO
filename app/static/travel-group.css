@@ -271,6 +271,83 @@ body.modal-open {
 .form-group label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 8px; }
 .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 10px; font-size: 14px; outline: none; }
 .form-row-split { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.attach-source-tabs {
+    display: inline-flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.attach-source-tab {
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #334155;
+    background: #fff;
+}
+.attach-source-tab.is-active {
+    border-color: #0ea5e9;
+    color: #0369a1;
+    background: #f0f9ff;
+}
+.linked-items-picker {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    max-height: 220px;
+    overflow: auto;
+    padding: 8px;
+    display: grid;
+    gap: 8px;
+}
+.linked-item-row {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+    padding: 8px 10px;
+    display: grid;
+    grid-template-columns: 18px 1fr;
+    gap: 8px;
+    align-items: start;
+}
+.linked-item-row__name { font-size: 13px; font-weight: 700; color: #0f172a; }
+.linked-item-row__meta { font-size: 12px; color: #64748b; margin-top: 2px; line-height: 1.4; }
+.linked-items-empty {
+    color: #64748b;
+    font-size: 12px;
+    text-align: center;
+    padding: 18px 10px;
+}
+.linked-items-summary {
+    margin-top: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #475569;
+}
+.linked-items-summary button {
+    font-size: 12px;
+    font-weight: 700;
+    color: #0369a1;
+    text-decoration: underline;
+}
+.linked-refs {
+    margin-top: 14px;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 14px;
+    display: grid;
+    gap: 8px;
+}
+.linked-ref-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px;
+    background: #f8fafc;
+}
+.linked-ref-type { font-size: 11px; color: #0369a1; font-weight: 800; margin-bottom: 4px; }
+.linked-ref-name { font-size: 14px; font-weight: 700; color: #0f172a; }
+.linked-ref-meta { font-size: 12px; color: #64748b; margin-top: 3px; line-height: 1.4; }
 
 /* Popovers */
 .overlay-dim { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1500; display: none; background: rgba(0,0,0,0.1); }

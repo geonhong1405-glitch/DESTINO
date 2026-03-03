@@ -309,6 +309,151 @@ async function ensureHotelLoggedIn() {
     return false;
 }
 
+function loadTossPaymentsScript() {
+    if (window.TossPayments) return Promise.resolve(window.TossPayments);
+    return new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-toss-sdk="1"]');
+        if (existing) {
+            existing.addEventListener('load', () => resolve(window.TossPayments));
+            existing.addEventListener('error', reject);
+            return;
+        }
+        const s = document.createElement('script');
+        s.src = 'https://js.tosspayments.com/v1/payment';
+        s.async = true;
+        s.dataset.tossSdk = '1';
+        s.onload = () => resolve(window.TossPayments);
+        s.onerror = reject;
+        document.head.appendChild(s);
+    });
+}
+
+function ensureHotelCheckoutModal() {
+    let root = document.getElementById('hotelCheckoutModal');
+    if (root) return root;
+    root = document.createElement('div');
+    root.id = 'hotelCheckoutModal';
+    root.className = 'hotel-checkout-modal';
+    root.innerHTML = `
+        <div class="hotel-checkout-modal__backdrop" data-hotel-checkout-close></div>
+        <section class="hotel-checkout-modal__panel">
+            <h3>투숙객 정보</h3>
+            <p class="hotel-checkout-modal__sub">투숙객 이름은 체크인 시 제시할 신분증 영문 이름과 정확히 일치해야 합니다.</p>
+            <div id="hotelCheckoutSummary" class="hotel-checkout-summary"></div>
+            <form id="hotelCheckoutForm" class="hotel-checkout-form">
+                <div class="hotel-checkout-grid">
+                    <label class="hotel-checkout-field">
+                        <span>성(영문) <em>*</em></span>
+                        <input name="last_name" placeholder="영문 성" required>
+                    </label>
+                    <label class="hotel-checkout-field">
+                        <span>이름(영문) <em>*</em></span>
+                        <input name="first_name" placeholder="영문 이름" required>
+                    </label>
+                    <label class="hotel-checkout-field">
+                        <span>이메일 주소 <em>*</em></span>
+                        <input name="email" type="email" placeholder="example@destino.com" required>
+                    </label>
+                    <label class="hotel-checkout-field">
+                        <span>휴대전화 <em>*</em></span>
+                        <div class="hotel-checkout-phone">
+                            <select name="phone_cc" aria-label="국가번호">
+                                <option value="+82">(+82)</option>
+                                <option value="+81">(+81)</option>
+                                <option value="+1">(+1)</option>
+                                <option value="+84">(+84)</option>
+                            </select>
+                            <input name="phone" placeholder="휴대폰번호" required>
+                        </div>
+                    </label>
+                </div>
+                <details class="hotel-checkout-extra">
+                    <summary>+ 세컨 투숙객 추가 (선택)</summary>
+                    <div class="hotel-checkout-grid">
+                        <label class="hotel-checkout-field">
+                            <span>세컨 투숙객 성(영문)</span>
+                            <input name="second_last_name" placeholder="영문 성">
+                        </label>
+                        <label class="hotel-checkout-field">
+                            <span>세컨 투숙객 이름(영문)</span>
+                            <input name="second_first_name" placeholder="영문 이름">
+                        </label>
+                    </div>
+                </details>
+                <p class="hotel-checkout-hint">예약 확정 안내가 입력하신 이메일로 전송됩니다.</p>
+                <div class="hotel-checkout-actions">
+                    <button type="button" class="hotel-checkout-cancel" data-hotel-checkout-close>취소</button>
+                    <button type="submit" class="hotel-checkout-submit">결제 진행</button>
+                </div>
+            </form>
+        </section>
+    `;
+    document.body.appendChild(root);
+    root.querySelectorAll('[data-hotel-checkout-close]').forEach((el) => {
+        el.addEventListener('click', () => root.classList.remove('is-open'));
+    });
+    return root;
+}
+
+async function startHotelCheckout(savePayload) {
+    const modal = ensureHotelCheckoutModal();
+    const summary = modal.querySelector('#hotelCheckoutSummary');
+    const form = modal.querySelector('#hotelCheckoutForm');
+    const priceText = formatHotelPriceText(savePayload || {});
+    const stayText = [savePayload?.checkin, savePayload?.checkout].filter(Boolean).join(' ~ ');
+    summary.textContent = `${savePayload?.name || '호텔 예약'}${priceText ? ` · ${priceText}` : ''}${stayText ? ` · ${stayText}` : ''}`;
+    modal.classList.add('is-open');
+
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const body = {
+            hotel: savePayload || {},
+            guest: {
+                last_name: String(fd.get('last_name') || '').trim(),
+                first_name: String(fd.get('first_name') || '').trim(),
+                email: String(fd.get('email') || '').trim(),
+                phone: `${String(fd.get('phone_cc') || '+82').trim()} ${String(fd.get('phone') || '').trim()}`.trim(),
+                second_last_name: String(fd.get('second_last_name') || '').trim(),
+                second_first_name: String(fd.get('second_first_name') || '').trim(),
+            },
+        };
+        try {
+            const res = await fetch('/api/hotel/checkout', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (res.status === 401) {
+                modal.classList.remove('is-open');
+                return ensureHotelLoggedIn();
+            }
+            const checkout = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(checkout?.detail || `HTTP ${res.status}`);
+
+            if (checkout.payment_mode !== 'toss' || !checkout.toss_client_key) {
+                modal.classList.remove('is-open');
+                alert(`[모의 결제] 주문번호: ${checkout.order_id}\n결제금액: ${Number(checkout.amount || 0).toLocaleString('ko-KR')}원`);
+                return;
+            }
+            const TossPayments = await loadTossPaymentsScript();
+            const toss = TossPayments(checkout.toss_client_key);
+            await toss.requestPayment('카드', {
+                amount: checkout.amount,
+                orderId: checkout.order_id,
+                orderName: checkout.order_name,
+                customerName: `${body.guest.last_name} ${body.guest.first_name}`.trim(),
+                customerEmail: body.guest.email,
+                successUrl: checkout.success_url,
+                failUrl: checkout.fail_url,
+            });
+        } catch (err) {
+            alert(err?.message || '결제 준비 중 오류가 발생했습니다.');
+        }
+    };
+}
+
 function setHotelSavedDrawer(open) {
     const drawer = document.getElementById('hotelSavedDrawer');
     const fab = document.getElementById('hotelSavedFab');
@@ -512,10 +657,11 @@ async function initHotelSavedUi() {
             e.stopPropagation();
             if (!(await ensureHotelLoggedIn())) return;
             const payload = parseHotelPayload(reserveBtn.getAttribute('data-hotel-reserve'));
-            if (payload) await toggleHotelSaved(payload, 'cart');
-            const bookingUrl = String(payload?.hotel_url || '').trim();
-            if (bookingUrl) window.open(bookingUrl, '_blank', 'noopener,noreferrer');
-            else alert('예약 링크가 없습니다.');
+            if (!payload) {
+                alert('예약 정보가 없습니다.');
+                return;
+            }
+            await startHotelCheckout(payload);
             return;
         }
 

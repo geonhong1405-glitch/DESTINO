@@ -1,10 +1,15 @@
 ﻿import datetime
 import os
 import hashlib
+import json
+import uuid
+import base64
+import requests
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 from app.api.booking_api import search_car_rentals
 from app.api.exchange_rate import get_exchange_rate
@@ -20,6 +25,7 @@ from app.session import get_user_id_from_session
 
 
 router = APIRouter()
+PENDING_RENTAL_ORDERS: dict[str, dict] = {}
 
 _APP_DIR = os.path.dirname(os.path.dirname(__file__))
 templates = Jinja2Templates(directory=os.path.join(_APP_DIR, "templates"))
@@ -49,6 +55,21 @@ _DEFAULT_FX_TO_KRW = {
     "SGD": 1000.0,
     "TWD": 43.0,
 }
+
+
+class RentalDriverInput(BaseModel):
+    last_name: str
+    first_name: str
+    birth_date: str
+    email: str
+    phone: str
+    license_country: str
+    license_number: str
+
+
+class RentalCheckoutRequest(BaseModel):
+    car: dict
+    driver: RentalDriverInput
 
 
 def _normalize_rental_country(country_code: str | None) -> str:
@@ -92,6 +113,14 @@ def _get_nickname_from_request(request: Request) -> str | None:
         db.close()
 
 
+def _require_user_id(request: Request) -> int:
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+    return int(user_id)
+
+
 def _parse_float_param(value: str | None) -> float | None:
     try:
         if value is None or str(value).strip() == "":
@@ -111,6 +140,26 @@ def _parse_int_param(value: str | int | None) -> int | None:
         return int(s)
     except Exception:
         return None
+
+
+
+def _extract_rental_amount_krw(car: dict) -> int:
+    try:
+        amount = int(round(float(car.get("price"))))
+    except Exception:
+        amount = 0
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="결제 가능한 금액을 확인할 수 없습니다.")
+    return amount
+
+
+def _build_rental_order_name(car: dict) -> str:
+    name = str(car.get("name") or "렌터카").strip() or "렌터카"
+    pickup = str(car.get("pickup_name") or "").strip()
+    dropoff = str(car.get("dropoff_name") or "").strip()
+    if pickup and dropoff:
+        return f"{name} {pickup}-{dropoff}"
+    return name
 
 
 def _extract_rental_api_error(raw: dict | None) -> str | None:
@@ -357,6 +406,11 @@ def rental_page(
     rental_error = None
     rental_provider = None
     rental_provider_detail = None
+    fallback_reasons: list[str] = []
+    has_live_api_key = bool(
+        str(os.getenv("SKY_RAPIDAPI_KEY") or "").strip()
+        or str(os.getenv("BOOKING_RAPIDAPI_KEY") or "").strip()
+    )
     rental_days = calc_rental_days(pickup_at, dropoff_at)
     fx_rate_cache: dict[str, float | None] = {"KRW": 1.0}
 
@@ -407,6 +461,10 @@ def rental_page(
                 sky_msg = None
                 if isinstance(sky_raw, dict):
                     sky_msg = str(sky_raw.get("message") or sky_raw.get("errors") or "").strip()
+                    if sky_msg:
+                        fallback_reasons.append(f"sky={sky_msg}")
+                    else:
+                        fallback_reasons.append("sky=empty")
                 rental_raw = search_car_rentals(
                     pick_up_lat=p_lat,
                     pick_up_lon=p_lon,
@@ -483,20 +541,79 @@ def rental_page(
             api_error = _extract_rental_api_error(rental_raw) if isinstance(rental_raw, dict) else None
             if api_error:
                 rental_error = api_error
+                fallback_reasons.append(f"booking={api_error}")
             elif not rental_cars:
                 rental_error = "??? ?? ??? ?? ?????. ?? ??/???? ?? ??? ???."
+                fallback_reasons.append("booking=no_cars")
 
-            reliable_cars = [
-                c
+            reliable_count = sum(
+                1
                 for c in rental_cars
                 if c.get("price") is not None and not c.get("price_unreliable")
-            ]
-            if reliable_cars:
-                rental_cars = reliable_cars
-            else:
-                rental_cars = []
+            )
+            if reliable_count == 0 and rental_cars:
+                # Sky 차량은 왔지만 가격이 전부 불안정하면 Booking 요금으로 한 번 더 재조회한다.
+                try:
+                    booking_raw_retry = search_car_rentals(
+                        pick_up_lat=p_lat,
+                        pick_up_lon=p_lon,
+                        drop_off_lat=d_lat,
+                        drop_off_lon=d_lon,
+                        pick_up_time=pickup_api_time,
+                        drop_off_time=dropoff_api_time,
+                        driver_age=30,
+                        currency_code=currency_code,
+                        location=country_code,
+                    )
+                    booking_retry_cars = parse_rental_search_results(booking_raw_retry)
+                    for bcar in booking_retry_cars:
+                        if not isinstance(bcar, dict):
+                            continue
+                        b_original_currency = str(bcar.get("currency") or currency_code or "KRW").strip().upper() or "KRW"
+                        b_original_price = bcar.get("price")
+                        bcar["original_currency"] = b_original_currency
+                        bcar["original_price"] = b_original_price
+                        b_converted = _to_krw_price(b_original_price, b_original_currency, fx_rate_cache)
+                        if b_converted is not None:
+                            bcar["price"] = b_converted
+                            bcar["currency"] = "KRW"
+                            bcar["fx_applied"] = b_original_currency != "KRW"
+                        else:
+                            bcar["currency"] = b_original_currency
+                            bcar["fx_applied"] = False
+                        if not _is_reasonable_total_price(bcar.get("price"), bcar.get("currency"), rental_days):
+                            bcar["price"] = None
+                            bcar["price_per_day"] = None
+                            bcar["price_unreliable"] = True
+                        else:
+                            bcar["price_unreliable"] = False
+                        b_image = str(bcar.get("image") or "").strip()
+                        if (not b_image) or _looks_like_non_vehicle_image_url(b_image):
+                            bcar["image"] = _fallback_image_for_car(bcar.get("name"), bcar.get("supplier"))
+                        bcar["rental_days"] = rental_days
+                        if rental_days and bcar.get("price"):
+                            try:
+                                bcar["price_per_day"] = int(round(float(bcar["price"]) / rental_days))
+                            except Exception:
+                                bcar["price_per_day"] = None
 
-            if not rental_cars:
+                    booking_reliable = [
+                        c for c in booking_retry_cars
+                        if c.get("price") is not None and not c.get("price_unreliable")
+                    ]
+                    if booking_reliable:
+                        rental_cars = booking_retry_cars
+                        rental_provider = "Booking Fallback"
+                        rental_provider_detail = "Sky price unstable -> Booking fares applied"
+                        rental_error = None
+                    else:
+                        fallback_reasons.append("filtered=all_unreliable_or_no_price")
+                        rental_error = "실시간 차량은 조회되었지만 요금이 불안정해 일부는 '요금 확인 필요'로 표시됩니다."
+                except Exception:
+                    fallback_reasons.append("filtered=all_unreliable_or_no_price")
+                    rental_error = "실시간 차량은 조회되었지만 요금이 불안정해 일부는 '요금 확인 필요'로 표시됩니다."
+
+            if not rental_cars and not has_live_api_key:
                 rental_cars = _build_local_fallback_rental_cars(country_code, rental_days)
                 if min_seats_value:
                     rental_cars = [c for c in rental_cars if not c.get("seats") or c.get("seats") >= min_seats_value]
@@ -514,8 +631,16 @@ def rental_page(
 
                 if rental_cars:
                     rental_provider = "Local Fallback"
-                    rental_provider_detail = "Live provider unavailable; showing sample rates"
+                    if fallback_reasons:
+                        rental_provider_detail = " / ".join(fallback_reasons)[:280]
+                    else:
+                        rental_provider_detail = "Live provider unavailable; showing sample rates"
                     rental_error = None
+            elif not rental_cars and has_live_api_key:
+                rental_provider = rental_provider or "API Only"
+                rental_provider_detail = " / ".join(fallback_reasons)[:280] if fallback_reasons else "Live API returned no valid cars"
+                if not rental_error:
+                    rental_error = "실시간 API 결과가 없거나 요금 검증에서 제외되었습니다. 검색 조건을 바꿔 다시 시도해 주세요."
         except Exception as e:
             rental_error = f"??? ?? ??: {e}"
 
@@ -546,3 +671,157 @@ def rental_page(
         },
     )
 
+
+@router.get("/rental/detail", response_class=HTMLResponse)
+def rental_detail_page(
+    request: Request,
+    car: str = Query(""),
+):
+    nickname = _get_nickname_from_request(request)
+    car_payload: dict = {}
+    if car:
+        try:
+            loaded = json.loads(car)
+            if isinstance(loaded, dict):
+                car_payload = loaded
+        except Exception:
+            car_payload = {}
+
+    if not car_payload:
+        car_payload = {
+            "name": "렌터카 상품",
+            "supplier": "Rental Partner",
+            "price": 0,
+            "currency": "KRW",
+            "image": "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?q=80&w=1200&auto=format&fit=crop",
+            "specs": ["5인승", "가방 2", "automatic"],
+            "pickup_name": "",
+            "dropoff_name": "",
+            "pickup_at": "",
+            "dropoff_at": "",
+        }
+
+    return templates.TemplateResponse(
+        "rental-detail.html",
+        {
+            "request": request,
+            "nickname": nickname,
+            "car": car_payload,
+        },
+    )
+
+
+@router.post("/api/rental/checkout")
+def api_rental_checkout(payload: RentalCheckoutRequest, request: Request):
+    _require_user_id(request)
+
+    amount = _extract_rental_amount_krw(payload.car)
+    order_id = f"RNT-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    order_name = _build_rental_order_name(payload.car)
+    toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
+    base_url = str(request.base_url).rstrip("/")
+
+    PENDING_RENTAL_ORDERS[order_id] = {
+        "amount": amount,
+        "order_name": order_name,
+        "car": payload.car,
+        "driver": payload.driver.model_dump(),
+        "created_at": datetime.datetime.now().isoformat(),
+    }
+
+    return {
+        "order_id": order_id,
+        "order_name": order_name,
+        "amount": amount,
+        "currency": "KRW",
+        "payment_mode": "toss" if toss_client_key else "mock",
+        "toss_client_key": toss_client_key,
+        "success_url": f"{base_url}/payment/rental/success",
+        "fail_url": f"{base_url}/payment/rental/fail",
+        "message": "결제 준비가 완료되었습니다." if toss_client_key else "토스 클라이언트 키가 없어 모의 결제 모드로 동작합니다.",
+    }
+
+
+@router.post("/api/payments/toss/rental/confirm")
+def api_toss_rental_confirm(payload: dict):
+    payment_key = str(payload.get("paymentKey") or "").strip()
+    order_id = str(payload.get("orderId") or "").strip()
+    amount = int(payload.get("amount") or 0)
+
+    pending = PENDING_RENTAL_ORDERS.get(order_id)
+    if not pending:
+        raise HTTPException(status_code=404, detail="주문 정보를 찾을 수 없습니다.")
+    if int(pending.get("amount") or 0) != amount:
+        raise HTTPException(status_code=400, detail="결제 금액 검증에 실패했습니다.")
+
+    secret_key = (os.getenv("TOSS_PAYMENTS_SECRET_KEY") or os.getenv("TOSS_SECRET_KEY") or "").strip()
+    if not secret_key:
+        pending["status"] = "confirmed_mock"
+        pending["payment_key"] = payment_key
+        return {
+            "status": "confirmed_mock",
+            "order_id": order_id,
+            "amount": amount,
+            "message": "토스 시크릿 키가 없어 모의 승인 처리되었습니다.",
+        }
+
+    auth = base64.b64encode(f"{secret_key}:".encode("utf-8")).decode("ascii")
+    try:
+        res = requests.post(
+            "https://api.tosspayments.com/v1/payments/confirm",
+            headers={
+                "Authorization": f"Basic {auth}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "paymentKey": payment_key,
+                "orderId": order_id,
+                "amount": amount,
+            },
+            timeout=15,
+        )
+        data = res.json() if res.content else {}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"토스 승인 요청 실패: {e}")
+
+    if not res.ok:
+        msg = (data or {}).get("message") if isinstance(data, dict) else None
+        raise HTTPException(status_code=400, detail=msg or f"토스 승인 실패 ({res.status_code})")
+
+    pending["status"] = "confirmed"
+    pending["payment_key"] = payment_key
+    pending["confirmed_at"] = datetime.datetime.now().isoformat()
+    pending["toss_response"] = data
+    return {"status": "confirmed", "order_id": order_id, "amount": amount, "payment": data}
+
+
+@router.get("/payment/rental/success", response_class=HTMLResponse)
+def payment_rental_success_page():
+    return """
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>렌터카 결제 확인 중</title>
+<style>body{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a} .box{max-width:560px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px} .muted{color:#64748b;font-size:14px}</style>
+</head><body><div class="box"><h2>결제 확인 중입니다...</h2><p id="msg" class="muted">잠시만 기다려 주세요.</p><a href="/rental">렌터카 페이지로 돌아가기</a></div>
+<script>
+const qs=new URLSearchParams(location.search);
+const body={paymentKey:qs.get('paymentKey'),orderId:qs.get('orderId'),amount:Number(qs.get('amount')||0)};
+fetch('/api/payments/toss/rental/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+ .then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))}))
+ .then(x=>{document.getElementById('msg').textContent=x.ok?'결제가 승인되었습니다.':'결제 승인 실패: '+(x.data?.detail||x.data?.message||'알 수 없는 오류');})
+ .catch(()=>{document.getElementById('msg').textContent='결제 승인 확인 중 오류가 발생했습니다.'});
+</script></body></html>
+"""
+
+
+@router.get("/payment/rental/fail", response_class=HTMLResponse)
+def payment_rental_fail_page(code: str | None = Query(None), message: str | None = Query(None)):
+    c = (code or "").strip()
+    m = (message or "").strip()
+    return f"""
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>렌터카 결제 실패</title>
+<style>body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a}} .box{{max-width:560px;margin:24px auto;background:#fff;border:1px solid #fecaca;border-radius:12px;padding:18px}} .muted{{color:#64748b;font-size:14px}}</style>
+</head><body><div class="box"><h2>결제가 완료되지 않았습니다.</h2><p class="muted">코드: {c or '-'}</p><p class="muted">메시지: {m or '-'}</p><a href="/rental">렌터카 페이지로 돌아가기</a></div></body></html>
+"""

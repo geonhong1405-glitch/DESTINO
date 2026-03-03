@@ -76,6 +76,8 @@ let currentUserProfile = { nickname: '', email: '' };
 let savedItemsState = { wishlist: [], cart: [] };
 let groupSavedTab = 'cart';
 let groupAlertState = [];
+let writeAttachSource = 'cart';
+let selectedLinkedItemKeys = new Set();
 
 function isLoggedIn() {
     return !!(window.__AUTH__ && window.__AUTH__.nickname);
@@ -136,8 +138,28 @@ function getSavedItemTypeLabel(itemType) {
     const type = String(itemType || '').toLowerCase();
     if (type === 'flight') return '항공';
     if (type === 'hotel' || type === 'stay' || type === 'accommodation') return '숙박';
+    if (type === 'rental' || type === 'rentcar' || type === 'rentalcar') return '렌터카';
     if (type === 'groupbuy' || type === 'travel-group') return '공동구매';
     return type ? type.toUpperCase() : 'ITEM';
+}
+
+function isAttachableType(itemType) {
+    const t = String(itemType || '').toLowerCase();
+    return ['flight', 'hotel', 'rental', 'rentcar', 'rentalcar', 'package', 'tour', 'ticket'].includes(t);
+}
+
+function buildLinkedKey(row) {
+    return `${String(row?.list_type || '')}:${Number(row?.id || 0)}`;
+}
+
+function normalizeLinkedFromSaved(row) {
+    return {
+        item_type: String(row?.item_type || '').toLowerCase(),
+        name: String(row?.name || ''),
+        meta: String(row?.meta || ''),
+        source: String(row?.source || ''),
+        payload: row?.payload ?? null,
+    };
 }
 
 function getGroupSavedImageUrl(item) {
@@ -261,6 +283,7 @@ async function loadGroupBuyPosts() {
             isMine: !!row.is_mine,
             rawStartDate: row.start_date || '',
             rawEndDate: row.end_date || '',
+            linkedItems: Array.isArray(row.linked_items) ? row.linked_items : [],
         }));
     } catch (_e) {
         posts = [];
@@ -288,6 +311,49 @@ async function loadSavedItems() {
 
     renderPosts(currentPage);
     renderGroupSavedDrawer();
+    renderWriteLinkedItems();
+}
+
+function getAttachableSavedRows(source = writeAttachSource) {
+    const rows = Array.isArray(savedItemsState[source]) ? savedItemsState[source] : [];
+    return rows.filter((row) => isAttachableType(row?.item_type));
+}
+
+function updateLinkedCountText() {
+    const el = document.getElementById('formLinkedItemsCount');
+    if (!el) return;
+    el.textContent = `${selectedLinkedItemKeys.size}개 선택`;
+}
+
+function renderWriteLinkedItems() {
+    const list = document.getElementById('formLinkedItemsList');
+    if (!list) return;
+    const rows = getAttachableSavedRows(writeAttachSource);
+    if (!rows.length) {
+        list.innerHTML = '<div class="linked-items-empty">선택 가능한 항목이 없습니다. 먼저 항공/숙박/렌터카를 장바구니 또는 위시에 담아주세요.</div>';
+        updateLinkedCountText();
+        return;
+    }
+    list.innerHTML = rows.map((row) => {
+        const key = buildLinkedKey(row);
+        const checked = selectedLinkedItemKeys.has(key) ? 'checked' : '';
+        return `
+            <label class="linked-item-row">
+                <input type="checkbox" data-linked-item-key="${escapeHtml(key)}" ${checked} />
+                <div>
+                    <div class="linked-item-row__name">[${escapeHtml(getSavedItemTypeLabel(row.item_type))}] ${escapeHtml(row.name || '-')}</div>
+                    <div class="linked-item-row__meta">${escapeHtml(row.meta || '')}</div>
+                </div>
+            </label>
+        `;
+    }).join('');
+    updateLinkedCountText();
+}
+
+function getSelectedLinkedItemsForSubmit() {
+    const allRows = [...(savedItemsState.cart || []), ...(savedItemsState.wishlist || [])].filter((row) => isAttachableType(row?.item_type));
+    const selected = allRows.filter((row) => selectedLinkedItemKeys.has(buildLinkedKey(row)));
+    return selected.map((row) => normalizeLinkedFromSaved(row));
 }
 
 async function loadGroupAlerts() {
@@ -337,7 +403,7 @@ function renderPosts(page = 1) {
                 <div class="card-left">
                     <div class="card-meta"><span class="badge-country">${escapeHtml(post.country)}</span></div>
                     <div class="board-title">${escapeHtml(post.title)}</div>
-                    <div class="board-date"><i data-lucide="calendar" width="14"></i>${escapeHtml(post.start)} 출발 예정 · ${escapeHtml(post.departure || '인천')} 출발</div>
+                    <div class="board-date"><i data-lucide="calendar" width="14"></i>${escapeHtml(post.start)} 출발 예정 · ${escapeHtml(post.departure || '인천')} 출발${Array.isArray(post.linkedItems) && post.linkedItems.length ? ` · 연결상품 ${post.linkedItems.length}개` : ''}</div>
                 </div>
                 <div class="card-right">
                     <div class="progress-label">
@@ -375,6 +441,21 @@ function showDetail(id) {
     const post = getPostById(id);
     if (!post) return;
     currentDetailPostId = Number(post.id);
+    const linkedItems = Array.isArray(post.linkedItems) ? post.linkedItems : [];
+    const linkedItemsHtml = linkedItems.length
+        ? `
+            <div class="linked-refs">
+                <div style="font-weight:700; font-size:15px;">연결된 상품 정보</div>
+                ${linkedItems.map((item) => `
+                    <div class="linked-ref-card">
+                        <div class="linked-ref-type">${escapeHtml(getSavedItemTypeLabel(item?.item_type))}</div>
+                        <div class="linked-ref-name">${escapeHtml(item?.name || '-')}</div>
+                        <div class="linked-ref-meta">${escapeHtml(item?.meta || '')}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `
+        : '';
 
     const wished = isPostWished(post);
     const header = document.getElementById('detailHeader');
@@ -409,6 +490,7 @@ function showDetail(id) {
                 <div style="font-weight:700; margin-bottom:10px; font-size:15px;">상세 설명</div>
                 <p style="white-space:pre-wrap; color:#555; font-size:14px; line-height:1.7;">${escapeHtml(post.desc || '')}</p>
             </div>
+            ${linkedItemsHtml}
             <div id="joinRequestFormWrap" style="display:none; margin-top:18px; padding:14px; border:1px solid #e5e7eb; border-radius:12px; background:#fafcff;">
                 <div style="font-size:13px; font-weight:700; margin-bottom:10px;">참여 요청 양식</div>
                 <div style="display:grid; gap:8px;">
@@ -571,6 +653,13 @@ function openModal(id) {
     if (!modal) return;
     modal.style.display = 'flex';
     document.body.classList.add('modal-open');
+    if (id === 'writeModal') {
+        writeAttachSource = 'cart';
+        document.querySelectorAll('.attach-source-tab[data-attach-source]').forEach((el) => {
+            el.classList.toggle('is-active', el.getAttribute('data-attach-source') === 'cart');
+        });
+        renderWriteLinkedItems();
+    }
 }
 
 function closeModal(id) {
@@ -581,6 +670,7 @@ function closeModal(id) {
 
     if (id === 'writeModal') {
         document.getElementById('writeForm')?.reset();
+        selectedLinkedItemKeys = new Set();
         const countryDisplay = document.getElementById('formCountryDisplay');
         const cityDisplay = document.getElementById('formCityDisplay');
         if (countryDisplay) countryDisplay.innerText = '나라 선택';
@@ -590,6 +680,7 @@ function closeModal(id) {
         if (list) list.innerHTML = '';
         document.querySelectorAll('.popover-container.active').forEach((el) => el.classList.remove('active'));
         document.getElementById('overlay')?.classList.remove('active');
+        renderWriteLinkedItems();
     }
 }
 
@@ -746,6 +837,7 @@ async function handleFormSubmit(e) {
     const start = document.getElementById('formDateStart')?.value || '';
     const budgetRaw = document.getElementById('formBudget')?.value || '';
     const desc = document.getElementById('formDesc')?.value?.trim() || '';
+    const linkedItems = getSelectedLinkedItemsForSubmit();
 
     if (!title) return alert('제목을 입력해주세요.');
     if (country === '나라 선택') return alert('나라를 선택해주세요.');
@@ -753,6 +845,7 @@ async function handleFormSubmit(e) {
         return alert('모집 인원은 2명 이상 정수로 입력해주세요.');
     }
     if (!start) return alert('출발일을 선택해주세요.');
+    if (!linkedItems.length) return alert('장바구니/위시리스트에서 연결할 항공·숙박·렌터카 상품을 최소 1개 선택해주세요.');
 
     const cityValue = (city === '도시 입력' || city === '도시 선택') ? '' : city;
     const budget = budgetRaw ? `${budgetRaw}원` : '예산 미정';
@@ -774,6 +867,7 @@ async function handleFormSubmit(e) {
                 departure: '인천',
                 budget,
                 description: desc,
+                linked_items: linkedItems,
             }),
         });
         closeModal('writeModal');
@@ -1003,9 +1097,45 @@ function initWriteButtonGuard() {
     });
 }
 
+function initWriteLinkedItemsUi() {
+    document.querySelectorAll('.attach-source-tab[data-attach-source]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            writeAttachSource = btn.getAttribute('data-attach-source') || 'cart';
+            document.querySelectorAll('.attach-source-tab[data-attach-source]').forEach((el) => {
+                const active = el === btn;
+                el.classList.toggle('is-active', active);
+            });
+            renderWriteLinkedItems();
+        });
+    });
+
+    document.getElementById('formLinkedItemsList')?.addEventListener('change', (e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLInputElement)) return;
+        if (target.type !== 'checkbox') return;
+        const key = String(target.getAttribute('data-linked-item-key') || '');
+        if (!key) return;
+        if (target.checked) selectedLinkedItemKeys.add(key);
+        else selectedLinkedItemKeys.delete(key);
+        updateLinkedCountText();
+    });
+
+    document.getElementById('formLinkedItemsSelectAll')?.addEventListener('click', () => {
+        const rows = getAttachableSavedRows(writeAttachSource);
+        const keys = rows.map((row) => buildLinkedKey(row));
+        const allSelected = keys.length > 0 && keys.every((k) => selectedLinkedItemKeys.has(k));
+        keys.forEach((k) => {
+            if (allSelected) selectedLinkedItemKeys.delete(k);
+            else selectedLinkedItemKeys.add(k);
+        });
+        renderWriteLinkedItems();
+    });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     setupPostInteractions();
     initPopovers();
+    initWriteLinkedItemsUi();
     populateRecommendations();
     initDateConstraints();
     initGroupSavedDrawer();
