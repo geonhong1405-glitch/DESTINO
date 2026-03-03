@@ -1,4 +1,4 @@
-import datetime
+﻿import datetime
 import os
 import hashlib
 
@@ -180,11 +180,11 @@ def _to_krw_price(value, currency, rate_cache: dict[str, float | None]) -> int |
 
 
 _RENTAL_FALLBACK_IMAGES = [
-    "https://images.unsplash.com/photo-1549924231-f129b911e442?q=80&w=1200&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?q=80&w=1200&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1200&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=1200&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?q=80&w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1493238792000-8113da705763?q=80&w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1502877338535-766e1452684a?q=80&w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1553440569-bcc63803a83d?q=80&w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1544636331-e26879cd4d9b?q=80&w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1504215680853-026ed2a45def?q=80&w=1200&auto=format&fit=crop",
 ]
 
 
@@ -280,19 +280,36 @@ def _fallback_image_for_car(name: str | None, supplier: str | None) -> str:
     return _RENTAL_FALLBACK_IMAGES[idx]
 
 
+def _looks_like_non_vehicle_image_url(url: str | None) -> bool:
+    s = str(url or "").strip().lower()
+    if not s:
+        return False
+    # Block explicit vendor/logo/icon assets only.
+    if "/vendors/" in s or "/vendor/" in s:
+        return True
+
+    bad_tokens = (
+        "icon/",
+        "/icons/",
+        "avatar",
+        "bond-street",
+        "roundel",
+    )
+    return any(token in s for token in bad_tokens)
+
 def _is_generic_supplier_car_name(name: str | None, supplier: str | None) -> bool:
     n = str(name or "").strip().lower()
     s = str(supplier or "").strip().lower()
     if not n:
         return True
     if not s:
-        # Names ending with the generic word "rental car" are not real model names.
-        return "렌터카" in n
+        # Names ending with generic "rental car" words are not real model names.
+        return ("rental car" in n) or n.endswith("rental")
     normalized = n.replace(" ", "")
     supplier_norm = s.replace(" ", "")
     return normalized in {
         supplier_norm,
-        f"{supplier_norm}렌터카",
+        f"{supplier_norm}rental",
         f"{supplier_norm}rentalcar",
     }
 
@@ -432,10 +449,12 @@ def rental_page(
                     car["price_unreliable"] = False
 
                 # Use deterministic fallback image when provider image is missing.
-                if not str(car.get("image") or "").strip():
-                    car["image"] = _fallback_image_for_car(car.get("name"), car.get("supplier"))
-                elif _is_generic_supplier_car_name(car.get("name"), car.get("supplier")):
-                    # Supplier-only placeholder cards often come with non-car or repeated images.
+                image_url = str(car.get("image") or "").strip()
+                if (
+                    not image_url
+                    or _looks_like_non_vehicle_image_url(image_url)
+                ):
+                    # Replace only missing or explicit non-vehicle image URL.
                     car["image"] = _fallback_image_for_car(car.get("name"), car.get("supplier"))
 
                 car["rental_days"] = rental_days
@@ -526,3 +545,4 @@ def rental_page(
             "rental_provider_detail": rental_provider_detail or "",
         },
     )
+

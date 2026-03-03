@@ -446,7 +446,7 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
                     seen.add(key)
                     results.append(
                         {
-                            "name": safe_name,
+                            "name": name,
                             "supplier": supplier or "Rental Partner",
                             "price": price,
                             "currency": currency or "KRW",
