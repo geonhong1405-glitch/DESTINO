@@ -54,12 +54,21 @@ document.addEventListener('click', function(e) {
     const index = Array.from(document.querySelectorAll('.tour-card')).indexOf(card);
     if (index !== -1) {
         const tourData = extractTourData(card, index);
-        // 중복 추가 방지
-        const exists = tourSavedState.wishlist.some(item => getTourSavedKey(item) === getTourSavedKey(tourData));
-        if (!exists) {
+        // 위시리스트 중복 추가 방지
+        const wishExists = tourSavedState.wishlist.some(item => getTourSavedKey(item) === getTourSavedKey(tourData));
+        if (!wishExists) {
             tourSavedState.wishlist.push(tourData);
-            saveTourItems();
+            // 위시리스트 localStorage도 갱신
+            localStorage.setItem('tourWishlist', JSON.stringify(tourSavedState.wishlist));
         }
+        // 장바구니에도 추가 (중복 방지)
+        const cartExists = tourSavedState.cart.some(item => getTourSavedKey(item) === getTourSavedKey(tourData));
+        if (!cartExists) {
+            tourSavedState.cart.push(tourData);
+            // 장바구니 localStorage도 갱신
+            localStorage.setItem('tourCart', JSON.stringify(tourSavedState.cart));
+        }
+        saveTourItems();
         // 상태 진단용 콘솔 출력
         console.log('[위시리스트 클릭] tourSavedState.wishlist:', tourSavedState.wishlist);
         console.log('[위시리스트 클릭] localStorage:', localStorage.getItem('tourWishlist'));
@@ -377,9 +386,10 @@ function initTourSavedItemActions() {
 }
 
 function extractTourData(card, idx) {
-    const location = card.querySelector('.tour-loc')?.innerText || '';
-    const title = card.querySelector('.tour-name')?.innerText || '';
-    const price = card.querySelector('.price-val')?.innerText.replace(/,/g, '') || '';
+    const location = card.querySelector('.tour-loc')?.innerText.trim() || '';
+    const title = card.querySelector('.tour-name')?.innerText.trim() || '';
+    // 가격은 콤마 제거
+    const price = card.querySelector('.price-val')?.innerText.replace(/,/g, '').trim() || '';
     return {
         id: `${title}__${location}__${price}`,
         image: getComputedStyle(card.querySelector('.tour-image')).backgroundImage.replace(/url\((['"])?(.*?)\1\)/, '$2'),
