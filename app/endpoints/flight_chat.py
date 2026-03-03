@@ -830,9 +830,61 @@ const qs=new URLSearchParams(location.search);
 const body={paymentKey:qs.get('paymentKey'),orderId:qs.get('orderId'),amount:Number(qs.get('amount')||0)};
 fetch('/api/payments/toss/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
  .then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))}))
- .then(x=>{document.getElementById('msg').textContent=x.ok?'결제가 승인되었습니다.':'결제 승인 실패: '+(x.data?.detail||x.data?.message||'알 수 없는 오류');})
+ .then(x=>{
+   if(x.ok){
+     const oid = encodeURIComponent(body.orderId || '');
+     window.location.replace('/payment/flight/confirmed?orderId=' + oid);
+     return;
+   }
+   document.getElementById('msg').textContent='결제 승인 실패: '+(x.data?.detail||x.data?.message||'알 수 없는 오류');
+ })
  .catch(()=>{document.getElementById('msg').textContent='결제 승인 확인 중 오류가 발생했습니다.'});
 </script></body></html>
+"""
+
+
+@router.get("/payment/flight/confirmed", response_class=HTMLResponse)
+def payment_flight_confirmed_page(orderId: str | None = Query(None)):
+    oid = (orderId or "").strip()
+    row = PENDING_FLIGHT_ORDERS.get(oid) if oid else None
+    amount = int(row.get("amount") or 0) if isinstance(row, dict) else 0
+    order_name = str(row.get("order_name") or "항공권") if isinstance(row, dict) else "항공권"
+    status = str(row.get("status") or "confirmed") if isinstance(row, dict) else "confirmed"
+    confirmed_at = str(row.get("confirmed_at") or "") if isinstance(row, dict) else ""
+    status_label = "예약 확정"
+    if status == "confirmed_mock":
+        status_label = "예약 확정(모의 결제)"
+
+    return f"""
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>예약 확정</title>
+<style>
+body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a}}
+.box{{max-width:640px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px}}
+.ok{{display:inline-block;padding:4px 10px;border-radius:999px;background:#dcfce7;color:#166534;font-size:12px;font-weight:700}}
+.row{{margin-top:10px;color:#334155;font-size:14px}}
+.amt{{margin-top:12px;font-size:30px;font-weight:800;color:#0f172a}}
+.actions{{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}}
+.btn{{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;text-decoration:none;font-weight:700}}
+.btn-primary{{background:#1d4ed8;color:#fff}}
+.btn-ghost{{border:1px solid #cbd5e1;color:#0f172a;background:#fff}}
+</style>
+</head>
+<body>
+  <div class="box">
+    <span class="ok">{status_label}</span>
+    <h2 style="margin:10px 0 4px;">예약이 완료되었습니다.</h2>
+    <div class="row">상품: {order_name}</div>
+    <div class="row">주문번호: {oid or '-'}</div>
+    <div class="row">승인시각: {confirmed_at or '-'}</div>
+    <div class="amt">KRW {amount:,}</div>
+    <div class="actions">
+      <a class="btn btn-primary" href="/airport">항공 검색으로</a>
+      <a class="btn btn-ghost" href="/planner">플래너로</a>
+    </div>
+  </div>
+</body></html>
 """
 
 
