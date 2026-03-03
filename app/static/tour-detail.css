@@ -1,85 +1,48 @@
-.tour-detail-grid {
-    display: grid;
-    grid-template-columns: 1fr 420px;
-    gap: 48px;
-    align-items: start;
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+
+body { 
+    font-family: 'Noto Sans KR', sans-serif; 
 }
 
-@media (max-width: 1023px) {
-    .tour-detail-grid {
-        grid-template-columns: 1fr;
-        gap: 32px;
-    }
-    .side-content {
-        grid-row: 1;
-        grid-column: 1;
-        margin-bottom: 32px;
-    }
+/* Sticky Card Configuration */
+.sticky-card { 
+    position: sticky; 
+    top: 100px; 
 }
 
-.main-content {
-    width: 100%;
-}
-.side-content {
-    width: 100%;
-    position: sticky;
-    top: 32px;
-    z-index: 30;
-}
-/* Tailwind 커스텀 설정 */
-/* HTML 상단 스크립트의 tailwind.config를 CSS 변수와 연동하거나 그대로 사용 가능합니다. */
-/* 여기서는 수동 추가 디자인 요소를 정의합니다. */
-
-:root {
-    --brand-blue: #0d6efd;
-    --brand-blue-hover: #0b5ed7;
-    --brand-red: #eb3323;
+/* Modal Behavior */
+.modal-active { 
+    overflow: hidden; 
 }
 
-/* 스크롤 동작 */
-html {
-    scroll-behavior: smooth;
+#reviewModal { 
+    display: none; 
 }
 
-/* 탭 활성화 스타일 */
-.tab-active {
-    border-bottom: 3px solid var(--brand-blue);
-    color: var(--brand-blue) !important;
-    font-weight: 700;
+#reviewModal.active { 
+    display: flex; 
 }
 
-/* 타임라인 디자인 (추가 섹션용) */
-.timeline-line::before {
-    content: '';
-    position: absolute;
-    top: 10px;
-    bottom: -30px;
-    left: 11px;
-    width: 2px;
-    background-color: #e5e7eb;
-    z-index: 0;
+/* Star Rating */
+.star-rating i.active { 
+    color: #fbbf24; 
 }
 
-.timeline-item:last-child .timeline-line::before {
-    display: none;
+/* Sort Dropdown */
+#sortDropdown { 
+    display: none; 
 }
 
-/* 우측 예약바 스크롤 설정 */
-.sticky-container {
-    max-height: calc(100vh - 120px);
-    overflow-y: auto;
+#sortDropdown.show { 
+    display: block; 
 }
 
-.sticky-container::-webkit-scrollbar {
-    width: 4px;
+.sort-item.active { 
+    color: #2563eb; 
+    font-weight: 700; 
 }
 
-.sticky-container::-webkit-scrollbar-thumb {
-    background: #e5e7eb;
-    border-radius: 10px;
+/* Transitions */
+#toast {
+    transition: opacity 0.3s ease, transform 0.3s ease;
 }
-
-/* Tailwind Config (CDN 방식일 때 스크립트로 주입하던 내용 대체용 색상 클래스 직접 정의) */
-.text-brand-blue { color: var(--brand-blue); }
-.bg-brand-blue { background-color: var(--brand-blue); }
-.text-brand-red { color: var(--brand-red); }
