@@ -1,6 +1,8 @@
 ﻿import json
 import os
 import re
+import uuid
+import base64
 from datetime import datetime, timedelta
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
@@ -8,6 +10,7 @@ import requests
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse
 from openai import OpenAI
 from pydantic import BaseModel
 
@@ -44,6 +47,7 @@ RAG_TOP_K = int(os.getenv("RAG_TOP_K", "5"))
 SESSION_STATE: dict[str, dict[str, Any]] = {}
 SESSION_HISTORY: dict[str, list[dict[str, str]]] = {}
 pinecone_index = None
+PENDING_FLIGHT_ORDERS: dict[str, dict[str, Any]] = {}
 
 SLOT_KEYS = [
     "origin",
@@ -191,6 +195,36 @@ def _infer_rag_country_code(texts: list[str]) -> Optional[str]:
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
+
+
+class FlightPassengerInput(BaseModel):
+    last_name: str
+    first_name: str
+    birth_date: str
+    nationality: str
+    passport_number: str
+    passport_expiry: str
+
+
+class FlightCheckoutOfferInput(BaseModel):
+    airline: str | None = None
+    airline_code: str | None = None
+    price: dict[str, Any] | None = None
+    itineraries: list[dict[str, Any]] | None = None
+
+
+class FlightCheckoutRequest(BaseModel):
+    offer: FlightCheckoutOfferInput
+    customer_name: str
+    customer_email: str
+    customer_phone: str | None = None
+    passengers: list[FlightPassengerInput]
+
+
+class TossConfirmRequest(BaseModel):
+    paymentKey: str
+    orderId: str
+    amount: int
 
 
 class NeedMoreInfoError(Exception):
@@ -652,6 +686,169 @@ def _answer_knowledge(message: str, context: str, prev_state: Optional[dict[str,
     )
 
 
+def _extract_checkout_amount_krw(offer: FlightCheckoutOfferInput) -> int:
+    price = offer.price or {}
+    try:
+        krw_total = price.get("krwTotal")
+        if krw_total is not None:
+            amount = int(round(float(krw_total)))
+            if amount > 0:
+                return amount
+    except Exception:
+        pass
+
+    ccy = str(price.get("currency") or "").upper().strip()
+    total = price.get("total")
+    if ccy == "KRW":
+        try:
+            amount = int(round(float(total)))
+            if amount > 0:
+                return amount
+        except Exception:
+            pass
+    raise HTTPException(status_code=400, detail="결제 금액을 확정할 수 없습니다. KRW 금액이 있는 항공권으로 다시 시도해 주세요.")
+
+
+def _build_flight_order_name(offer: FlightCheckoutOfferInput) -> str:
+    itineraries = offer.itineraries or []
+    dep = ""
+    arr = ""
+    try:
+        dep = str((((itineraries[0] or {}).get("segments") or [])[0].get("departure") or {}).get("iataCode") or "")
+        outbound_itin = itineraries[0] or {}
+        outbound_segs = outbound_itin.get("segments") or []
+        arr = str(((outbound_segs[-1].get("arrival") or {}).get("iataCode") if outbound_segs else "") or "")
+    except Exception:
+        dep = ""
+        arr = ""
+    route = f"{dep}-{arr}".strip("-")
+    airline = str(offer.airline or "항공권").strip() or "항공권"
+    if route:
+        return f"{airline} {route}"
+    return airline
+
+
+@router.post("/api/flight/checkout")
+def api_flight_checkout(payload: FlightCheckoutRequest, request: Request):
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+
+    if not payload.passengers:
+        raise HTTPException(status_code=400, detail="탑승자 정보가 필요합니다.")
+
+    amount = _extract_checkout_amount_krw(payload.offer)
+    order_id = f"FLT-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    order_name = _build_flight_order_name(payload.offer)
+    toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
+    base_url = str(request.base_url).rstrip("/")
+
+    PENDING_FLIGHT_ORDERS[order_id] = {
+        "amount": amount,
+        "order_name": order_name,
+        "customer_name": payload.customer_name,
+        "customer_email": payload.customer_email,
+        "customer_phone": payload.customer_phone,
+        "passengers": [p.model_dump() for p in payload.passengers],
+        "offer": payload.offer.model_dump(),
+        "created_at": datetime.now().isoformat(),
+    }
+
+    return {
+        "order_id": order_id,
+        "order_name": order_name,
+        "amount": amount,
+        "currency": "KRW",
+        "payment_mode": "toss" if toss_client_key else "mock",
+        "toss_client_key": toss_client_key,
+        "success_url": f"{base_url}/payment/flight/success",
+        "fail_url": f"{base_url}/payment/flight/fail",
+        "message": "결제 준비가 완료되었습니다." if toss_client_key else "토스 클라이언트 키가 없어 모의 결제 모드로 동작합니다.",
+    }
+
+
+@router.post("/api/payments/toss/confirm")
+def api_toss_confirm(payload: TossConfirmRequest):
+    pending = PENDING_FLIGHT_ORDERS.get(payload.orderId)
+    if not pending:
+        raise HTTPException(status_code=404, detail="주문 정보를 찾을 수 없습니다.")
+    if int(pending.get("amount") or 0) != int(payload.amount):
+        raise HTTPException(status_code=400, detail="결제 금액 검증에 실패했습니다.")
+
+    secret_key = (os.getenv("TOSS_PAYMENTS_SECRET_KEY") or os.getenv("TOSS_SECRET_KEY") or "").strip()
+    if not secret_key:
+        pending["status"] = "confirmed_mock"
+        pending["payment_key"] = payload.paymentKey
+        return {
+            "status": "confirmed_mock",
+            "order_id": payload.orderId,
+            "amount": payload.amount,
+            "message": "토스 시크릿 키가 없어 모의 승인 처리되었습니다.",
+        }
+
+    auth = base64.b64encode(f"{secret_key}:".encode("utf-8")).decode("ascii")
+    try:
+        res = requests.post(
+            "https://api.tosspayments.com/v1/payments/confirm",
+            headers={
+                "Authorization": f"Basic {auth}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "paymentKey": payload.paymentKey,
+                "orderId": payload.orderId,
+                "amount": payload.amount,
+            },
+            timeout=15,
+        )
+        data = res.json() if res.content else {}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"토스 승인 요청 실패: {e}")
+
+    if not res.ok:
+        msg = (data or {}).get("message") if isinstance(data, dict) else None
+        raise HTTPException(status_code=400, detail=msg or f"토스 승인 실패 ({res.status_code})")
+
+    pending["status"] = "confirmed"
+    pending["payment_key"] = payload.paymentKey
+    pending["confirmed_at"] = datetime.now().isoformat()
+    pending["toss_response"] = data
+    return {"status": "confirmed", "order_id": payload.orderId, "amount": payload.amount, "payment": data}
+
+
+@router.get("/payment/flight/success", response_class=HTMLResponse)
+def payment_flight_success_page():
+    return """
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>결제 확인 중</title>
+<style>body{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a} .box{max-width:560px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px} .muted{color:#64748b;font-size:14px}</style>
+</head><body><div class="box"><h2>결제 확인 중입니다...</h2><p id="msg" class="muted">잠시만 기다려 주세요.</p><a href="/airport">항공 페이지로 돌아가기</a></div>
+<script>
+const qs=new URLSearchParams(location.search);
+const body={paymentKey:qs.get('paymentKey'),orderId:qs.get('orderId'),amount:Number(qs.get('amount')||0)};
+fetch('/api/payments/toss/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+ .then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))}))
+ .then(x=>{document.getElementById('msg').textContent=x.ok?'결제가 승인되었습니다.':'결제 승인 실패: '+(x.data?.detail||x.data?.message||'알 수 없는 오류');})
+ .catch(()=>{document.getElementById('msg').textContent='결제 승인 확인 중 오류가 발생했습니다.'});
+</script></body></html>
+"""
+
+
+@router.get("/payment/flight/fail", response_class=HTMLResponse)
+def payment_flight_fail_page(code: str | None = Query(None), message: str | None = Query(None)):
+    c = (code or "").strip()
+    m = (message or "").strip()
+    return f"""
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>결제 실패</title>
+<style>body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a}} .box{{max-width:560px;margin:24px auto;background:#fff;border:1px solid #fecaca;border-radius:12px;padding:18px}} .muted{{color:#64748b;font-size:14px}}</style>
+</head><body><div class="box"><h2>결제가 완료되지 않았습니다.</h2><p class="muted">코드: {c or '-'}</p><p class="muted">메시지: {m or '-'}</p><a href="/airport">항공 페이지로 돌아가기</a></div></body></html>
+"""
+
+
 @router.get("/api/flight-search")
 def api_flight_search(
     origin: str = Query(...),
@@ -665,6 +862,8 @@ def api_flight_search(
     max_price: Optional[float] = Query(None),
 ):
     try:
+        amadeus_base = str(os.getenv("AMADEUS_BASE_URL") or "https://test.api.amadeus.com").strip().lower()
+        pricing_mode = "test" if "test.api.amadeus.com" in amadeus_base else "live"
         raw = flight_search_service._search_flights(
             origin=origin,
             destination=destination,
@@ -684,6 +883,8 @@ def api_flight_search(
             "meta_query": raw.get("meta_query", {}),
             "booking_reference": raw.get("booking_reference", []),
             "exchange_rates": rates,
+            "pricing_mode": pricing_mode,
+            "pricing_notice": "테스트 요금(참고용)" if pricing_mode == "test" else "",
             "raw": raw,
         }
     except Exception as e:

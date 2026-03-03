@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 from app.api.amadeus_api import (
     resolve_location_to_iata as amadeus_resolve_location_to_iata,
+    reprice_flight_offers,
     search_flight_offers_raw,
 )
 from app.api.booking_hotel_flight_api import search_flights as booking_search_flights
@@ -72,6 +73,96 @@ def _normalize_offer_totals_from_travelers(data: dict[str, Any]) -> None:
         price_obj["currency"] = summed_currency
 
 
+def _reprice_top_offers(data: dict[str, Any], limit: int = 12) -> None:
+    offers = data.get("data") or []
+    if not isinstance(offers, list) or not offers:
+        return
+    n = min(max(0, int(limit or 0)), len(offers))
+    if n <= 0:
+        return
+
+    try:
+        repriced = reprice_flight_offers(offers[:n], chunk_size=4)
+    except Exception:
+        return
+
+    for idx, priced in enumerate(repriced):
+        if idx >= n or not isinstance(priced, dict):
+            continue
+        priced_price = priced.get("price") or {}
+        if not isinstance(priced_price, dict):
+            continue
+        grand_total = _to_float(priced_price.get("grandTotal") or priced_price.get("total"))
+        priced_currency = str(priced_price.get("currency") or "").upper().strip()
+        if grand_total is None:
+            continue
+
+        offer = offers[idx]
+        if not isinstance(offer, dict):
+            continue
+        offer_price = offer.setdefault("price", {})
+        if not isinstance(offer_price, dict):
+            continue
+        offer_price["total"] = _format_money_amount(grand_total)
+        if priced_currency:
+            offer_price["currency"] = priced_currency
+        offer_price["revalidated"] = True
+
+
+def _offer_itinerary_signature(offer: dict[str, Any]) -> str:
+    itineraries = offer.get("itineraries") or []
+    if not isinstance(itineraries, list):
+        return ""
+    legs = []
+    for itin in itineraries:
+        if not isinstance(itin, dict):
+            continue
+        segs = []
+        for seg in itin.get("segments", []) or []:
+            if not isinstance(seg, dict):
+                continue
+            dep = seg.get("departure") or {}
+            arr = seg.get("arrival") or {}
+            segs.append(
+                "|".join(
+                    [
+                        str(seg.get("carrierCode") or ""),
+                        str(seg.get("number") or ""),
+                        str(dep.get("iataCode") or ""),
+                        str(dep.get("at") or ""),
+                        str(arr.get("iataCode") or ""),
+                        str(arr.get("at") or ""),
+                        str(seg.get("duration") or ""),
+                    ]
+                )
+            )
+        legs.append(">".join(segs))
+    return "||".join(legs)
+
+
+def _dedupe_offers_by_itinerary(data: dict[str, Any]) -> None:
+    offers = data.get("data") or []
+    if not isinstance(offers, list) or not offers:
+        return
+
+    best: dict[str, tuple[dict[str, Any], float]] = {}
+    order: list[str] = []
+    for offer in offers:
+        if not isinstance(offer, dict):
+            continue
+        sig = _offer_itinerary_signature(offer) or str(offer.get("id") or id(offer))
+        total = _to_float((offer.get("price") or {}).get("total"))
+        score = float(total) if total is not None else float("inf")
+        if sig not in best:
+            best[sig] = (offer, score)
+            order.append(sig)
+            continue
+        if score < best[sig][1]:
+            best[sig] = (offer, score)
+
+    data["data"] = [best[s][0] for s in order if s in best]
+
+
 def _norm_iata(keyword: str) -> Optional[str]:
     if not keyword:
         return None
@@ -107,6 +198,7 @@ def _search_flights(
     infants: int = 0,
     max_price: Optional[float] = None,
     cabin: Optional[str] = None,
+    currency_code: str = "KRW",
     max_results: int = 30,
 ) -> dict[str, Any]:
     adults = int(adults or 1)
@@ -129,6 +221,7 @@ def _search_flights(
             children=children,
             infants=infants,
             cabin=cabin,
+            currency_code=currency_code,
             max_results=max_results,
         )
     except Exception as e:
@@ -146,6 +239,9 @@ def _search_flights(
 
     # Normalize total price by summing traveler-level pricing when present.
     _normalize_offer_totals_from_travelers(data)
+    # Re-validate top offers with pricing endpoint for closer-to-booking totals.
+    _reprice_top_offers(data, limit=12)
+    _dedupe_offers_by_itinerary(data)
 
     if max_price is not None:
         data["data"] = [
