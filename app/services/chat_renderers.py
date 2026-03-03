@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 def flight_html_intro(state: dict[str, Any], rows: list[dict[str, Any]]) -> str:
     if not rows:
-        return "<p>조건에 맞는 항공편을 찾지 못했어요.</p><p>원하면 날짜를 하루 앞뒤로 넓혀서 다시 찾아볼까요회</p>"
+        return "<p>??? ?? ???? ?? ????.</p><p>??? ?? ??? ??? ?? ??????</p>"
     top = rows[0]
     s0 = top["segments"][0] if top.get("segments") else {}
     top_price = (
@@ -14,8 +14,8 @@ def flight_html_intro(state: dict[str, Any], rows: list[dict[str, Any]]) -> str:
     )
     return (
         "<div style='margin-bottom:10px;padding:10px;border:1px solid #dbeafe;background:#eff6ff;'>"
-        f"<b>요청 이해</b>: {state.get('origin')} → {state.get('destination')} 항공편을 찾았어요.<br>"
-        f"<b>추천 1순위</b>: {s0.get('departure','-')} 출발 / {s0.get('arrival','-')} 도착 / "
+        f"<b>?? ??</b>: {state.get('origin')} ? {state.get('destination')} ???? ????.<br>"
+        f"<b>?? 1??</b>: {s0.get('departure','-')} ?? / {s0.get('arrival','-')} ?? / "
         f"{top.get('itinerary_duration') or s0.get('duration','-')} / {top_price}"
         "</div>"
     )
@@ -23,7 +23,7 @@ def flight_html_intro(state: dict[str, Any], rows: list[dict[str, Any]]) -> str:
 
 def flight_html_table(rows: list[dict[str, Any]], meta: dict[str, Any]) -> str:
     if not rows:
-        return "<p>조건에 맞는 항공편을 찾지 못했습니다.</p>"
+        return "<p>??? ?? ???? ?? ?????.</p>"
 
     def _fmt_dt(v: Optional[str]) -> str:
         if not v:
@@ -65,16 +65,16 @@ def flight_html_table(rows: list[dict[str, Any]], meta: dict[str, Any]) -> str:
 
     html = (
         "<div style='margin-bottom:10px;padding:8px;background:#f7f7f7;border:1px solid #ddd;'>"
-        f"<b>API 조회조건</b> | 출발: {meta.get('origin')} / 도착: {meta.get('destination')} / "
-        f"출발일: {meta.get('departure_date')} / 복귀일: {meta.get('return_date') or '-'} / "
-        f"인원: 성인 {meta.get('adults', 1)} / 소아 {meta.get('children', 0)} / 유아 {meta.get('infants', 0)} / 최대가격: {meta.get('max_price') or '-'}"
+        f"<b>API ????</b> | ??: {meta.get('origin')} / ??: {meta.get('destination')} / "
+        f"???: {meta.get('departure_date')} / ???: {meta.get('return_date') or '-'} / "
+        f"??: ?? {meta.get('adults', 1)} / ?? {meta.get('children', 0)} / ?? {meta.get('infants', 0)} / ????: {meta.get('max_price') or '-'}"
         "</div>"
     )
     html += "<table border='1' style='border-collapse:collapse; width:100%; font-size:14px;'>"
-    html += "<tr><th>대표항공사</th><th>첫 출발</th><th>최종 도착</th><th>여정</th><th>총 소요시간</th><th>가격</th></tr>"
+    html += "<tr><th>?????</th><th>? ??</th><th>?? ??</th><th>??</th><th>? ????</th><th>??</th></tr>"
     for row in rows:
         stops = int(row.get("stops") or 0)
-        route_badge = "직항" if stops == 0 else f"경유 {stops}회"
+        route_badge = "??" if stops == 0 else f"?? {stops}?"
         html += (
             "<tr>"
             f"<td>{row.get('primary_airline','-')}</td>"
@@ -88,10 +88,48 @@ def flight_html_table(rows: list[dict[str, Any]], meta: dict[str, Any]) -> str:
         html += (
             "<tr>"
             "<td colspan='6' style='background:#fafafa;padding:6px 8px;'>"
-            "<details><summary style='cursor:pointer;'>구간 상세 보기</summary>"
+            "<details><summary style='cursor:pointer;'>?? ?? ??</summary>"
             f"<div style='margin-top:6px;line-height:1.5;'>{_segment_summary(row)}</div>"
             "</details></td></tr>"
         )
     html += "</table>"
-    html += "<div style='margin-top:8px;color:#666;font-size:12px;'>총 소요시간은 환승 대기 시간을 포함한 전체 여정 기준입니다.</div>"
+    html += "<div style='margin-top:8px;color:#666;font-size:12px;'>? ????? ?? ?? ??? ??? ?? ?? ?????.</div>"
     return html
+
+
+def product_html_list(items: list[dict[str, Any]], title: str = "\uC0C1\uD488 \uCD94\uCC9C") -> str:
+    if not items:
+        return "<div>\uCD94\uCC9C\uD560 \uC0C1\uD488\uC744 \uCC3E\uC9C0 \uBABB\uD588\uC5B4\uC694. \uB2E4\uB978 \uD0A4\uC6CC\uB4DC\uB85C \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.</div>"
+
+    lines: list[str] = []
+    for i, it in enumerate(items[:8], 1):
+        item_type = str(it.get("type") or "\uC0C1\uD488")
+        name = str(it.get("name") or "\uCD94\uCC9C \uC0C1\uD488")
+        price = it.get("price")
+        currency = str(it.get("currency") or "KRW")
+        location = str(it.get("location") or "")
+        rating = it.get("rating")
+        meta = str(it.get("meta") or "")
+        photo = str(it.get("photo") or "")
+
+        price_text = f"{int(price):,} {currency}" if isinstance(price, (int, float)) else "-"
+        parts = [
+            f"{i}) {name}",
+            f"\uD0C0\uC785: {item_type}",
+            f"\uAC00\uACA9: {price_text}",
+        ]
+        if rating is not None:
+            try:
+                parts.append(f"\uD3C9\uC810: {float(rating):.1f}")
+            except Exception:
+                parts.append(f"\uD3C9\uC810: {rating}")
+        if location:
+            parts.append(f"\uC704\uCE58: {location}")
+        if meta:
+            parts.append(f"\uC124\uBA85: {meta}")
+        if photo:
+            parts.append(f"\uC0AC\uC9C4: {photo}")
+
+        lines.append(" | ".join(parts))
+
+    return f"<div><b>{title}</b><br>{'<br>'.join(lines)}</div>"

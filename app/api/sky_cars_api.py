@@ -327,18 +327,12 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
                     return None
             return None
         if isinstance(node, dict):
-            # Prefer keys that look like price fields.
             for k, v in node.items():
                 lk = str(k).lower()
-                if any(x in lk for x in ("price", "amount", "total", "fare", "cost", "pay")):
+                if any(x in lk for x in ("price", "amount", "total", "fare", "cost", "pay", "value")):
                     n = _first_number(v)
                     if n is not None:
                         return n
-            # Fallback: scan nested values.
-            for v in node.values():
-                n = _first_number(v)
-                if n is not None:
-                    return n
         if isinstance(node, list):
             for v in node:
                 n = _first_number(v)
@@ -346,22 +340,68 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
                     return n
         return None
 
+    def _pick_str(primary: dict, secondary: dict, keys: list[str]) -> str:
+        for k in keys:
+            v = primary.get(k)
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+        for k in keys:
+            v = secondary.get(k)
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+        return ""
+
+    def _is_generic_rental_name(name_val: str, supplier_val: str) -> bool:
+        n = str(name_val or "").strip().lower()
+        if not n:
+            return True
+        if n in {"rental car", "rental", "렌터카", "렌터카 옵션", "car"}:
+            return True
+        if n.endswith("렌터카") or n.endswith("rental car") or n.endswith(" rental"):
+            s = str(supplier_val or "").strip().lower()
+            core = n.replace("렌터카", "").replace("rental car", "").replace("rental", "").strip()
+            if not core or (s and core == s):
+                return True
+        return False
+
     for car in car_list:
         if not isinstance(car, dict):
             continue
-        deals = car.get("deals") if isinstance(car.get("deals"), list) else []
-        deal = deals[0] if deals and isinstance(deals[0], dict) else {}
+        deals = [d for d in (car.get("deals") or []) if isinstance(d, dict)]
 
-        name = str(
-            deal.get("car_name")
-            or deal.get("name")
-            or car.get("car_name")
-            or car.get("name")
-            or car.get("vehicle_name")
-            or car.get("model")
+        def _deal_price_num(d: dict) -> float | None:
+            p = (
+                d.get("price")
+                or d.get("total_price")
+                or d.get("amount")
+                or d.get("value")
+                or d.get("base_price")
+                or d.get("total")
+            )
+            n = _first_number(p)
+            if n is None:
+                n = _first_number(d)
+            return n
+
+        priced_deals = []
+        for d in deals:
+            n = _deal_price_num(d)
+            if n is not None and n > 0:
+                priced_deals.append((n, d))
+        if priced_deals:
+            priced_deals.sort(key=lambda x: x[0])
+            deal = priced_deals[0][1]
+        else:
+            deal = deals[0] if deals else {}
+
+        supplier = str(
+            deal.get("vndr")
+            or deal.get("supplier")
+            or deal.get("provider_name")
+            or deal.get("vendorName")
+            or deal.get("company")
             or ""
-        ).strip() or "Rental Car"
-        supplier = str(deal.get("vndr") or "").strip()
+        ).strip()
         if not supplier:
             prv_id = str(deal.get("prv_id") or "").strip()
             provider_row = providers.get(prv_id) if prv_id else None
@@ -369,13 +409,49 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
                 supplier = str(provider_row.get("provider_name") or "").strip()
         supplier = supplier or "Skyscanner Partner"
 
-        price = deal.get("price")
-        if price is None:
-            price = car.get("min_price") or car.get("mean_price")
+        name = _pick_str(
+            deal,
+            car,
+            [
+                "car_name",
+                "name",
+                "vehicle_name",
+                "vehicle",
+                "vehicleName",
+                "display_name",
+                "car_type",
+                "vehicle_class",
+                "category",
+                "model",
+                "title",
+                "sipp",
+            ],
+        )
+        if not name:
+            category = _pick_str(deal, car, ["vehicle_class", "category", "car_type"])
+            name = category.strip() if category else "\uCC28\uC885 \uC815\uBCF4 \uC5C6\uC74C"
+        if _is_generic_rental_name(name, supplier):
+            category = _pick_str(deal, car, ["vehicle_class", "category", "car_type", "sipp"])
+            name = category.strip() if category else "\uCC28\uC885 \uC815\uBCF4 \uC5C6\uC74C"
+
+        price = (
+            deal.get("price")
+            or deal.get("total_price")
+            or deal.get("amount")
+            or deal.get("value")
+            or deal.get("base_price")
+            or deal.get("total")
+            or car.get("min_price")
+            or car.get("mean_price")
+            or car.get("price")
+            or car.get("total")
+        )
         if price is None:
             price = _first_number(deal)
         if price is None:
             price = _first_number(car)
+        if price is None and priced_deals:
+            price = priced_deals[0][0]
         try:
             price_num = int(round(float(price))) if price is not None else None
         except Exception:
@@ -383,17 +459,41 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
         if price_num is not None and price_num < 100:
             price_num = None
 
-        img = str(car.get("img") or deal.get("vndr_img") or "").strip() or None
-        trans = str(deal.get("trans") or car.get("trans") or "").strip() or None
-        seats = deal.get("seat") or car.get("max_seats")
-        bags = deal.get("bags") or car.get("max_bags")
-        fuel = str(deal.get("fuel_pol") or deal.get("fuel_type") or car.get("fuel_type") or "").strip() or None
+        # Prefer vehicle photo first; supplier logo(vndr_img) is last-resort only.
+        img = _pick_str(
+            deal,
+            car,
+            [
+                "vehicle_image",
+                "photo",
+                "photo_url",
+                "image",
+                "image_url",
+                "img",
+                "thumbnail",
+                "vndr_img",
+            ],
+        ) or None
+
+        trans = _pick_str(deal, car, ["trans", "transmission", "gearbox"])
+        seats = (
+            deal.get("seat")
+            or deal.get("seats")
+            or deal.get("passengers")
+            or deal.get("passengerQuantity")
+            or car.get("max_seats")
+            or car.get("seats")
+            or car.get("passengers")
+        )
+        bags = deal.get("bags") or deal.get("luggage") or deal.get("baggage") or car.get("max_bags") or car.get("luggage")
+        fuel = _pick_str(deal, car, ["fuel_pol", "fuel_type", "fuelPolicy"])
 
         specs = []
         if seats:
-            specs.append(f"{int(seats)}인승" if str(seats).isdigit() else str(seats))
+            s = str(seats).strip()
+            specs.append(f"{s}\uC778\uC2B9" if s.isdigit() else s)
         if bags:
-            specs.append(f"가방 {bags}")
+            specs.append(f"\uAC00\uBC29 {bags}")
         if trans:
             specs.append(trans)
         if fuel:
@@ -405,14 +505,10 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
         except Exception:
             rating = None
 
-        if name.lower() in {"rental car", "렌터카 옵션"} and supplier:
-            name = f"{supplier} 렌터카"
-
         key = (name, supplier, price_num or 0)
         if key in seen:
             continue
         seen.add(key)
-
         out.append(
             {
                 "name": name,
@@ -422,11 +518,12 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
                 "image": img,
                 "specs": specs,
                 "seats": int(seats) if isinstance(seats, (int, float)) else None,
-                "transmission": trans,
-                "fuel_policy": fuel,
+                "transmission": trans or None,
+                "fuel_policy": fuel or None,
                 "rating": rating,
             }
         )
 
     out.sort(key=lambda x: x.get("price") or 10**12)
     return out[:24]
+
