@@ -1,7 +1,9 @@
+/* 웹폰트 임포트 */
+@import url('https://cdn.jsdelivr.net/gh/fonts-archive/Pretendard/Pretendard.css');
+
 /* Reset & Base */
 :root {
     --blue-600: #00aaff;
-    /* --blue-500: #3b82f6; */
     --rose-600: #e11d48;
     --rose-500: #f43f5e;
     --gray-50: #f9fafb;
@@ -19,7 +21,7 @@
     box-sizing: border-box;
 }
 body {
-    font-family: 'Pretendard', sans-serif;
+    font-family: 'Pretendard';
     background-color: #fff;
     color: #333;
     line-height: 1.6;
@@ -71,7 +73,7 @@ ul {list-style: none;}
     align-items: center;
     width: 100%;
 }
-.logo {color: #00aaff; font-size: 24px;}
+.logo {color: var(--blue-600); font-size: 24px; font-weight: 800;}
 .header-nav a {
     margin-left: 15px;
     font-size: 14px;
@@ -485,10 +487,11 @@ ul {list-style: none;}
     font-size: 0.75rem; 
     font-weight: 600;
     margin-bottom: 4px;
-    color: #00aaff;
+    color: var(--blue-600);
 }
 .p-title {
-    font-weight: bold; 
+    font-weight: 700;
+    font-size: 1.13rem; 
     margin-bottom: 8px; 
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -509,7 +512,7 @@ ul {list-style: none;}
 }
 .p-price {
     font-weight: 800;
-    color: #00aaff;
+    color: var(--blue-600);
     margin-top: 20px;
 }
 
@@ -546,7 +549,7 @@ ul {list-style: none;}
 }
 
 .sidebar-title .highlight {
-    color: #00aaff;
+    color: var(--blue-600);
     font-weight: 800;
     letter-spacing: -0.025em;
 }
@@ -570,7 +573,7 @@ ul {list-style: none;}
 
 /* 활성화된 탭 */
 .tab-list li.active {
-    background-color: #00aaff;
+    background-color: var(--blue-600);
     color: white;
     font-weight: 600;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -657,7 +660,13 @@ ul {list-style: none;}
 .price {
     font-size: 1.25rem;
     font-weight: 700;
-    color: #00aaff;
+    color: var(--blue-600);
+}
+
+.priceMin {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--blue-600);
 }
 
 /* --- 애니메이션 --- */
@@ -746,7 +755,7 @@ ul {list-style: none;}
 .dcCont .combuy > p {
     font-size: 0.88rem;
     font-weight: 500;
-    color : #00aaff;
+    color : var(--blue-600);
 }
 
 .dcCont .combuy > p > span {
@@ -778,7 +787,7 @@ ul {list-style: none;}
 }
 
 .dcCont .btn-group .apbtn {
-    background: #00aaff;
+    background: var(--blue-600);
     color: #fff;
     transition: all 0.4s;
 }
@@ -838,19 +847,16 @@ ul {list-style: none;}
     margin-bottom: 20px;
 }
 
-.footer-column p {margin-bottom: 8px; line-height: 1.5;}
-
+.footer-column p {margin-bottom: 6px; line-height: 1.5;}
 .footer-column ul {list-style: none; padding: 0;}
-
-.footer-column ul li {margin-bottom: 10px;}
-
+.footer-column ul li {margin-bottom: 8px;}
 .footer-column ul li a:hover {text-decoration: underline;}
 
 /* CS 버튼 스타일 */
 .cs-buttons {
     display: flex;
     gap: 10px;
-    margin-top: 15px;
+    margin-top: 16px;
 }
 
 .btn-cs {
@@ -859,11 +865,11 @@ ul {list-style: none;}
     gap: 10px;
     background: #fff;
     border: 1px solid #ddd;
-    padding: 10px 15px;
+    padding: 6px 14px;
     border-radius: 8px;
     text-decoration: none;
     color: #333;
-    min-width: 140px;
+    min-width: 120px;
 }
 
 .btn-cs .icon {font-size: 18px;}
@@ -1106,7 +1112,7 @@ ul {list-style: none;}
 }
 
 .home-saved-price {
-    color: #00aaff;
+    color: var(--blue-600);
     font-weight: 800;
 }
 
