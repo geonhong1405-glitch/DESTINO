@@ -183,6 +183,133 @@ main { padding-top: var(--header-height); max-width: var(--max-width); margin: 0
   background: #f0f9ff;
 }
 
+.hotel-checkout-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  z-index: 3200;
+}
+.hotel-checkout-modal.is-open { display: block; }
+.hotel-checkout-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.55);
+}
+.hotel-checkout-modal__panel {
+  position: relative;
+  width: min(760px, calc(100vw - 32px));
+  margin: 56px auto 0;
+  border-radius: 14px;
+  border: 1px solid #dbeafe;
+  background: #fff;
+  padding: 18px;
+}
+.hotel-checkout-modal__sub {
+  margin: 6px 0 10px;
+  color: #64748b;
+  font-size: 13px;
+}
+.hotel-checkout-summary {
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-bottom: 10px;
+}
+.hotel-checkout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.hotel-checkout-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hotel-checkout-field > span {
+  font-size: 13px;
+  color: #334155;
+  font-weight: 700;
+}
+.hotel-checkout-field > span em {
+  color: #dc2626;
+  font-style: normal;
+}
+.hotel-checkout-grid input {
+  width: 100%;
+  height: 44px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+.hotel-checkout-phone {
+  display: grid;
+  grid-template-columns: 114px 1fr;
+  gap: 8px;
+}
+.hotel-checkout-phone select {
+  height: 44px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 14px;
+  background: #fff;
+}
+.hotel-checkout-extra {
+  margin-top: 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  padding: 8px 10px 10px;
+  background: #f8fbff;
+}
+.hotel-checkout-extra summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: #1d4ed8;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.hotel-checkout-hint {
+  margin-top: 10px;
+  color: #475569;
+  font-size: 13px;
+}
+.hotel-checkout-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.hotel-checkout-cancel,
+.hotel-checkout-submit {
+  min-width: 96px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-weight: 800;
+  cursor: pointer;
+}
+.hotel-checkout-cancel {
+  background: #fff;
+  color: #334155;
+}
+.hotel-checkout-submit {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+@media (max-width: 760px) {
+  .hotel-checkout-grid {
+    grid-template-columns: 1fr;
+  }
+  .hotel-checkout-phone {
+    grid-template-columns: 1fr;
+  }
+}
+
 .hotel-saved-fab {
   position: fixed;
   right: 24px;

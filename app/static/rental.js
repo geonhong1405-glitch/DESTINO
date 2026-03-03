@@ -837,8 +837,10 @@ async function isRentalLoggedIn(force = false) {
   }
   try {
     const res = await fetch('/api/me', { credentials: 'include' });
-    rentalAuthState = { checkedAt: now, loggedIn: res.ok };
-    return res.ok;
+    const data = await res.json().catch(() => ({}));
+    const loggedIn = !!(res.ok && data?.ok && data?.user && data.user.id);
+    rentalAuthState = { checkedAt: now, loggedIn };
+    return loggedIn;
   } catch (_e) {
     rentalAuthState = { checkedAt: now, loggedIn: false };
     return false;
@@ -916,8 +918,9 @@ function initRentalSavedUi() {
     if (reserveBtn) {
       if (!(await ensureRentalLoggedIn())) return;
       const payload = parseRentalPayload(reserveBtn.getAttribute('data-rental-reserve'));
-      const ok = await toggleRentalSaved(payload, 'cart');
-      if (ok) alert('장바구니에 담았습니다. 예약 연동은 다음 단계에서 연결됩니다.');
+      if (!payload) return;
+      const encoded = encodeURIComponent(JSON.stringify(payload));
+      window.location.href = '/rental/detail?car=' + encoded;
       return;
     }
 

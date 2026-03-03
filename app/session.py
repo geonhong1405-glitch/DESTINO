@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from app.db.db import SessionLocal
 from app.db.models import UserSession
 
-SESSION_EXPIRE_MINUTES = 300
+SESSION_EXPIRE_MINUTES = 30000
 
 
 def create_session(user_id: int) -> str:

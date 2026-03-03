@@ -10,7 +10,7 @@
       crossorigin
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"
     />
-    <link rel="stylesheet" href="/static/travel-group.css?v=20260227a" />
+    <link rel="stylesheet" href="/static/travel-group.css?v=20260303a" />
     <script src="https://unpkg.com/lucide@latest"></script>
   </head>
   <body>
@@ -136,6 +136,19 @@
             </div>
 
             <div class="form-group">
+              <label>연결할 상품 선택 (장바구니/위시)</label>
+              <div class="attach-source-tabs">
+                <button type="button" class="attach-source-tab is-active" data-attach-source="cart">장바구니</button>
+                <button type="button" class="attach-source-tab" data-attach-source="wishlist">위시리스트</button>
+              </div>
+              <div id="formLinkedItemsList" class="linked-items-picker"></div>
+              <div class="linked-items-summary">
+                <span id="formLinkedItemsCount">0개 선택</span>
+                <button type="button" id="formLinkedItemsSelectAll">전체 선택/해제</button>
+              </div>
+            </div>
+
+            <div class="form-group">
               <label>상세 설명</label>
               <textarea id="formDesc" rows="4" placeholder="상세 내용을 입력해주세요" required style="resize: none"></textarea>
             </div>
@@ -215,6 +228,6 @@
     <script>
       window.__AUTH__ = { nickname: {{ (nickname or '')|tojson }} };
     </script>
-    <script src="/static/travel-group.js?v=20260227a"></script>
+    <script src="/static/travel-group.js?v=20260303a"></script>
   </body>
 </html>

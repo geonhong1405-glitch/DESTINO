@@ -125,13 +125,6 @@
         </section>
 
         <section class="container">
-            <h2 class="section-title">DESTINO만의 렌터카 혜택</h2>
-            <div class="benefit-grid">
-                <div class="benefit-card"><span class="benefit-icon">🛡️</span><h3>안전 보장</h3><p>기본 보장 조건을 포함한 렌터카 상품을 빠르게 비교합니다.</p></div>
-                <div class="benefit-card"><span class="benefit-icon">⚡</span><h3>빠른 비교</h3><p>대여/반납 장소와 시간을 기준으로 실시간 옵션을 조회합니다.</p></div>
-                <div class="benefit-card"><span class="benefit-icon">📍</span><h3>지역 검색 지원</h3><p>도시, 공항, 역 단위로 대여/반납 장소를 각각 검색할 수 있습니다.</p></div>
-            </div>
-
             <div class="rental-result-bar">
                 <h2 class="section-title" style="margin:0;">지금 예약 가능한 차량</h2>
                 <form method="get" action="/rental" class="rental-filters">
@@ -189,6 +182,9 @@
 
             {% if rental_cars and rental_provider %}
             <div style="margin:8px 0 0; font-size:12px; color:#64748b;">Provider: {{ rental_provider }}</div>
+            {% if rental_provider_detail %}
+            <div style="margin:4px 0 0; font-size:11px; color:#64748b; opacity:.9;">{{ rental_provider_detail }}</div>
+            {% endif %}
             {% endif %}
 
             {% if rental_cars %}
@@ -207,6 +203,12 @@
                     "currency": car.currency,
                     "image": car.image,
                     "specs": car.specs,
+                    "rating": car.rating,
+                    "seats": car.seats,
+                    "transmission": car.transmission,
+                    "fuel_policy": car.fuel_policy,
+                    "price_per_day": car.price_per_day,
+                    "rental_days": car.rental_days,
                     "pickup_name": pickup_name,
                     "dropoff_name": dropoff_name,
                     "pickup_at": pickup_at,
