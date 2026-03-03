@@ -1,4 +1,4 @@
-import datetime as _dt
+﻿import datetime as _dt
 import os
 import re
 from typing import Any
@@ -355,11 +355,11 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
         n = str(name_val or "").strip().lower()
         if not n:
             return True
-        if n in {"rental car", "rental", "렌터카", "렌터카 옵션", "car"}:
+        if n in {"rental car", "rental", "car"}:
             return True
-        if n.endswith("렌터카") or n.endswith("rental car") or n.endswith(" rental"):
+        if n.endswith("rental car") or n.endswith(" rental"):
             s = str(supplier_val or "").strip().lower()
-            core = n.replace("렌터카", "").replace("rental car", "").replace("rental", "").strip()
+            core = n.replace("rental car", "").replace("rental", "").strip()
             if not core or (s and core == s):
                 return True
         return False
@@ -458,8 +458,7 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
             price_num = None
         if price_num is not None and price_num < 100:
             price_num = None
-
-        # Prefer vehicle photo first; supplier logo(vndr_img) is last-resort only.
+        # Prefer vehicle photo; keep thumbnail as fallback.
         img = _pick_str(
             deal,
             car,
@@ -471,7 +470,6 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
                 "image_url",
                 "img",
                 "thumbnail",
-                "vndr_img",
             ],
         ) or None
 
@@ -526,4 +524,6 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
 
     out.sort(key=lambda x: x.get("price") or 10**12)
     return out[:24]
+
+
 
