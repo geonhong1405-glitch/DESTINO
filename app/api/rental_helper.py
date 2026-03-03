@@ -276,50 +276,96 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
         n = _coerce_number(v)
         return int(n) if n is not None else None
 
+    def _first_num(node):
+        if isinstance(node, (int, float, str)):
+            return _coerce_number(node)
+        if isinstance(node, dict):
+            for k, v in node.items():
+                lk = str(k).lower()
+                if any(x in lk for x in ("price", "amount", "value", "total", "cost", "fare", "pay")):
+                    n = _first_num(v)
+                    if n is not None:
+                        return n
+        elif isinstance(node, list):
+            for x in node:
+                n = _first_num(x)
+                if n is not None:
+                    return n
+        return None
+
+    def _pick(node, *keys):
+        for k in keys:
+            v = node.get(k)
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+        return None
+
+    def _is_generic_rental_name(name_val: str | None, supplier_val: str | None) -> bool:
+        n = str(name_val or "").strip().lower()
+        if not n:
+            return True
+        if n in {"rental car", "rental", "렌터카", "렌터카 옵션", "car"}:
+            return True
+        if n.endswith("렌터카") or n.endswith("rental car") or n.endswith(" rental"):
+            s = str(supplier_val or "").strip().lower()
+            core = n.replace("렌터카", "").replace("rental car", "").replace("rental", "").strip()
+            if not core or (s and core == s):
+                return True
+        return False
+
     def _walk(node):
         if isinstance(node, dict):
-            name = None
-            for k in ("car_name", "name", "vehicleName", "carModel", "model", "title"):
-                v = node.get(k)
-                if isinstance(v, str) and v.strip():
-                    name = v.strip()
-                    break
+            name = _pick(
+                node,
+                "car_name", "name", "vehicleName", "vehicle_name", "carModel", "model", "title",
+                "display_name", "vehicle", "category", "vehicle_class", "sipp",
+            )
 
             price = None
             currency = None
-            for obj in [node, node.get("price"), node.get("pricing"), node.get("priceBreakdown")]:
+            for obj in [node, node.get("price"), node.get("pricing"), node.get("priceBreakdown"), node.get("quote")]:
                 if not isinstance(obj, dict):
                     continue
                 if price is None:
-                    price = _num(obj.get("amount") or obj.get("value") or obj.get("price") or obj.get("total"))
+                    price = _num(
+                        obj.get("amount")
+                        or obj.get("value")
+                        or obj.get("price")
+                        or obj.get("total")
+                        or obj.get("total_price")
+                        or obj.get("base_price")
+                    )
                 currency = currency or obj.get("currency") or obj.get("currency_code")
+            if price is None:
+                n = _first_num(node)
+                price = int(n) if n is not None else None
 
-            image = None
-            for k in ("image", "image_url", "photo_url", "thumbnail", "photo"):
-                v = node.get(k)
-                if isinstance(v, str) and v.strip():
-                    image = v.strip()
-                    break
+            image = _pick(
+                node,
+                "image", "image_url", "photo_url", "thumbnail", "photo", "img", "vehicle_image",
+            )
 
-            supplier = None
-            for k in ("supplier_name", "provider_name", "vendorName", "company", "supplier"):
-                v = node.get(k)
-                if isinstance(v, str) and v.strip():
-                    supplier = v.strip()
-                    break
+            supplier = _pick(
+                node,
+                "supplier_name", "provider_name", "vendorName", "company", "supplier", "vndr",
+            )
 
             specs = []
             seat_count = None
-            for k in ("seats", "seat_count", "passengers", "passengerQuantity"):
+            for k in ("seats", "seat_count", "passengers", "passengerQuantity", "seat"):
                 if node.get(k) is not None:
                     seat_count = _num(node.get(k))
                     if seat_count is not None:
                         seat_count = int(seat_count)
-                        specs.append(f"{seat_count}인승")
+                        specs.append(f"{seat_count}\uC778\uC2B9")
                         break
 
+            bags = _num(node.get("bags") or node.get("luggage") or node.get("baggage"))
+            if bags is not None:
+                specs.append(f"\uAC00\uBC29 {bags}")
+
             transmission = None
-            for k in ("transmission", "gearbox", "transmissionType"):
+            for k in ("transmission", "gearbox", "transmissionType", "trans"):
                 v = node.get(k)
                 if isinstance(v, str) and v.strip():
                     transmission = v.strip()
@@ -328,7 +374,7 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
                 specs.append(transmission)
 
             fuel_policy = None
-            for k in ("fuel_policy", "fuelPolicy", "fuel_type", "fuelType"):
+            for k in ("fuel_policy", "fuelPolicy", "fuel_type", "fuelType", "fuel_pol"):
                 v = node.get(k)
                 if isinstance(v, str) and v.strip():
                     fuel_policy = v.strip()
@@ -337,24 +383,31 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
                 specs.append(fuel_policy)
 
             if node.get("air_conditioning") is True or node.get("airConditioning") is True:
-                specs.append("에어컨")
+                specs.append("\uC5D0\uC5B4\uCEE8")
 
             vendor_rating = _coerce_number(node.get("supplier_rating") or node.get("providerRating") or node.get("rating"))
 
-            looks_like_car = False
             hay = " ".join([name or "", supplier or ""]).lower()
-            if any(x in hay for x in ["toyota", "hyundai", "kia", "nissan", "suv", "sedan", "wagon", "van", "car", "compact", "economy"]):
+            looks_like_car = any(
+                x in hay
+                for x in ["toyota", "hyundai", "kia", "nissan", "suv", "sedan", "wagon", "van", "car", "compact", "economy"]
+            )
+            if name and (price is not None or transmission or seat_count or image):
                 looks_like_car = True
-            if name and price is not None:
+            if supplier and (price is not None or image or transmission):
                 looks_like_car = True
 
             if looks_like_car:
-                key = (name or "", supplier or "", price or 0)
+                category = _pick(node, "vehicle_class", "category", "car_type", "sipp")
+                safe_name = name or category or "\uCC28\uC885 \uC815\uBCF4 \uC5C6\uC74C"
+                if _is_generic_rental_name(safe_name, supplier):
+                    safe_name = category or "\uCC28\uC885 \uC815\uBCF4 \uC5C6\uC74C"
+                key = (safe_name, supplier or "", price or 0)
                 if key not in seen:
                     seen.add(key)
                     results.append(
                         {
-                            "name": name or "렌터카 옵션",
+                            "name": safe_name,
                             "supplier": supplier or "Rental Partner",
                             "price": price,
                             "currency": currency or "KRW",
@@ -375,6 +428,7 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
     _walk(raw)
     results.sort(key=lambda x: x.get("price") or 10**12)
     return results[:24]
+
 
 
 def calc_rental_days(pickup_at: str | None, dropoff_at: str | None) -> int | None:

@@ -198,20 +198,8 @@ def _parse_pickup_dropoff_dates(message: str, prev_state: dict[str, Any]) -> tup
 
 
 def _currency_for_country(country_code: str) -> str:
-    return {
-        "KR": "KRW",
-        "JP": "JPY",
-        "US": "USD",
-        "FR": "EUR",
-        "IT": "EUR",
-        "AE": "AED",
-        "TH": "THB",
-        "VN": "VND",
-        "SG": "SGD",
-        "TW": "TWD",
-        "AU": "AUD",
-        "GB": "GBP",
-    }.get((country_code or "JP").upper(), "JPY")
+    # UI requirement: show rental prices in KRW consistently.
+    return "KRW"
 
 
 def _locale_for_country(country_code: str) -> str:
@@ -233,35 +221,72 @@ def _fmt_money(v: Any, ccy: str) -> str:
         return f"{v} {ccy}"
 
 
+def _normalize_prices_to_krw(cars: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rates = {
+        "KRW": 1.0,
+        "USD": 1350.0,
+        "JPY": 9.0,
+        "EUR": 1470.0,
+        "GBP": 1720.0,
+        "SGD": 1000.0,
+        "THB": 38.0,
+        "VND": 0.055,
+        "TWD": 43.0,
+        "AUD": 900.0,
+        "AED": 368.0,
+    }
+    out: list[dict[str, Any]] = []
+    for car in cars or []:
+        row = dict(car or {})
+        ccy = str(row.get("currency") or "KRW").upper()
+        price = row.get("price")
+        if isinstance(price, (int, float)):
+            rate = rates.get(ccy)
+            if rate and ccy != "KRW":
+                row["price"] = int(round(float(price) * rate))
+                row["currency"] = "KRW"
+            elif ccy == "KRW":
+                row["price"] = int(round(float(price)))
+                row["currency"] = "KRW"
+            else:
+                # Unknown currency: keep numeric value but label KRW for consistency.
+                row["price"] = int(round(float(price)))
+                row["currency"] = "KRW"
+        else:
+            row["currency"] = "KRW"
+        out.append(row)
+    return out
+
+
 def _rental_cards_html(city_label: str, pickup_date: str, dropoff_date: str, cars: list[dict[str, Any]]) -> str:
     blocks = []
     for i, car in enumerate(cars[:6], 1):
-        name = car.get("name") or "렌터카"
-        supplier = car.get("supplier") or "Rental Partner"
+        name = str(car.get("name") or "Rental Car")
+        supplier = str(car.get("supplier") or "Rental Partner")
         price = _fmt_money(car.get("price"), str(car.get("currency") or "KRW"))
-        specs = " · ".join([str(x) for x in (car.get("specs") or []) if x]) or "옵션 정보 확인"
-        img = car.get("image")
+        specs = " · ".join([str(x) for x in (car.get("specs") or []) if x]) or "Option info"
+        img = str(car.get("image") or "").strip()
         rating = car.get("rating")
+
         block = [
             "<div style='margin:10px 0;padding:12px;border:1px solid #e5e7eb;border-radius:12px;'>",
             f"<div><b>{i}. {name}</b></div>",
-            f"<div style='margin-top:4px;color:#4b5563;'>업체: {supplier}</div>",
+            f"<div style='margin-top:4px;color:#4b5563;'>supplier: {supplier}</div>",
         ]
         if img:
             block.append(
-                f"<div style='margin-top:8px;'><img src=\"{img}\" alt=\"\" "
-                "style='width:100%;max-width:360px;height:160px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;'></div>"
+                f"<div style='margin-top:8px;'><img src=\"{img}\" alt=\"\" style='width:100%;max-width:360px;height:160px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;'></div>"
             )
-        block.append(f"<div style='margin-top:8px;color:#374151;'>옵션: {specs}</div>")
+        block.append(f"<div style='margin-top:8px;color:#374151;'>options: {specs}</div>")
         if rating is not None:
-            block.append(f"<div style='color:#4b5563;'>평점: {rating}</div>")
-        block.append(f"<div style='margin-top:6px;font-weight:700;'>가격: {price}</div>")
+            block.append(f"<div style='color:#4b5563;'>rating: {rating}</div>")
+        block.append(f"<div style='margin-top:6px;font-weight:700;'>price: {price}</div>")
         block.append("</div>")
         blocks.append("".join(block))
 
     return (
-        f"<div><b>{city_label} 렌터카 추천</b>"
-        f"<div style='margin-top:6px;color:#4b5563;'>픽업 {pickup_date} / 반납 {dropoff_date} 기준 후보예요.</div>"
+        f"<div><b>{city_label} rental car recommendations</b>"
+        f"<div style='margin-top:6px;color:#4b5563;'>pickup {pickup_date} / dropoff {dropoff_date}</div>"
         f"{''.join(blocks)}</div>"
     )
 
@@ -269,26 +294,28 @@ def _rental_cards_html(city_label: str, pickup_date: str, dropoff_date: str, car
 def _rental_cards_html_v2(city_label: str, pickup_date: str, dropoff_date: str, cars: list[dict[str, Any]]) -> str:
     lines: list[str] = []
     for i, car in enumerate(cars[:8], 1):
-        name = str(car.get("name") or "렌터카")
+        name = str(car.get("name") or "Rental Car")
         supplier = str(car.get("supplier") or "Rental Partner")
         price = _fmt_money(car.get("price"), str(car.get("currency") or "KRW"))
-        specs = " · ".join([str(x) for x in (car.get("specs") or []) if x]) or "옵션 정보 확인"
+        specs = " · ".join([str(x) for x in (car.get("specs") or []) if x]) or "Option info"
         img = str(car.get("image") or "").strip()
         rating = car.get("rating")
+
         parts = [
             f"{i}) {name}",
-            f"가격: {price}",
-            f"업체: {supplier}",
-            f"옵션: {specs}",
-            f"픽업: {pickup_date}",
-            f"반납: {dropoff_date}",
+            f"price: {price}",
+            f"supplier: {supplier}",
+            f"options: {specs}",
+            f"pickup: {pickup_date}",
+            f"dropoff: {dropoff_date}",
         ]
         if rating is not None:
-            parts.append(f"평점: {rating}")
+            parts.append(f"rating: {rating}")
         if img:
-            parts.append(f"사진: {img}")
+            parts.append(f"photo: {img}")
         lines.append(" | ".join(parts))
-    return f"<div><b>{city_label} 렌터카 추천</b><br>{'<br>'.join(lines)}</div>"
+
+    return f"<div><b>{city_label} rental car recommendations</b><br>{'<br>'.join(lines)}</div>"
 
 
 def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, Any]] = None) -> tuple[str, dict[str, Any]]:
@@ -308,23 +335,23 @@ def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, A
 
     missing = []
     if not city_query:
-        missing.append("도시")
+        missing.append("\uB3C4\uC2DC")
     if not pickup_date:
-        missing.append("픽업일")
+        missing.append("\uD53D\uC5C5\uC77C")
     if not dropoff_date:
-        missing.append("반납일")
+        missing.append("\uBC18\uB0A9\uC77C")
     if missing:
         html = (
-            "<div>렌터카를 찾으려면 "
+            "<div>\uB80C\uD130\uCE74\uB97C \uCC3E\uC73C\uB824\uBA74 "
             + ", ".join(missing)
-            + " 정보를 알려주세요.<br>예: 도쿄에서 픽업일은 3월 2일, 반납일은 3월 3일, 운전자 나이 25살</div>"
+            + " \uC815\uBCF4\uB97C \uC54C\uB824\uC8FC\uC138\uC694.<br>\uC608: \uB3C4\uCFC4\uC5D0\uC11C \uD53D\uC5C5\uC77C\uC740 3\uC6D4 2\uC77C, \uBC18\uB0A9\uC77C\uC740 3\uC6D4 3\uC77C, \uC6B4\uC804\uC790 \uB098\uC774 25\uC0B4</div>"
         )
         return html, {"rental_context": True, "rental_state": rental_state}
 
     locs = search_rental_locations(city_query, category="all", limit=5, country_code=country_code)
     if not locs:
         return (
-            f"<div>{city_query} 지역의 렌터카 픽업 위치를 찾지 못했어요. 도시명/공항명으로 다시 알려주세요.</div>",
+            f"<div>{city_query} \uC9C0\uC5ED\uC758 \uB80C\uD130\uCE74 \uD53D\uC5C5 \uC704\uCE58\uB97C \uCC3E\uC9C0 \uBABB\uD588\uC5B4\uC694. \uB3C4\uC2DC\uBA85/\uACF5\uD56D\uBA85\uC73C\uB85C \uB2E4\uC2DC \uC54C\uB824\uC8FC\uC138\uC694.</div>",
             {"rental_context": True, "rental_state": rental_state},
         )
 
@@ -334,40 +361,64 @@ def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, A
     pickup_lon = loc.get("lon")
     if pickup_lat is None or pickup_lon is None:
         return (
-            f"<div>{pickup_name} 위치 좌표를 찾지 못했어요. 다른 도시명이나 공항명으로 시도해 주세요.</div>",
+            f"<div>{pickup_name} \uC704\uCE58 \uC88C\uD45C\uB97C \uCC3E\uC9C0 \uBABB\uD588\uC5B4\uC694. \uB2E4\uB978 \uB3C4\uC2DC\uBA85/\uACF5\uD56D\uBA85\uC73C\uB85C \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.</div>",
             {"rental_context": True, "rental_state": rental_state},
         )
 
     pickup_at = f"{pickup_date}T10:00:00"
     dropoff_at = f"{dropoff_date}T10:00:00"
-    raw = search_sky_car_rentals(
-        pickup_name=pickup_name,
-        pickup_lat=float(pickup_lat),
-        pickup_lon=float(pickup_lon),
-        dropoff_name=pickup_name,
-        dropoff_lat=float(pickup_lat),
-        dropoff_lon=float(pickup_lon),
-        pickup_at=pickup_at,
-        dropoff_at=dropoff_at,
-        market=country_code,
-        currency=_currency_for_country(country_code),
-        locale=_locale_for_country(country_code),
-        driver_age=int(driver_age),
-    )
-    cars = parse_sky_car_search_results(raw)
+
+    def _search_with_location(name: str, lat: float, lon: float):
+        raw_local = search_sky_car_rentals(
+            pickup_name=name,
+            pickup_lat=float(lat),
+            pickup_lon=float(lon),
+            dropoff_name=name,
+            dropoff_lat=float(lat),
+            dropoff_lon=float(lon),
+            pickup_at=pickup_at,
+            dropoff_at=dropoff_at,
+            market=country_code,
+            currency=_currency_for_country(country_code),
+            locale=_locale_for_country(country_code),
+            driver_age=int(driver_age),
+        )
+        cars_local = parse_sky_car_search_results(raw_local)
+        if not cars_local:
+            cars_local = parse_rental_search_results(raw_local)
+        return raw_local, cars_local
+
+    raw, cars = _search_with_location(pickup_name, float(pickup_lat), float(pickup_lon))
+
     if not cars:
-        # Fallback parser for provider schema drift.
-        cars = parse_rental_search_results(raw)
+        alt_locs = search_rental_locations(city_query, category="airport", limit=5, country_code=country_code)
+        for alt in alt_locs:
+            try:
+                alt_name = str(alt.get("name") or city_query)
+                alt_lat = alt.get("lat")
+                alt_lon = alt.get("lon")
+                if alt_lat is None or alt_lon is None:
+                    continue
+                raw_alt, cars_alt = _search_with_location(alt_name, float(alt_lat), float(alt_lon))
+                if cars_alt:
+                    pickup_name = alt_name
+                    raw = raw_alt
+                    cars = cars_alt
+                    break
+            except Exception:
+                continue
+
     if not cars:
         msg = ""
         if isinstance(raw, dict):
             msg = str(raw.get("message") or raw.get("errors") or "").strip()
         msg_l = msg.lower()
-        detail = " (?? ???? ?? ??? ??? ????)" if msg_l == "successful" else (f" ({msg})" if msg else "")
+        detail = " (API\uB294 \uC131\uACF5 \uC751\uB2F5\uC774\uC9C0\uB9CC \uC774\uC6A9 \uAC00\uB2A5\uD55C \uCC28\uB7C9\uC774 \uC5C6\uC5B4\uC694)" if msg_l == "successful" else (f" ({msg})" if msg else "")
         return (
-            f"<div>??? ?? ??? ?? ????. ?? ??/??? ?? ??? ???.{detail}</div>",
+            f"<div>\uB80C\uD130\uCE74 \uAC80\uC0C9 \uACB0\uACFC\uB97C \uCC3E\uC9C0 \uBABB\uD588\uC5B4\uC694. \uB2E4\uB978 \uB3C4\uC2DC/\uB0A0\uC9DC\uB85C \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.{detail}</div>",
             {"rental_context": True, "rental_state": rental_state},
         )
 
+    cars = _normalize_prices_to_krw(cars)
     html = _rental_cards_html_v2(pickup_name, pickup_date, dropoff_date, cars)
     return html, {"rental_context": True, "rental_state": rental_state}
