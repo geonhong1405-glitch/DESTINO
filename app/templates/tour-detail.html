@@ -7,29 +7,57 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../static/tour-detail.css">
+    <script>
+        // 서버 템플릿에서 로그인 여부에 따라 true/false로 세팅 (Jinja2/Flask 예시)
+        window.isLoggedIn = {{ true if user_is_authenticated else false }};
+    </script>
+    
 </head>
 <body class="bg-gray-50 text-gray-800">
 
-    <header class="bg-white border-b border-gray-100 sticky top-0 z-50">
-        <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-            <div class="flex items-center gap-8">
-                <h1 class="text-2xl font-black italic text-blue-600 tracking-tighter cursor-pointer">DESTINO</h1>
-                <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
-                    <a href="#" class="hover:text-blue-600">홈</a>
-                    <a href="#" class="hover:text-blue-600">해외투어</a>
-                    <a href="#" class="text-blue-600 font-bold border-b-2 border-blue-600 pb-1">프랑스/스위스/이탈리아</a>
+
+    <!-- airport drawer 완전 동일 구조/클래스명 이식 -->
+    <button id="flightSavedFab" class="flight-saved-fab" type="button" aria-expanded="false" aria-controls="flightSavedDrawer" title="장바구니 열기">
+        <span class="flight-saved-fab__icon">🧺</span>
+        <span class="flight-saved-fab__label">장바구니</span>
+        <span id="flightSavedFabCount" class="flight-saved-fab__count" hidden>0</span>
+    </button>
+    <div id="flightSavedDrawer" class="flight-saved-drawer" aria-hidden="true">
+        <div class="flight-saved-drawer__backdrop" data-flight-saved-close></div>
+        <section class="flight-saved-drawer__panel">
+            <div class="flight-saved-drawer__grab"></div>
+            <div class="flight-saved-drawer__header">
+                <div class="flight-saved-tabs" role="tablist" aria-label="저장 항목 탭">
+                    <button type="button" class="flight-saved-tab is-active" data-flight-saved-tab="cart" aria-selected="true">장바구니</button>
+                    <button type="button" class="flight-saved-tab" data-flight-saved-tab="wishlist" aria-selected="false">위시리스트</button>
+                    <button type="button" class="flight-saved-tab" data-flight-saved-tab="alerts" aria-selected="false">알림</button>
+                </div>
+                <button type="button" class="flight-saved-drawer__close" data-flight-saved-close>닫기</button>
+            </div>
+            <ul id="flightSavedList" class="flight-saved-list"></ul>
+            <div id="flightSavedEmpty" class="flight-saved-empty">저장된 항목이 없습니다.</div>
+        </section>
+    </div>
+
+
+    <header class="header">
+            <div class="container header-inner">
+                <h1 class="logo"><a href="/">DESTINO</a></h1>
+                <nav class="header-nav">
+                    {% if nickname %}
+                    <a href="/mypage">
+                        <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                    </a>
+                    <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
+                    {% else %}
+                    <a href="/login">로그인</a>
+                    {% endif %}
+                    <a href="#">이용안내</a>
+                    <a href="#">고객센터</a>
+                    <a href="#">KOR</a>
                 </nav>
             </div>
-            <div class="flex items-center gap-4 text-[11px] font-semibold text-gray-400">
-                <a href="#" class="hover:text-gray-600">로그인</a>
-                <a href="#" class="hover:text-gray-600">이용안내</a>
-                <a href="#" class="hover:text-gray-600">고객센터</a>
-                <div class="border border-gray-200 px-2 py-1 rounded flex items-center gap-1 cursor-pointer hover:bg-gray-50">
-                    KOR <i class="fa-solid fa-chevron-down text-[8px]"></i>
-                </div>
-            </div>
-        </div>
-    </header>
+        </header>
 
     <main class="max-w-6xl mx-auto px-4 py-6">
         <nav class="flex items-center gap-2 text-[11px] text-gray-400 mb-6">
@@ -41,7 +69,8 @@
         <div class="flex flex-col lg:flex-row gap-8">
             <div class="flex-1">
                 <div class="relative rounded-3xl overflow-hidden shadow-sm mb-10">
-                    <img id="productImg" src="https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?auto=format&fit=crop&q=80&w=1200" alt="상품 이미지" class="w-full h-[480px] object-cover">
+                    <img id="productImg" src="https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?auto=format&fit=crop&q=80&w=1200" 
+                        alt="상품 이미지" class="w-full h-[480px] object-cover">
                     <div class="absolute top-6 left-6 flex gap-2">
                         <span class="bg-gray-900/80 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg uppercase backdrop-blur-sm">Best</span>
                         <span class="bg-blue-600/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg backdrop-blur-sm">즉시확정</span>
@@ -103,10 +132,9 @@
                         </div>
                         
                         <div id="reviewList" class="space-y-6">
-                            <div class="review-item p-6 bg-white border border-gray-50 rounded-2xl hover:border-blue-100 transition-all shadow-sm" data-rating="5" data-date="2024-05-22">
+                            <div class="p-6 bg-white border border-gray-50 rounded-2xl hover:border-blue-100 transition-all shadow-sm" data-rating="5" data-date="2024-05-22">
                                 <div class="flex justify-between items-start mb-4">
                                     <div class="flex items-center gap-3">
-                                        <div class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold text-sm">JS</div>
                                         <div>
                                             <p class="text-sm font-bold text-gray-800">정*서</p>
                                             <div class="flex text-[10px] text-yellow-400 mt-0.5">
@@ -118,84 +146,36 @@
                                 </div>
                                 <p class="text-sm text-gray-600 leading-relaxed">패스트트랙은 정말 신의 한 수 였습니다. 대기줄 보고 깜짝 놀랐는데 저희는 바로 들어갔어요! 야경 최고입니다.</p>
                             </div>
-                            <div class="review-item p-6 bg-white border border-gray-50 rounded-2xl hover:border-blue-100 transition-all shadow-sm" data-rating="4" data-date="2024-05-18">
+
+                            <div class="p-6 bg-white border border-gray-50 rounded-2xl shadow-sm" data-rating="5" data-date="2024-05-20">
                                 <div class="flex justify-between items-start mb-4">
                                     <div class="flex items-center gap-3">
-                                        <div class="w-10 h-10 bg-pink-100 rounded-full flex items-center justify-center text-pink-600 font-bold text-sm">MJ</div>
                                         <div>
-                                            <p class="text-sm font-bold text-gray-800">김*진</p>
+                                            <p class="text-sm font-bold text-gray-800">강*훈</p>
                                             <div class="flex text-[10px] text-yellow-400 mt-0.5">
                                                 <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star text-gray-200"></i>
                                             </div>
                                         </div>
                                     </div>
-                                    <span class="text-[11px] text-gray-400">2024.05.18</span>
+                                    <span class="text-[11px] text-gray-400">2024.05.20</span>
                                 </div>
-                                <p class="text-sm text-gray-600 leading-relaxed">센강 유람선이 정말 낭만적이었어요. 에펠탑 야경도 멋졌고, 가족 모두 만족했습니다.</p>
+                                <p class="text-sm text-gray-600 leading-relaxed">유람선 티켓까지 포함이라 가성비 좋아요. 바우처 인식도 잘 되고 편리했습니다.</p>
                             </div>
-                            <div class="review-item p-6 bg-white border border-gray-50 rounded-2xl hover:border-blue-100 transition-all shadow-sm" data-rating="3" data-date="2024-05-15">
+
+                            <div class="p-6 bg-white border border-gray-50 rounded-2xl shadow-sm" data-rating="3" data-date="2024-05-18">
                                 <div class="flex justify-between items-start mb-4">
                                     <div class="flex items-center gap-3">
-                                        <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600 font-bold text-sm">SY</div>
                                         <div>
-                                            <p class="text-sm font-bold text-gray-800">이*영</p>
+                                            <p class="text-sm font-bold text-gray-800">박*민</p>
                                             <div class="flex text-[10px] text-yellow-400 mt-0.5">
                                                 <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star text-gray-200"></i><i class="fa-solid fa-star text-gray-200"></i>
                                             </div>
                                         </div>
                                     </div>
-                                    <span class="text-[11px] text-gray-400">2024.05.15</span>
+                                    <span class="text-[11px] text-gray-400">2024.05.18</span>
                                 </div>
-                                <p class="text-sm text-gray-600 leading-relaxed">기대했던 것보다는 평범했지만, 줄을 안 서서 좋았어요. 유람선은 조금 붐볐습니다.</p>
+                                <p class="text-sm text-gray-600 leading-relaxed">사람이 너무 많아서 사진 찍기가 힘들었지만 에펠탑 자체는 너무 예뻤습니다.</p>
                             </div>
-                            <div class="review-item p-6 bg-white border border-gray-50 rounded-2xl hover:border-blue-100 transition-all shadow-sm" data-rating="5" data-date="2024-05-10">
-                                <div class="flex justify-between items-start mb-4">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-600 font-bold text-sm">HJ</div>
-                                        <div>
-                                            <p class="text-sm font-bold text-gray-800">박*진</p>
-                                            <div class="flex text-[10px] text-yellow-400 mt-0.5">
-                                                <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <span class="text-[11px] text-gray-400">2024.05.10</span>
-                                </div>
-                                <p class="text-sm text-gray-600 leading-relaxed">친구랑 둘이 갔는데 사진도 예쁘게 찍고 좋은 추억 만들었어요. 추천합니다!</p>
-                            </div>
-                            <div class="review-item p-6 bg-white border border-gray-50 rounded-2xl hover:border-blue-100 transition-all shadow-sm" data-rating="2" data-date="2024-05-08">
-                                <div class="flex justify-between items-start mb-4">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-sm">KH</div>
-                                        <div>
-                                            <p class="text-sm font-bold text-gray-800">최*현</p>
-                                            <div class="flex text-[10px] text-yellow-400 mt-0.5">
-                                                <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star text-gray-200"></i><i class="fa-solid fa-star text-gray-200"></i><i class="fa-solid fa-star text-gray-200"></i>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <span class="text-[11px] text-gray-400">2024.05.08</span>
-                                </div>
-                                <p class="text-sm text-gray-600 leading-relaxed">날씨가 안 좋아서 전망이 아쉬웠어요. 다음엔 맑은 날 다시 도전!</p>
-                            </div>
-                            <div class="review-item p-6 bg-white border border-gray-50 rounded-2xl hover:border-blue-100 transition-all shadow-sm" data-rating="4" data-date="2024-05-03">
-                                <div class="flex justify-between items-start mb-4">
-                                    <div class="flex items-center gap-3">
-                                        <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold text-sm">AR</div>
-                                        <div>
-                                            <p class="text-sm font-bold text-gray-800">윤*라</p>
-                                            <div class="flex text-[10px] text-yellow-400 mt-0.5">
-                                                <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star text-gray-200"></i>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <span class="text-[11px] text-gray-400">2024.05.03</span>
-                                </div>
-                                <p class="text-sm text-gray-600 leading-relaxed">가이드분이 친절해서 좋았고, 설명도 알찼어요. 부모님도 만족하셨습니다.</p>
-                            </div>
-                        </div>
-                        <div class="flex justify-center mt-4">
-                            <button id="reviewMoreBtn" class="px-6 py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-600 font-bold text-sm hover:bg-blue-50 hover:text-blue-600 transition-all" style="display:none;" data-open="0">더보기</button>
                         </div>
                     </div>
                 </section>
@@ -207,12 +187,12 @@
                         <div class="mb-8">
                             <p class="text-[11px] font-bold text-blue-600 uppercase mb-2 tracking-wider">Most Popular</p>
                             <h2 class="text-2xl font-black text-gray-900 leading-tight mb-4 tracking-tight">
-                                <span id="productTitle">[단독/야경특전] 파리 에펠탑 패스트트랙 & 센강 크루즈 콤보 티켓</span>
+                                [단독/야경특전] 파리 에펠탑 패스트트랙 & 센강 크루즈 콤보 티켓
                             </h2>
                             <div class="flex items-center gap-3 text-xs text-gray-400 font-medium">
                                 <span class="flex items-center gap-1"><i class="fa-solid fa-star text-yellow-400"></i> <b class="text-gray-900">4.9</b> (2,408)</span>
                                 <span>|</span>
-                                <span id="productLoc" class="flex items-center gap-1"><i class="fa-solid fa-location-dot"></i> 파리, 프랑스</span>
+                                <span class="flex items-center gap-1"><i class="fa-solid fa-location-dot"></i> 파리, 프랑스</span>
                             </div>
                         </div>
 
@@ -237,7 +217,7 @@
                         <div class="space-y-6">
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-3 uppercase tracking-wider">방문일 선택</label>
-                                <input type="date" id="bookingDate" onchange="updateTotalPrice()" class="w-full border border-gray-100 bg-gray-50 rounded-2xl px-5 py-4 text-sm font-semibold focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all cursor-pointer" value="2026-03-03">
+                                <input type="date" id="bookingDate" onchange="updateTotalPrice()" class="w-full border border-gray-100 bg-gray-50 rounded-2xl px-5 py-4 text-sm font-semibold focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all cursor-pointer" value="2024-05-25">
                             </div>
 
                             <div>
@@ -246,7 +226,7 @@
                                     <div class="flex items-center justify-between">
                                         <div>
                                             <p class="text-[15px] font-bold text-gray-800">성인</p>
-                                            <p class="text-xs text-gray-400 font-medium mt-0.5" id="adultPriceDisplay">65,000원</p>
+                                            <p class="text-xs text-gray-400 font-medium mt-0.5">65,000원</p>
                                         </div>
                                         <div class="flex items-center gap-5 bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm">
                                             <button onclick="changeQty('adult', -1)" class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-blue-600 font-bold transition-colors">-</button>
@@ -257,7 +237,7 @@
                                     <div class="flex items-center justify-between pt-5 border-t border-gray-200/50">
                                         <div>
                                             <p class="text-[15px] font-bold text-gray-800">아동</p>
-                                            <p class="text-xs text-gray-400 font-medium mt-0.5" id="childPriceDisplay">45,000원</p>
+                                            <p class="text-xs text-gray-400 font-medium mt-0.5">45,000원</p>
                                         </div>
                                         <div class="flex items-center gap-5 bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm">
                                             <button onclick="changeQty('child', -1)" class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-blue-600 font-bold transition-colors">-</button>
@@ -284,7 +264,7 @@
         </div>
     </main>
 
-    <div id="reviewModal" class="fixed inset-0 z-[100] bg-gray-900/60 items-center justify-center px-4 backdrop-blur-sm">
+    <div id="reviewModal" class="fixed inset-0 z-[100] bg-gray-900/60 items-center justify-center px-4 backdrop-blur-sm" style="display:none;">
         <div class="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl">
             <div class="p-6 border-b border-gray-50 flex justify-between items-center">
                 <h3 class="text-lg font-bold">리뷰 남기기</h3>
@@ -333,5 +313,6 @@
     </footer>
 
     <script src="../static/tour-detail.js"></script>
+    
 </body>
 </html>
