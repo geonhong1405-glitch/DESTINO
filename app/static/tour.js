@@ -33,7 +33,17 @@ document.addEventListener('click', function(e) {
     const index = Array.from(document.querySelectorAll('.tour-card')).indexOf(card);
     if (index !== -1) {
         const tourData = extractTourData(card, index);
-        window.location.href = `/tour-detail?tour_id=${tourData.id}`;
+
+        // URLSearchParams를 사용하여 안전하게 데이터 인코딩
+        const params = new URLSearchParams();
+        params.append('id', tourData.id);
+        params.append('title', tourData.title);
+        params.append('price', tourData.price);
+        params.append('img', tourData.image);
+        params.append('loc', tourData.location);
+        
+        // 상세페이지로 이동 (데이터 포함)
+        window.location.href = `/tour-detail?${params.toString()}`;
     }
 });
 
@@ -388,10 +398,12 @@ function initTourSavedItemActions() {
 function extractTourData(card, idx) {
     const location = card.querySelector('.tour-loc')?.innerText.trim() || '';
     const title = card.querySelector('.tour-name')?.innerText.trim() || '';
-    // 가격은 콤마 제거
-    const price = card.querySelector('.price-val')?.innerText.replace(/,/g, '').trim() || '';
+    // 가격은 콤마 포함 (PRODUCT_MAP 키와 일치)
+    let price = card.querySelector('.price-val')?.innerText.trim() || '';
+    // 혹시 콤마가 없으면 추가
+    if (!price.includes(',')) price = Number(price).toLocaleString();
     return {
-        id: `${title}__${location}__${price}`,
+        id: `${title}_${location}_${price}`,
         image: getComputedStyle(card.querySelector('.tour-image')).backgroundImage.replace(/url\((['"])?(.*?)\1\)/, '$2'),
         location,
         title,
