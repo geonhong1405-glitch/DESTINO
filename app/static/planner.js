@@ -1199,7 +1199,6 @@
                         <button type="button" class="ai-commerce-card__wish" aria-pressed="false" title="위시리스트 저장">♡</button>
                         <div class="ai-flight-card__fare-label">총 ${escapeHtml(String(totalLegs))}구간</div>
                         <div class="ai-flight-card__fare-value">${escapeHtml(fareDisplay.primary)}</div>
-                        ${fareDisplay.secondary ? `<div class="ai-flight-card__fare-sub">${escapeHtml(fareDisplay.secondary)}</div>` : ""}
                         <div class="ai-commerce-card__actions">
                             <button type="button" class="ai-commerce-card__add">장바구니</button>
                             <button type="button" class="ai-commerce-card__pay">예약하기</button>
@@ -1323,6 +1322,36 @@
                 setCartDrawer(true);
             });
             payBtn?.addEventListener("click", () => {
+                const t = String(cardData?.type || "").toLowerCase();
+                const isFlight = t === "항공편" || t === "flight";
+                const isTicket = t === "티켓" || t === "ticket" || t === "activity";
+                if (isFlight) {
+                    const priceRaw = String(cardData?.price || "");
+                    const digitsOnly = priceRaw.replace(/[^\d.]/g, "");
+                    const qs = new URLSearchParams({
+                        airline: String(cardData?.airline || ""),
+                        dep: String(cardData?.dep || ""),
+                        arr: String(cardData?.arr || ""),
+                        route: String(cardData?.routeInfo || ""),
+                        duration: String(cardData?.duration || ""),
+                        price: priceRaw,
+                        price_total: digitsOnly,
+                        currency: "KRW",
+                        dep_at: String(cardData?.dep || ""),
+                        arr_at: String(cardData?.arr || ""),
+                        round: cardData?.isRoundTrip ? "1" : "0",
+                    });
+                    window.location.href = `/flight-detail?${qs.toString()}`;
+                    return;
+                }
+                if (isTicket) {
+                    const title = String(cardData?.name || "").trim();
+                    const locText = String(cardData?.address || "").trim();
+                    const priceDigits = String(cardData?.price || "").replace(/[^\d]/g, "");
+                    const tourId = `${title}__${locText}__${priceDigits}`;
+                    window.location.href = `/tour-detail?tour_id=${encodeURIComponent(tourId)}`;
+                    return;
+                }
                 alert("결제 기능은 준비 중입니다. 우선 장바구니에 담아두었습니다.");
             });
             wishBtn?.addEventListener("click", async () => {

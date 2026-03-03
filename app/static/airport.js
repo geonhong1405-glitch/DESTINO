@@ -479,8 +479,199 @@ function buildFlightSavedItemPayload(offer, airline) {
             airline_code: airline?.code || '',
             price: offer?.price || {},
             itineraries,
+            travelerPricings: offer?.travelerPricings || [],
+            baggage_summary: extractBaggageSummary(offer),
+            baggage_options: extractChargeableBaggageOptions(offer),
         },
     };
+}
+
+function extractBaggageSummary(offer) {
+    const tps = Array.isArray(offer?.travelerPricings) ? offer.travelerPricings : [];
+    let maxQty = 0;
+    let maxWeight = 0;
+    let weightUnit = '';
+    tps.forEach((tp) => {
+        const fds = Array.isArray(tp?.fareDetailsBySegment) ? tp.fareDetailsBySegment : [];
+        fds.forEach((fd) => {
+            const bag = fd?.includedCheckedBags || {};
+            const qty = Number(bag?.quantity || 0);
+            if (Number.isFinite(qty) && qty > maxQty) maxQty = qty;
+            const weight = Number(bag?.weight || 0);
+            const unit = String(bag?.weightUnit || '').toUpperCase();
+            if (Number.isFinite(weight) && weight > maxWeight) {
+                maxWeight = weight;
+                weightUnit = unit || weightUnit;
+            }
+        });
+    });
+    if (maxWeight > 0) {
+        return `위탁수하물 ${maxWeight}${weightUnit || 'KG'}${maxQty > 0 ? ` ${maxQty}개` : ''}`;
+    }
+    if (maxQty > 0) {
+        return `위탁수하물 ${maxQty}개`;
+    }
+    return '';
+}
+
+function extractChargeableBaggageOptions(offer) {
+    const out = [];
+    const seen = new Set();
+
+    const toNum = (v) => {
+        const n = Number(String(v ?? '').replace(/[^\d.]/g, ''));
+        return Number.isFinite(n) ? n : null;
+    };
+
+    const pickPrice = (node) => {
+        if (!node || typeof node !== 'object') return null;
+        const direct = toNum(node.amount ?? node.total ?? node.price ?? node.value);
+        if (direct !== null) return direct;
+        if (node.price && typeof node.price === 'object') {
+            const nested = toNum(node.price.amount ?? node.price.total ?? node.price.value);
+            if (nested !== null) return nested;
+        }
+        return null;
+    };
+
+    const pushOpt = (qty, price, weight, unit) => {
+        const q = Number(qty || 0);
+        const p = Number(price || 0);
+        if (!Number.isFinite(q) || q <= 0 || !Number.isFinite(p) || p <= 0) return;
+        const uw = Number(weight || 0);
+        const uu = String(unit || '').toUpperCase();
+        const weightText = uw > 0 ? ` · ${uw}${uu || 'KG'}` : '';
+        const label = `${q}개 추가${weightText}`;
+        const key = `${q}|${p}|${uw}|${uu}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push({ label, price: Math.round(p) });
+    };
+
+    const tps = Array.isArray(offer?.travelerPricings) ? offer.travelerPricings : [];
+    tps.forEach((tp) => {
+        const as = tp?.additionalServices || {};
+        const ccb = as?.chargeableCheckedBags;
+        const ccbList = Array.isArray(ccb) ? ccb : (ccb ? [ccb] : []);
+        ccbList.forEach((x) => {
+            pushOpt(x?.quantity, pickPrice(x), x?.weight, x?.weightUnit);
+        });
+
+        const fds = Array.isArray(tp?.fareDetailsBySegment) ? tp.fareDetailsBySegment : [];
+        fds.forEach((fd) => {
+            const cb = fd?.chargeableCheckedBags;
+            const cbList = Array.isArray(cb) ? cb : (cb ? [cb] : []);
+            cbList.forEach((x) => {
+                pushOpt(x?.quantity, pickPrice(x), x?.weight, x?.weightUnit);
+            });
+        });
+    });
+
+    out.sort((a, b) => (a.price || 0) - (b.price || 0));
+    return out;
+}
+
+function goFlightDetailFromSavedPayload(savedPayload) {
+    const payload = savedPayload?.payload || {};
+    const itineraries = Array.isArray(payload?.itineraries) ? payload.itineraries : [];
+    const out = itineraries?.[0] || {};
+    const inn = itineraries?.[1] || {};
+    const outSegs = Array.isArray(out?.segments) ? out.segments : [];
+    const inSegs = Array.isArray(inn?.segments) ? inn.segments : [];
+    const first = outSegs[0] || {};
+    const last = outSegs[outSegs.length - 1] || {};
+    const rfirst = inSegs[0] || {};
+    const rlast = inSegs[inSegs.length - 1] || {};
+    const depCode = first?.departure?.iataCode || '';
+    const arrCode = last?.arrival?.iataCode || '';
+    const routeText = `${depCode} → ${arrCode}`.trim();
+    const durationText = out?.duration || '';
+    const depAt = String(first?.departure?.at || '');
+    const arrAt = String(last?.arrival?.at || '');
+    const depTerminal = String(first?.departure?.terminal || '');
+    const arrTerminal = String(last?.arrival?.terminal || '');
+    const flightNo = `${String(first?.carrierCode || '')}${String(first?.number || '')}`.trim();
+    const aircraft = String(first?.aircraft?.code || '');
+    const retDepCode = rfirst?.departure?.iataCode || '';
+    const retArrCode = rlast?.arrival?.iataCode || '';
+    const retRouteText = `${retDepCode} → ${retArrCode}`.trim();
+    const retDurationText = inn?.duration || '';
+    const retDepAt = String(rfirst?.departure?.at || '');
+    const retArrAt = String(rlast?.arrival?.at || '');
+    const retDepTerminal = String(rfirst?.departure?.terminal || '');
+    const retArrTerminal = String(rlast?.arrival?.terminal || '');
+    const retFlightNo = `${String(rfirst?.carrierCode || '')}${String(rfirst?.number || '')}`.trim();
+    const retAircraft = String(rfirst?.aircraft?.code || '');
+    const tps = Array.isArray(payload?.travelerPricings) ? payload.travelerPricings : [];
+    let cabin = '';
+    let retCabin = '';
+    for (const tp of tps) {
+        const fds = Array.isArray(tp?.fareDetailsBySegment) ? tp.fareDetailsBySegment : [];
+        if (fds[0]?.cabin && !cabin) cabin = String(fds[0].cabin);
+        if (fds[1]?.cabin && !retCabin) retCabin = String(fds[1].cabin);
+        if (cabin && retCabin) break;
+    }
+    if (!retCabin) {
+        for (const tp of tps) {
+            const fds = Array.isArray(tp?.fareDetailsBySegment) ? tp.fareDetailsBySegment : [];
+            for (const fd of fds) {
+                if (fd?.cabin) {
+                    retCabin = String(fd.cabin);
+                    break;
+                }
+            }
+            if (retCabin) break;
+        }
+    }
+    const priceObj = payload?.price || {};
+    const priceText = String(priceObj?.krwTotal || priceObj?.total || '');
+    const priceBase = String(priceObj?.base || '');
+    const priceTotal = String(priceObj?.total || '');
+    const priceGrand = String(priceObj?.grandTotal || '');
+    const currency = String(priceObj?.currency || (priceObj?.krwTotal ? 'KRW' : '')).toUpperCase();
+    const baggage = String(payload?.baggage_summary || '');
+    const baggageOpts = Array.isArray(payload?.baggage_options) ? payload.baggage_options : [];
+
+    const checkoutRef = `flt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    try {
+        sessionStorage.setItem(`flight_checkout_${checkoutRef}`, JSON.stringify(savedPayload || {}));
+    } catch (_e) {}
+
+    const qs = new URLSearchParams({
+        airline: String(payload?.airline || ''),
+        dep: depCode,
+        arr: arrCode,
+        route: routeText,
+        duration: durationText,
+        price: priceText,
+        price_base: priceBase,
+        price_total: priceTotal,
+        price_grand: priceGrand,
+        currency,
+        baggage,
+        baggage_opts: JSON.stringify(baggageOpts),
+        dep_at: depAt,
+        arr_at: arrAt,
+        dep_terminal: depTerminal,
+        arr_terminal: arrTerminal,
+        flight_no: flightNo,
+        aircraft,
+        cabin,
+        ret_route: retRouteText,
+        ret_duration: retDurationText,
+        ret_dep: retDepCode,
+        ret_arr: retArrCode,
+        ret_dep_at: retDepAt,
+        ret_arr_at: retArrAt,
+        ret_dep_terminal: retDepTerminal,
+        ret_arr_terminal: retArrTerminal,
+        ret_flight_no: retFlightNo,
+        ret_aircraft: retAircraft,
+        ret_cabin: retCabin,
+        checkout_ref: checkoutRef,
+        round: itineraries.length > 1 ? '1' : '0',
+    });
+    window.location.href = `/flight-detail?${qs.toString()}`;
 }
 
 function initFlightSavedItemActions() {
@@ -504,7 +695,8 @@ function initFlightSavedItemActions() {
             return;
         }
         if (payBtn) {
-            return startFlightCheckout(payload);
+            goFlightDetailFromSavedPayload(payload);
+            return;
         }
         const listType = heartBtn ? 'wishlist' : 'cart';
         try {
@@ -1143,7 +1335,6 @@ function buildFlightCardsHtml(data) {
                     <div class="flight-offer-count">총 ${itineraries.length}구간</div>
                     ${isTestPricing ? '<div class="flight-test-badge">TEST FARE</div>' : ''}
                     <div class="flight-price-main">${getDisplayPrice(f)}</div>
-                    <div class="flight-price-sub">${escapeHtml(f?.price?.currency || "")} ${escapeHtml(f?.price?.total || "")}</div>
                     <div class="flight-card-actions">
                         <button type="button" class="flight-select-btn" data-save-payload="${payloadAttr}">${inCart ? "담김" : "장바구니"}</button>
                         <button type="button" class="flight-pay-btn" data-save-payload="${payloadAttr}">예약하기</button>

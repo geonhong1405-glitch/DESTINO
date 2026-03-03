@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DESTINO - 항공 상세 예약</title>
+    <link rel="stylesheet" href="/static/flight-detail.css">
+</head>
+<body>
+    <main class="fd-wrap">
+        <section
+            id="fdRoot"
+            class="fd-card"
+            data-airline="{{ airline }}"
+            data-dep="{{ dep }}"
+            data-arr="{{ arr }}"
+            data-route="{{ route }}"
+            data-duration="{{ duration }}"
+            data-price="{{ price }}"
+            data-price-base="{{ price_base }}"
+            data-price-total="{{ price_total }}"
+            data-price-grand="{{ price_grand }}"
+            data-currency="{{ currency }}"
+            data-baggage="{{ baggage }}"
+            data-baggage-opts="{{ baggage_opts }}"
+            data-dep-at="{{ dep_at }}"
+            data-arr-at="{{ arr_at }}"
+            data-dep-terminal="{{ dep_terminal }}"
+            data-arr-terminal="{{ arr_terminal }}"
+            data-flight-no="{{ flight_no }}"
+            data-aircraft="{{ aircraft }}"
+            data-cabin="{{ cabin }}"
+            data-ret-route="{{ ret_route }}"
+            data-ret-duration="{{ ret_duration }}"
+            data-ret-dep="{{ ret_dep }}"
+            data-ret-arr="{{ ret_arr }}"
+            data-ret-dep-at="{{ ret_dep_at }}"
+            data-ret-arr-at="{{ ret_arr_at }}"
+            data-ret-dep-terminal="{{ ret_dep_terminal }}"
+            data-ret-arr-terminal="{{ ret_arr_terminal }}"
+            data-ret-flight-no="{{ ret_flight_no }}"
+            data-ret-aircraft="{{ ret_aircraft }}"
+            data-ret-cabin="{{ ret_cabin }}"
+            data-checkout-ref="{{ checkout_ref }}"
+            data-round="{{ '1' if is_round else '0' }}"
+        >
+            <header class="fd-head">
+                <a href="/airport" class="fd-back">← 항공 검색으로</a>
+                <h1>항공 상세 예약</h1>
+            </header>
+
+            <section class="fd-journey">
+                <div class="fd-journey-head">
+                    <h2>항공 여정 정보</h2>
+                    <div class="fd-journey-nav" id="fdJourneyNav" hidden>
+                        <button type="button" class="fd-nav-btn" id="fdJourneyPrev" aria-label="이전 여정">‹</button>
+                        <span id="fdJourneyIdx" class="fd-nav-idx">1 / 1</span>
+                        <button type="button" class="fd-nav-btn" id="fdJourneyNext" aria-label="다음 여정">›</button>
+                    </div>
+                </div>
+                <div class="fd-journey-card">
+                    <div class="fd-j-badge">가는편</div>
+                    <div class="fd-j-title" id="fdJourneyRoute">-</div>
+                    <div class="fd-j-sub" id="fdJourneyDur">-</div>
+                    <div class="fd-j-line"></div>
+                    <div class="fd-j-timeline">
+                        <div class="fd-j-point">
+                            <div class="fd-j-time" id="fdDepTime">-</div>
+                            <div class="fd-j-date" id="fdDepDate">-</div>
+                            <div class="fd-j-label" id="fdDepLabel">출발</div>
+                            <div class="fd-j-note" id="fdDepNote"></div>
+                        </div>
+                        <div class="fd-j-point">
+                            <div class="fd-j-time" id="fdArrTime">-</div>
+                            <div class="fd-j-date" id="fdArrDate">-</div>
+                            <div class="fd-j-label" id="fdArrLabel">도착</div>
+                            <div class="fd-j-note" id="fdArrNote"></div>
+                        </div>
+                    </div>
+                    <div class="fd-j-meta" id="fdJourneyMeta"></div>
+                </div>
+                <div class="fd-journey-card" id="fdReturnCard" hidden>
+                    <div class="fd-j-badge">오는편</div>
+                    <div class="fd-j-title" id="fdRetJourneyRoute">-</div>
+                    <div class="fd-j-sub" id="fdRetJourneyDur">-</div>
+                    <div class="fd-j-line"></div>
+                    <div class="fd-j-timeline">
+                        <div class="fd-j-point">
+                            <div class="fd-j-time" id="fdRetDepTime">-</div>
+                            <div class="fd-j-date" id="fdRetDepDate">-</div>
+                            <div class="fd-j-label" id="fdRetDepLabel">출발</div>
+                            <div class="fd-j-note" id="fdRetDepNote"></div>
+                        </div>
+                        <div class="fd-j-point">
+                            <div class="fd-j-time" id="fdRetArrTime">-</div>
+                            <div class="fd-j-date" id="fdRetArrDate">-</div>
+                            <div class="fd-j-label" id="fdRetArrLabel">도착</div>
+                            <div class="fd-j-note" id="fdRetArrNote"></div>
+                        </div>
+                    </div>
+                    <div class="fd-j-meta" id="fdRetJourneyMeta"></div>
+                </div>
+            </section>
+
+            <section class="fd-addon-wrap" id="fdAddonWrap" hidden>
+                <h2>추가 옵션</h2>
+                <div class="fd-addon-row">
+                    <label for="fdBagSelect">수하물 추가</label>
+                    <select id="fdBagSelect">
+                        <option value="0">선택 안 함 (+0)</option>
+                    </select>
+                    <p id="fdBagHint" class="fd-addon-hint"></p>
+                </div>
+            </section>
+
+            <form id="fdForm" class="fd-form">
+                <h2>탑승객 정보 입력</h2>
+                <div class="fd-grid">
+                    <label>영문 이름<input name="fullName" required placeholder="HONG GILDONG"></label>
+                    <label>생년월일<input name="birth" type="date" required></label>
+                    <label>여권번호<input name="passport" required placeholder="M12345678"></label>
+                    <label>국적<input name="nationality" required placeholder="KOR"></label>
+                    <label>이메일<input name="email" type="email" required placeholder="you@example.com"></label>
+                    <label>연락처<input name="phone" required placeholder="010-0000-0000"></label>
+                </div>
+                <div class="fd-bottom">
+                    <div>
+                        <p class="fd-kicker">요금 유형</p>
+                        <p id="fdChosen" class="fd-choice">-</p>
+                    </div>
+                    <div>
+                        <p class="fd-kicker">결제 예정 금액</p>
+                        <p id="fdTotal" class="fd-total">-</p>
+                    </div>
+                    <button type="submit" class="fd-submit">예약하기</button>
+                </div>
+            </form>
+        </section>
+    </main>
+    <script src="/static/flight-detail.js"></script>
+</body>
+</html>
