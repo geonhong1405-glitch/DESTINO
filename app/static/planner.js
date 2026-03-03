@@ -103,6 +103,24 @@
         uk: "https://images.unsplash.com/photo-1486299267070-83823f5448dd?auto=format&fit=crop&w=400&q=80",
         default: "https://images.unsplash.com/photo-1488085061387-422e29b40080?auto=format&fit=crop&w=400&q=80",
     };
+    const RENTAL_FALLBACK_IMAGES = {
+        suv: [
+            "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=800&q=80",
+        ],
+        van: [
+            "https://images.unsplash.com/photo-1502877338535-766e1452684a?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1549399542-7e8f2e9380f6?auto=format&fit=crop&w=800&q=80",
+        ],
+        sedan: [
+            "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1549924231-f129b911e442?auto=format&fit=crop&w=800&q=80",
+        ],
+        default: [
+            "https://images.unsplash.com/photo-1493238792000-8113da705763?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&w=800&q=80",
+        ],
+    };
 
     function savedTypeLabel(itemType) {
         const type = String(itemType || "").toLowerCase();
@@ -142,6 +160,87 @@
             return SAVED_COUNTRY_IMAGE[savedCountryKey(payload?.country)] || SAVED_COUNTRY_IMAGE.default;
         }
         return "";
+    }
+
+    function looksLikeLogoImage(url) {
+        const u = String(url || "").toLowerCase();
+        if (!u) return false;
+        return [
+            "logo",
+            "vendor",
+            "supplier",
+            "brand",
+            "icon",
+            "64x64",
+            "128x128",
+            "airlines/",
+        ].some((k) => u.includes(k));
+    }
+
+    function normalizeRentalPhotoUrl(url) {
+        const u = String(url || "").trim();
+        if (!u) return "";
+        return looksLikeLogoImage(u) ? "" : u;
+    }
+
+    function normalizeRentalName(name, supplier) {
+        const n = String(name || "").trim();
+        const s = String(supplier || "").trim();
+        if (!n) return "차종 정보 없음";
+        const nl = n.toLowerCase();
+        if (["rental car", "rental", "렌터카", "렌터카 옵션", "car"].includes(nl)) return "차종 정보 없음";
+        if (/렌터카$|rental car$| rental$/i.test(nl)) {
+            const core = nl.replace(/렌터카$|rental car$| rental$/i, "").trim();
+            if (!core || (s && core === s.toLowerCase())) return "차종 정보 없음";
+        }
+        return n;
+    }
+
+    function formatRentalRating(rating) {
+        const n = Number(rating);
+        if (!Number.isFinite(n)) return "";
+        return n.toFixed(1);
+    }
+
+    function summarizeRentalSpecs(specsText) {
+        const raw = String(specsText || "");
+        if (!raw) return "옵션 정보 없음";
+        const tokens = raw
+            .split(/[|·,/]/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+        const out = [];
+        for (const t of tokens) {
+            const l = t.toLowerCase();
+            const seatM = t.match(/(\d+)\s*(?:인승|seats?|pax|명)/i);
+            if (seatM) {
+                out.push(`${seatM[1]}인승`);
+                continue;
+            }
+            const bagM = t.match(/(\d+)\s*(?:bags?|bag|가방)/i);
+            if (bagM) {
+                out.push(`가방 ${bagM[1]}`);
+                continue;
+            }
+            if (/automatic|auto|오토/i.test(l)) {
+                out.push("자동");
+                continue;
+            }
+            if (/manual|수동/i.test(l)) {
+                out.push("수동");
+                continue;
+            }
+            if (/air.?con|a\/c|에어컨/i.test(l)) {
+                out.push("에어컨");
+                continue;
+            }
+            if (/full[_\-\s]?to[_\-\s]?full|만땅|연료/i.test(l)) {
+                out.push("연료 정책");
+                continue;
+            }
+        }
+        const uniq = Array.from(new Set(out));
+        return uniq.length ? uniq.slice(0, 4).join(" · ") : "옵션 정보 없음";
     }
 
     function savedMetaParts(item) {
@@ -697,22 +796,57 @@
 
     function parseListCards(rawHtml) {
         const html = String(rawHtml || "");
-        const isHotel = /호텔|숙소|렌터카|렌트카|rental|hotel/i.test(html);
-        if (!isHotel) return [];
+        const commerceRx = /(호텔|숙소|렌터카|렌트카|rental|hotel|패키지|공동구매|group\s*buy|groupbuy|티켓|ticket)/i;
+        if (!commerceRx.test(html)) return [];
+
         const distanceBasisSource = html
             .replace(/<br\s*\/?>/gi, "\n")
             .replace(/<\/div>/gi, "\n")
             .replace(/<[^>]+>/g, " ")
-            .replace(/\u00a0/g, " ");
+            .replace(/ /g, " ");
         const distanceBasisMatch = distanceBasisSource.match(/^\s*거리\s*기준\s*:\s*([^\n]+)$/im);
         const distanceBasis = distanceBasisMatch ? distanceBasisMatch[1].trim() : "";
+
         const normalized = html
             .replace(/<br\s*\/?>/gi, "\n")
             .replace(/<\/div>/gi, "\n")
             .replace(/<[^>]+>/g, "")
-            .replace(/\u00a0/g, " ");
+            .replace(/ /g, " ");
         const lines = normalized.split("\n").map((s) => s.trim()).filter(Boolean);
         const cards = [];
+
+        const normKey = (k) => String(k || "").toLowerCase().replace(/\s+/g, "");
+        const aliasMap = {
+            type: ["타입", "유형", "분류", "type", "category"],
+            price: ["가격", "요금", "금액", "price", "fare", "cost", "total"],
+            rating: ["평점", "rating", "score"],
+            stars: ["성급", "stars", "star"],
+            supplier: ["업체", "공급사", "vendor", "supplier", "provider", "company"],
+            specs: ["옵션", "사양", "spec", "specs", "features"],
+            pickup: ["픽업", "대여", "pickup", "pickupdate"],
+            dropoff: ["반납", "dropoff", "returndate"],
+            photo: ["사진", "이미지", "photo", "image", "imageurl", "thumbnail"],
+            address: ["주소", "위치", "address", "location"],
+            checkin: ["체크인", "checkin"],
+            checkout: ["체크아웃", "checkout"],
+            maps: ["지도", "maps", "map"],
+        };
+
+        const pickField = (fields, canonical) => {
+            const keys = aliasMap[canonical] || [];
+            for (const k of keys) {
+                const v = fields[normKey(k)];
+                if (v) return v;
+            }
+            return "";
+        };
+
+        const detectDefaultType = () => {
+            if (/(렌터카|렌트카|rental)/i.test(html)) return "렌터카";
+            if (/(호텔|숙소|hotel)/i.test(html)) return "호텔";
+            return "상품";
+        };
+
         for (const line of lines) {
             const m = line.match(/^(\d+)[\)\.]\s*(.+)$/);
             if (!m) continue;
@@ -720,32 +854,53 @@
             const parts = body.split("|").map((x) => x.trim()).filter(Boolean);
             const name = parts[0];
             if (!name) continue;
-            const type = /렌터카|렌트카|rental/i.test(html) ? "렌터카" : "호텔";
+
             const fields = {};
             for (const p of parts.slice(1)) {
-                const kv = p.match(/^([^:]+):\s*(.+)$/);
-                if (!kv) continue;
-                fields[kv[1].trim()] = kv[2].trim();
+                let key = "";
+                let value = "";
+                let kv = p.match(/^([^:：]+)\s*[:：]\s*(.+)$/);
+                if (!kv) kv = p.match(/^([가-힣A-Za-z ]{1,20})\s+(.+)$/);
+                if (kv) {
+                    key = normKey(kv[1]);
+                    value = kv[2].trim();
+                }
+                if (!key || !value) continue;
+                fields[key] = value;
             }
+
+            const supplier = pickField(fields, "supplier");
+            let displayName = name;
+            if (/^(렌터카|rental car|rental)$/i.test(displayName) && supplier) {
+                displayName = `${supplier} 렌터카`;
+            }
+
+            const rawType = String(pickField(fields, "type") || "").toLowerCase();
+            let resolvedType = detectDefaultType();
+            if (/(패키지|package)/i.test(rawType)) resolvedType = "패키지";
+            else if (/(공동구매|group\s*buy|groupbuy)/i.test(rawType)) resolvedType = "공동구매";
+            else if (/(티켓|ticket)/i.test(rawType)) resolvedType = "티켓";
+
             cards.push({
-                type,
-                name,
-                meta: parts.slice(1).filter((p) => !/^사진\s*:/i.test(p)).join(" | "),
-                price: fields["가격"] || "",
-                rating: fields["평점"] || "",
-                stars: fields["성급"] || "",
-                supplier: fields["업체"] || "",
-                specs: fields["옵션"] || "",
-                pickup: fields["픽업"] || "",
-                dropoff: fields["반납"] || "",
-                photo: fields["사진"] || "",
-                address: fields["주소"] || fields["위치"] || "",
-                checkin: fields["체크인"] || "",
-                checkout: fields["체크아웃"] || "",
-                maps: fields["지도"] || "",
+                type: resolvedType,
+                name: displayName,
+                meta: parts.slice(1).filter((p) => !/^사진\s*[:：]/i.test(p)).join(" | "),
+                price: pickField(fields, "price"),
+                rating: pickField(fields, "rating"),
+                stars: pickField(fields, "stars"),
+                supplier,
+                specs: pickField(fields, "specs"),
+                pickup: pickField(fields, "pickup"),
+                dropoff: pickField(fields, "dropoff"),
+                photo: pickField(fields, "photo"),
+                address: pickField(fields, "address"),
+                checkin: pickField(fields, "checkin"),
+                checkout: pickField(fields, "checkout"),
+                maps: pickField(fields, "maps"),
                 distanceBasis,
             });
         }
+
         return cards.slice(0, 8);
     }
 
@@ -1051,6 +1206,41 @@
                         </div>
                     </div>
                 `;
+            } else if (["패키지", "공동구매", "티켓"].includes(cardData.type)) {
+                const priceText = cardData.price || "";
+                const metaText = String(cardData.meta || "");
+                const ratingFromMeta = (metaText.match(/평점\s*[:：]\s*([0-9.]+)/i) || [])[1] || "";
+                const locationFromMeta = (metaText.match(/위치\s*[:：]\s*([^|]+)/i) || [])[1] || "";
+                const descFromMeta = (metaText.match(/설명\s*[:：]\s*([^|]+)/i) || [])[1] || "";
+                const ratingText = String(cardData.rating || ratingFromMeta || "").trim();
+                const locationText = String(cardData.address || locationFromMeta || "").trim();
+                const descText = String(descFromMeta || "").trim();
+                const typeLabel = String(cardData.type || "상품");
+                const thumbLabel = typeLabel === "티켓" ? "TICKET" : (typeLabel === "공동구매" ? "GROUP" : "PACKAGE");
+
+                const chips = [];
+                if (ratingText) chips.push(`평점 ${ratingText}`);
+                if (locationText) chips.push(locationText);
+
+                card.classList.add("ai-commerce-card--hotel", "ai-commerce-card--product");
+                card.innerHTML = `
+                    ${cardData.photo ? `<div class="ai-hotel-card__thumb-wrap"><img class="ai-hotel-card__thumb" src="${escapeHtml(cardData.photo)}" alt="${escapeHtml(cardData.name)}" loading="lazy" onerror="this.onerror=null; const w=this.closest('.ai-hotel-card__thumb-wrap'); if(w){w.classList.add('ai-hotel-card__thumb-wrap--placeholder'); w.innerHTML='<div class=\'ai-hotel-card__thumb-fallback\'>${thumbLabel}</div>'; }"></div>` : `<div class="ai-hotel-card__thumb-wrap ai-hotel-card__thumb-wrap--placeholder"><div class="ai-hotel-card__thumb-fallback">${thumbLabel}</div></div>`}
+                    <div class="ai-hotel-card__body">
+                        <div class="ai-commerce-card__type">${escapeHtml(typeLabel)}</div>
+                        <div class="ai-commerce-card__name">${escapeHtml(cardData.name)}</div>
+                        ${chips.length ? `<div class="ai-hotel-card__chips">${chips.map((x) => `<span class="ai-hotel-card__chip">${escapeHtml(x)}</span>`).join("")}</div>` : ""}
+                        ${descText ? `<div class="ai-hotel-card__note">${escapeHtml(descText)}</div>` : ""}
+                    </div>
+                    <div class="ai-hotel-card__fare">
+                        <button type="button" class="ai-commerce-card__wish" aria-pressed="false" title="위시리스트 저장">♡</button>
+                        <div class="ai-flight-card__fare-label">${escapeHtml(typeLabel === "공동구매" ? "예상 금액(참고)" : "상품가(참고)")}</div>
+                        <div class="ai-hotel-card__price">${escapeHtml(priceText || "-")}</div>
+                        <div class="ai-commerce-card__actions">
+                            <button type="button" class="ai-commerce-card__add">장바구니</button>
+                            <button type="button" class="ai-commerce-card__pay">예약하기</button>
+                        </div>
+                    </div>
+                `;
             } else if (cardData.type === "호텔") {
                 const metaBits = [];
                 if (cardData.rating) metaBits.push(`평점 ${cardData.rating}`);
@@ -1083,18 +1273,22 @@
                 `;
             } else if (cardData.type === "렌터카") {
                 const priceText = cardData.price || "";
+                const displayName = normalizeRentalName(cardData.name, cardData.supplier);
+                const normalizedSpecs = summarizeRentalSpecs(cardData.specs);
+                const ratingText = formatRentalRating(cardData.rating);
                 const metaBits = [];
                 if (cardData.supplier) metaBits.push(`업체 ${cardData.supplier}`);
-                if (cardData.rating) metaBits.push(`평점 ${cardData.rating}`);
-                if (cardData.specs) metaBits.push(cardData.specs);
+                if (ratingText) metaBits.push(`평점 ${ratingText}`);
+                if (normalizedSpecs) metaBits.push(normalizedSpecs);
+                const rentalPhoto = normalizeRentalPhotoUrl(cardData.photo);
                 const rentalPeriod = [cardData.pickup ? `픽업 ${cardData.pickup}` : "", cardData.dropoff ? `반납 ${cardData.dropoff}` : ""]
                     .filter(Boolean)
                     .join(" · ");
                 card.classList.add("ai-commerce-card--hotel");
                 card.innerHTML = `
-                    ${cardData.photo ? `<div class="ai-hotel-card__thumb-wrap"><img class="ai-hotel-card__thumb" src="${escapeHtml(cardData.photo)}" alt="${escapeHtml(cardData.name)}" loading="lazy" onerror="this.onerror=null; const w=this.closest('.ai-hotel-card__thumb-wrap'); if(w){w.classList.add('ai-hotel-card__thumb-wrap--placeholder'); w.innerHTML='<div class=\\'ai-hotel-card__thumb-fallback\\'>RENTAL</div>'; }"></div>` : `<div class="ai-hotel-card__thumb-wrap ai-hotel-card__thumb-wrap--placeholder"><div class="ai-hotel-card__thumb-fallback">RENTAL</div></div>`}
+                    ${rentalPhoto ? `<div class="ai-hotel-card__thumb-wrap"><img class="ai-hotel-card__thumb" src="${escapeHtml(rentalPhoto)}" alt="${escapeHtml(displayName)}" loading="lazy" onerror="this.onerror=null; const w=this.closest('.ai-hotel-card__thumb-wrap'); if(w){w.classList.add('ai-hotel-card__thumb-wrap--placeholder'); w.innerHTML='<div class=\\'ai-hotel-card__thumb-fallback\\'>RENTAL</div>'; }"></div></div>` : `<div class="ai-hotel-card__thumb-wrap ai-hotel-card__thumb-wrap--placeholder"><div class="ai-hotel-card__thumb-fallback">RENTAL</div></div>`}
                     <div class="ai-hotel-card__body">
-                        <div class="ai-commerce-card__name">${escapeHtml(cardData.name)}</div>
+                        <div class="ai-commerce-card__name">${escapeHtml(displayName)}</div>
                         ${metaBits.length ? `<div class="ai-hotel-card__chips">${metaBits.map((t) => `<span class="ai-hotel-card__chip">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
                         ${rentalPeriod ? `<div class="ai-hotel-card__note">${escapeHtml(rentalPeriod)}</div>` : ""}
                     </div>
@@ -1178,7 +1372,7 @@
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
             const data = await res.json();
-            const html = data?.response || "??? ?? ?????.";
+            const html = data?.response || "응답을 받지 못했어요.";
             loadingItem.innerHTML = `
                 <div class="ai-msg__meta">DESTINO AI</div>
                 <div class="ai-msg__bubble"><div class="ai-msg__content">${html}</div></div>
@@ -1189,7 +1383,7 @@
         } catch (error) {
             loadingItem.innerHTML = `
                 <div class="ai-msg__meta">DESTINO AI</div>
-                <div class="ai-msg__bubble ai-msg__bubble--error">?? ? ??? ??????.</div>
+                <div class="ai-msg__bubble ai-msg__bubble--error">요청 중 오류가 발생했어요.</div>
             `;
             scrollToBottom(true);
         }

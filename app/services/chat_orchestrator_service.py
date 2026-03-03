@@ -1,6 +1,7 @@
 from typing import Any
 
 from app.services import rentalcar_service
+from app.services import product_reco_service
 
 
 def _handle_knowledge_intent(req: Any, prev_state: dict, context: str, SESSION_STATE: dict, sid: str, _answer_knowledge):
@@ -82,6 +83,20 @@ def _handle_rentalcar_intent(req: Any, prev_state: dict, SESSION_STATE: dict, si
         if rental_state.get("dropoff_date"):
             state["travel_checkout"] = rental_state.get("dropoff_date")
     state["last_intent"] = "rentalcar"
+    SESSION_STATE[sid] = state
+    return {"response": html}
+
+
+
+
+def _handle_product_intent(req: Any, prev_state: dict, SESSION_STATE: dict, sid: str, chat_renderers):
+    items = product_reco_service.recommend_products(req.message, prev_state, limit=8)
+    html = chat_renderers.product_html_list(items, title="\ucd94\ucc9c \uc0c1\ud488")
+    state = dict(prev_state)
+    state["last_intent"] = "product"
+    state["last_product_names"] = [str(x.get("name") or "") for x in items]
+    first_type = str((items[0] or {}).get("type") or "") if items else ""
+    state["last_product_type"] = first_type
     SESSION_STATE[sid] = state
     return {"response": html}
 
@@ -186,6 +201,7 @@ def handle_chat_request(
                 "항공", "항공권", "비행", "flight", "출발", "도착", "직항", "경유",
                 "호텔", "숙소", "숙박", "hotel", "체크인", "체크아웃",
                 "렌터카", "렌트카", "rental", "car",
+                "package", "groupbuy", "group buy", "ticket", "activity", "tour",
                 "일정", "코스", "itinerary", "plan",
                 "맛집", "명소", "관광", "교통", "비자", "환전", "치안",
             ],
@@ -196,6 +212,7 @@ def handle_chat_request(
                 "항공", "항공권", "비행", "flight", "출발", "도착", "직항", "경유",
                 "호텔", "숙소", "숙박", "hotel", "체크인", "체크아웃",
                 "렌터카", "렌트카", "rental", "pickup", "dropoff",
+                "package", "groupbuy", "group buy", "ticket", "activity", "tour",
                 "일정", "코스", "itinerary", "plan", "day",
                 "맛집", "명소", "관광", "교통", "비자", "환전", "치안",
             ],
@@ -209,7 +226,7 @@ def handle_chat_request(
         )
         active_travel_followup = bool(
             prev_state.get("hotel_context")
-            or prev_state.get("last_intent") in {"flight", "hotel", "rentalcar", "itinerary"}
+            or prev_state.get("last_intent") in {"flight", "hotel", "rentalcar", "itinerary", "product"}
         )
         domain = _classify_travel_domain_with_llm(req.message, context)
         domain_is_non_travel = bool(domain and (domain.get("is_travel") is False))
@@ -303,6 +320,17 @@ def handle_chat_request(
         if has_hotel_signal and not has_flight_signal:
             intent = "hotel"
 
+        # Deterministic override: explicit product requests should route to product.
+        has_product_signal = _contains(
+            (req.message or "").lower(),
+            [
+                "package", "groupbuy", "group buy", "ticket",
+                "\uD328\uD0A4\uC9C0", "\uACF5\uB3D9\uAD6C\uB9E4", "\uD2F0\uCF13", "\uC785\uC7A5\uAD8C", "\uAD00\uB78C\uAD8C", "\uC561\uD2F0\uBE44\uD2F0", "\uCCB4\uD5D8", "\uD22C\uC5B4",
+            ],
+        )
+        if has_product_signal and not has_flight_signal and not has_hotel_signal:
+            intent = "product"
+
         # Keep contextual knowledge follow-ups out of the flight default path.
         if intent == "flight" and _should_keep_knowledge_followup(req.message, prev_state):
             intent = "knowledge"
@@ -344,6 +372,8 @@ def handle_chat_request(
             return _handle_rentalcar_intent(req, prev_state, SESSION_STATE, sid)
         if intent == "itinerary":
             return _handle_itinerary_intent(req, prev_state, context, SESSION_STATE, sid, client, _strip_markdown_decorations)
+        if intent == "product":
+            return _handle_product_intent(req, prev_state, SESSION_STATE, sid, chat_renderers)
 
         return _handle_flight_intent(
             req,

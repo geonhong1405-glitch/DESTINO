@@ -329,7 +329,7 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
 
             price = None
             currency = None
-            for obj in [node, node.get("price"), node.get("pricing"), node.get("priceBreakdown")]:
+            for obj in [node, node.get("price"), node.get("pricing"), node.get("priceBreakdown"), node.get("quote")]:
                 if not isinstance(obj, dict):
                     continue
                 if price is None:
@@ -388,16 +388,20 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
 
             specs = []
             seat_count = None
-            for k in ("seats", "seat_count", "passengers", "passengerQuantity"):
+            for k in ("seats", "seat_count", "passengers", "passengerQuantity", "seat"):
                 if node.get(k) is not None:
                     seat_count = _num(node.get(k))
                     if seat_count is not None:
                         seat_count = int(seat_count)
-                        specs.append(f"{seat_count}인승")
+                        specs.append(f"{seat_count}\uC778\uC2B9")
                         break
 
+            bags = _num(node.get("bags") or node.get("luggage") or node.get("baggage"))
+            if bags is not None:
+                specs.append(f"\uAC00\uBC29 {bags}")
+
             transmission = None
-            for k in ("transmission", "gearbox", "transmissionType"):
+            for k in ("transmission", "gearbox", "transmissionType", "trans"):
                 v = node.get(k)
                 if isinstance(v, str) and v.strip():
                     transmission = v.strip()
@@ -406,7 +410,7 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
                 specs.append(transmission)
 
             fuel_policy = None
-            for k in ("fuel_policy", "fuelPolicy", "fuel_type", "fuelType"):
+            for k in ("fuel_policy", "fuelPolicy", "fuel_type", "fuelType", "fuel_pol"):
                 v = node.get(k)
                 if isinstance(v, str) and v.strip():
                     fuel_policy = v.strip()
@@ -415,15 +419,18 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
                 specs.append(fuel_policy)
 
             if node.get("air_conditioning") is True or node.get("airConditioning") is True:
-                specs.append("에어컨")
+                specs.append("\uC5D0\uC5B4\uCEE8")
 
             vendor_rating = _coerce_number(node.get("supplier_rating") or node.get("providerRating") or node.get("rating"))
 
-            looks_like_car = False
             hay = " ".join([name or "", supplier or ""]).lower()
-            if any(x in hay for x in ["toyota", "hyundai", "kia", "nissan", "suv", "sedan", "wagon", "van", "car", "compact", "economy"]):
+            looks_like_car = any(
+                x in hay
+                for x in ["toyota", "hyundai", "kia", "nissan", "suv", "sedan", "wagon", "van", "car", "compact", "economy"]
+            )
+            if name and (price is not None or transmission or seat_count or image):
                 looks_like_car = True
-            if name and price is not None:
+            if supplier and (price is not None or image or transmission):
                 looks_like_car = True
 
             if looks_like_car:
@@ -439,7 +446,7 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
                     seen.add(key)
                     results.append(
                         {
-                            "name": name or "렌터카 옵션",
+                            "name": safe_name,
                             "supplier": supplier or "Rental Partner",
                             "price": price,
                             "currency": currency or "KRW",
@@ -460,6 +467,7 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
     _walk(raw)
     results.sort(key=lambda x: x.get("price") or 10**12)
     return results[:24]
+
 
 
 def calc_rental_days(pickup_at: str | None, dropoff_at: str | None) -> int | None:

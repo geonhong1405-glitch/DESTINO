@@ -12,6 +12,7 @@ def detect_intent(message: str, prev_state: dict[str, Any], *, contains_fn: Call
     has_ko_rental = bool(re.search("(\uB80C\uD130\uCE74|\uB80C\uD2B8\uCE74|\uCC28\uB7C9)", msg))
     has_ko_itin = bool(re.search("(\uC77C\uC815|\uCF54\uC2A4|\uB8E8\uD2B8|\uD50C\uB79C)", msg))
     has_ko_pref = bool(re.search("(\uCD5C\uC800\uAC00|\uC800\uB834|\uAC00\uACA9|\uBE60\uB978|\uC18C\uC694\uC2DC\uAC04|\uAC00\uC131\uBE44|\uCD94\uCC9C)", msg))
+    has_ko_product = bool(re.search("(\uD328\uD0A4\uC9C0|\uACF5\uB3D9\uAD6C\uB9E4|\uD2F0\uCF13|\uC785\uC7A5\uAD8C|\uAD00\uB78C\uAD8C|\uC561\uD2F0\uBE44\uD2F0|\uCCB4\uD5D8|\uD22C\uC5B4)", msg))
 
     if has_ko_flight and not has_ko_hotel:
         return "flight"
@@ -21,11 +22,13 @@ def detect_intent(message: str, prev_state: dict[str, Any], *, contains_fn: Call
         return "rentalcar"
     if has_ko_itin and not has_ko_flight and not has_ko_hotel:
         return "itinerary"
+    if has_ko_product and not has_ko_flight and not has_ko_hotel and not has_ko_rental:
+        return "product"
 
     # Dynamic follow-up: preference-only utterances inherit last product context.
     if has_ko_pref and not has_ko_hotel and not has_ko_flight:
         last = str(prev_state.get("last_intent") or "")
-        if last in {"flight", "hotel", "rentalcar", "itinerary"}:
+        if last in {"flight", "hotel", "rentalcar", "itinerary", "product"}:
             return last
 
     # Dynamic product-intent routing: combine current utterance signals + recent context.
@@ -37,7 +40,11 @@ def detect_intent(message: str, prev_state: dict[str, Any], *, contains_fn: Call
     # Sorting/preference words are interpreted by recent product context.
     pref_terms = ["cheap", "cheapest", "price", "fast", "fastest", "earliest", "sort", "최저가", "저렴", "가격", "빠른", "소요시간", "가성비", "추천", "top"]
 
-    score = {"flight": 0, "hotel": 0, "rentalcar": 0, "itinerary": 0}
+    package_terms = ["package", "\uD328\uD0A4\uC9C0", "\uC5EC\uD589 \uC0C1\uD488", "\uC5EC\uD589\uC0C1\uD488"]
+    groupbuy_terms = ["groupbuy", "group buy", "\uACF5\uB3D9\uAD6C\uB9E4", "\uBAA8\uC9D1", "\uAC19\uC774"]
+    ticket_terms = ["ticket", "activity", "tour", "\uD2F0\uCF13", "\uC785\uC7A5\uAD8C", "\uAD00\uB78C\uAD8C", "\uC561\uD2F0\uBE44\uD2F0", "\uCCB4\uD5D8", "\uD22C\uC5B4"]
+
+    score = {"flight": 0, "hotel": 0, "rentalcar": 0, "itinerary": 0, "product": 0}
     if contains_fn(m, flight_terms):
         score["flight"] += 3
     if contains_fn(m, hotel_terms):
@@ -46,6 +53,8 @@ def detect_intent(message: str, prev_state: dict[str, Any], *, contains_fn: Call
         score["rentalcar"] += 3
     if contains_fn(m, itinerary_terms):
         score["itinerary"] += 3
+    if contains_fn(m, package_terms) or contains_fn(m, groupbuy_terms) or contains_fn(m, ticket_terms):
+        score["product"] += 3
 
     if contains_fn(m, pref_terms):
         last_intent = str(prev_state.get("last_intent") or "")
@@ -135,8 +144,8 @@ def resolve_intent_with_llm(
     prompt = (
         "너는 여행 챗봇 라우터다. 아래 JSON만 출력해라.\n"
         '{'
-        '"intent":"flight|hotel|rentalcar|itinerary|knowledge|mixed|unknown",'
-        '"parts":["flight","hotel","rentalcar","itinerary","knowledge"],'
+        '"intent":"flight|hotel|rentalcar|itinerary|product|knowledge|mixed|unknown",'
+        '"parts":["flight","hotel","rentalcar","itinerary","product","knowledge"],'
         '"confidence":0.0'
         '}\n'
         "규칙:\n"
@@ -167,7 +176,7 @@ def resolve_intent_with_llm(
     has_flight_signal = contains_fn(m, ["항공", "항공권", "비행기", "출발", "도착", "직항", "경유"])
     has_hotel_signal = contains_fn(m, ["호텔", "숙소", "체크인", "체크아웃"])
 
-    allowed = {"flight", "hotel", "rentalcar", "itinerary", "knowledge"}
+    allowed = {"flight", "hotel", "rentalcar", "itinerary", "product", "knowledge"}
     if raw_intent in allowed:
         if raw_intent == "itinerary" and not has_itinerary_signal and not has_flight_signal and not has_hotel_signal:
             return None
@@ -179,7 +188,7 @@ def resolve_intent_with_llm(
         norm_parts = [str(x).strip().lower() for x in parts if str(x).strip().lower() in allowed]
         if "itinerary" in norm_parts and not has_itinerary_signal and not has_flight_signal and not has_hotel_signal:
             norm_parts = [x for x in norm_parts if x != "itinerary"]
-        for cand in ["flight", "hotel", "rentalcar", "itinerary", "knowledge"]:
+        for cand in ["flight", "hotel", "rentalcar", "itinerary", "product", "knowledge"]:
             if cand in norm_parts:
                 if confidence >= 0.4:
                     return cand
@@ -227,6 +236,7 @@ def should_ask_intent_clarification(message: str, *, contains_fn: Callable[[str,
             "호텔", "숙소", "체크인", "체크아웃",
             "렌터카", "렌트카", "렌트", "대여차",
             "일정", "코스", "루트", "플랜",
+            "???", "????", "??", "???", "???", "package", "groupbuy", "group buy", "ticket",
         ],
     ):
         return False

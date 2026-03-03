@@ -1818,3 +1818,20 @@ ul {
         margin-bottom: 20px;
     }
 }
+
+
+.ai-commerce-card--product .ai-commerce-card__type {
+    background: #eef2ff;
+    color: #1d4ed8;
+    border: 1px solid #c7d2fe;
+    padding: 2px 8px;
+    border-radius: 999px;
+    display: inline-block;
+    font-weight: 700;
+    width: fit-content;
+}
+
+.ai-commerce-card--product .ai-hotel-card__note {
+    max-width: 100%;
+    word-break: keep-all;
+}
