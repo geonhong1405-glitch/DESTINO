@@ -1,11 +1,13 @@
 import datetime
 import os
+import hashlib
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.api.booking_api import search_car_rentals
+from app.api.exchange_rate import get_exchange_rate
 from app.api.sky_cars_api import parse_sky_car_search_results, search_sky_car_rentals
 from app.api.rental_helper import (
     calc_rental_days,
@@ -33,6 +35,20 @@ _RENTAL_COUNTRY_OPTIONS = [
     {"code": "SG", "name": "????", "currency": "SGD"},
     {"code": "TW", "name": "??", "currency": "TWD"},
 ]
+
+# Fallback FX table used when live exchange API is unavailable.
+# Values are approximate KRW per 1 unit of foreign currency.
+_DEFAULT_FX_TO_KRW = {
+    "KRW": 1.0,
+    "USD": 1350.0,
+    "EUR": 1470.0,
+    "JPY": 9.0,
+    "AED": 368.0,
+    "THB": 38.0,
+    "VND": 0.053,
+    "SGD": 1000.0,
+    "TWD": 43.0,
+}
 
 
 def _normalize_rental_country(country_code: str | None) -> str:
@@ -135,6 +151,152 @@ def _clean_provider_detail(detail: str | None) -> str:
     return text
 
 
+def _to_krw_price(value, currency, rate_cache: dict[str, float | None]) -> int | None:
+    try:
+        if value is None:
+            return None
+        amount = float(value)
+    except Exception:
+        return None
+
+    ccy = str(currency or "KRW").strip().upper()
+    if not ccy or ccy == "KRW":
+        return int(round(amount))
+
+    if ccy not in rate_cache:
+        try:
+            live_rate = get_exchange_rate(base=ccy, target="KRW")
+            rate_cache[ccy] = live_rate if live_rate else _DEFAULT_FX_TO_KRW.get(ccy)
+        except Exception:
+            rate_cache[ccy] = _DEFAULT_FX_TO_KRW.get(ccy)
+
+    rate = rate_cache.get(ccy)
+    if rate is None:
+        return None
+    try:
+        return int(round(amount * float(rate)))
+    except Exception:
+        return None
+
+
+_RENTAL_FALLBACK_IMAGES = [
+    "https://images.unsplash.com/photo-1549924231-f129b911e442?q=80&w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?q=80&w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?q=80&w=1200&auto=format&fit=crop",
+]
+
+
+def _build_local_fallback_rental_cars(country_code: str, rental_days: int | None) -> list[dict]:
+    # Emergency fallback to keep UI usable when providers are unavailable.
+    base_daily_krw_by_country = {
+        "US": 78000,
+        "JP": 62000,
+        "FR": 83000,
+        "TH": 42000,
+        "VN": 39000,
+        "SG": 76000,
+        "TW": 51000,
+        "AE": 95000,
+        "KR": 69000,
+    }
+    models = [
+        ("Toyota Yaris", 5, "automatic"),
+        ("Nissan Versa", 5, "automatic"),
+        ("Hyundai Elantra", 5, "automatic"),
+        ("Kia K5", 5, "automatic"),
+        ("Volkswagen Polo", 5, "manual"),
+        ("Toyota Corolla", 5, "automatic"),
+    ]
+    suppliers = [
+        "LocalRent",
+        "CityCar",
+        "AutoPartner",
+        "DriveHub",
+    ]
+    days = max(1, int(rental_days or 1))
+    base_daily = base_daily_krw_by_country.get(country_code, 70000)
+
+    cars: list[dict] = []
+    for idx, (name, seats, trans) in enumerate(models):
+        price_per_day = int(round(base_daily * (0.92 + (idx * 0.06))))
+        total_price = int(price_per_day * days)
+        supplier = suppliers[idx % len(suppliers)]
+        cars.append(
+            {
+                "name": name,
+                "supplier": supplier,
+                "price": total_price,
+                "currency": "KRW",
+                "image": _fallback_image_for_car(name, supplier),
+                "specs": [f"{seats}인승", "가방 2", trans],
+                "seats": seats,
+                "transmission": trans,
+                "fuel_policy": None,
+                "rating": round(3.8 + (idx % 4) * 0.3, 1),
+                "rental_days": days,
+                "price_per_day": price_per_day,
+                "fx_applied": False,
+                "original_currency": "KRW",
+                "original_price": total_price,
+                "price_unreliable": False,
+            }
+        )
+    return cars
+
+
+def _is_reasonable_total_price(price: int | float | None, currency: str | None, rental_days: int | None) -> bool:
+    if price is None:
+        return False
+    try:
+        amount = float(price)
+    except Exception:
+        return False
+
+    ccy = str(currency or "KRW").strip().upper() or "KRW"
+    days = max(1, int(rental_days or 1))
+
+    # Very conservative lower bounds to block obvious parse noise (e.g. 2, 3, 4).
+    min_per_day_by_ccy = {
+        "KRW": 5000,
+        "JPY": 500,
+        "USD": 10,
+        "EUR": 10,
+        "AED": 30,
+        "THB": 300,
+        "VND": 100000,
+        "SGD": 15,
+        "TWD": 300,
+    }
+    min_total = float(min_per_day_by_ccy.get(ccy, 10)) * float(days)
+    return amount >= min_total
+
+
+def _fallback_image_for_car(name: str | None, supplier: str | None) -> str:
+    seed = f"{name or ''}|{supplier or ''}".encode("utf-8")
+    digest = hashlib.sha256(seed).hexdigest()
+    idx = int(digest[:8], 16) % len(_RENTAL_FALLBACK_IMAGES)
+    return _RENTAL_FALLBACK_IMAGES[idx]
+
+
+def _is_generic_supplier_car_name(name: str | None, supplier: str | None) -> bool:
+    n = str(name or "").strip().lower()
+    s = str(supplier or "").strip().lower()
+    if not n:
+        return True
+    if not s:
+        # Names ending with the generic word "rental car" are not real model names.
+        return "렌터카" in n
+    normalized = n.replace(" ", "")
+    supplier_norm = s.replace(" ", "")
+    return normalized in {
+        supplier_norm,
+        f"{supplier_norm}렌터카",
+        f"{supplier_norm}rentalcar",
+    }
+
+
 
 
 
@@ -179,6 +341,7 @@ def rental_page(
     rental_provider = None
     rental_provider_detail = None
     rental_days = calc_rental_days(pickup_at, dropoff_at)
+    fx_rate_cache: dict[str, float | None] = {"KRW": 1.0}
 
     p_lat = _parse_float_param(pickup_lat)
     p_lon = _parse_float_param(pickup_lon)
@@ -246,6 +409,35 @@ def rental_page(
             for car in rental_cars:
                 if not isinstance(car, dict):
                     continue
+                original_currency = str(car.get("currency") or currency_code or "KRW").strip().upper() or "KRW"
+                original_price = car.get("price")
+                car["original_currency"] = original_currency
+                car["original_price"] = original_price
+
+                converted_price = _to_krw_price(original_price, original_currency, fx_rate_cache)
+                if converted_price is not None:
+                    car["price"] = converted_price
+                    car["currency"] = "KRW"
+                    car["fx_applied"] = original_currency != "KRW"
+                else:
+                    car["currency"] = original_currency
+                    car["fx_applied"] = False
+
+                # Drop obviously broken parser values (e.g. 2 KRW, 3 KRW).
+                if not _is_reasonable_total_price(car.get("price"), car.get("currency"), rental_days):
+                    car["price"] = None
+                    car["price_per_day"] = None
+                    car["price_unreliable"] = True
+                else:
+                    car["price_unreliable"] = False
+
+                # Use deterministic fallback image when provider image is missing.
+                if not str(car.get("image") or "").strip():
+                    car["image"] = _fallback_image_for_car(car.get("name"), car.get("supplier"))
+                elif _is_generic_supplier_car_name(car.get("name"), car.get("supplier")):
+                    # Supplier-only placeholder cards often come with non-car or repeated images.
+                    car["image"] = _fallback_image_for_car(car.get("name"), car.get("supplier"))
+
                 car["rental_days"] = rental_days
                 if rental_days and car.get("price"):
                     try:
@@ -274,6 +466,37 @@ def rental_page(
                 rental_error = api_error
             elif not rental_cars:
                 rental_error = "??? ?? ??? ?? ?????. ?? ??/???? ?? ??? ???."
+
+            reliable_cars = [
+                c
+                for c in rental_cars
+                if c.get("price") is not None and not c.get("price_unreliable")
+            ]
+            if reliable_cars:
+                rental_cars = reliable_cars
+            else:
+                rental_cars = []
+
+            if not rental_cars:
+                rental_cars = _build_local_fallback_rental_cars(country_code, rental_days)
+                if min_seats_value:
+                    rental_cars = [c for c in rental_cars if not c.get("seats") or c.get("seats") >= min_seats_value]
+                if transmission and transmission not in {"", "all"}:
+                    tneedle = str(transmission).lower()
+                    rental_cars = [c for c in rental_cars if tneedle in str(c.get("transmission") or "").lower()]
+                if sort == "price_desc":
+                    rental_cars.sort(key=lambda x: x.get("price") or -1, reverse=True)
+                elif sort == "name":
+                    rental_cars.sort(key=lambda x: str(x.get("name") or ""))
+                elif sort == "rating":
+                    rental_cars.sort(key=lambda x: x.get("rating") or 0, reverse=True)
+                else:
+                    rental_cars.sort(key=lambda x: x.get("price") or 10**12)
+
+                if rental_cars:
+                    rental_provider = "Local Fallback"
+                    rental_provider_detail = "Live provider unavailable; showing sample rates"
+                    rental_error = None
         except Exception as e:
             rental_error = f"??? ?? ??: {e}"
 

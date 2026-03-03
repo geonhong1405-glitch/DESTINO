@@ -19,7 +19,8 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Pretendard', sans-serif; }
-body { background-color: var(--bg-color); color: var(--text-main); line-height: 1.5; }
+html, body { overflow-x: hidden; }
+body { background-color: var(--bg-color); color: var(--text-main); line-height: 1.5; padding-top: var(--header-height); }
 a { text-decoration: none; color: inherit; }
 ul { list-style: none; }
 button { cursor: pointer; border: none; background: none; font-family: inherit; }
@@ -30,10 +31,12 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     border-bottom: 1px solid #eee;
     display: flex;
     align-items: center;
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
+    width: 100%;
     background: #fff;
-    z-index: 100;
+    z-index: 2000;
 }
 .header-inner {
     display: flex;
@@ -934,6 +937,32 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     margin-top: 18px;
 }
 
+.flight-pricing-notice {
+    margin: 0 0 12px;
+    border: 1px solid #fcd34d;
+    background: #fffbeb;
+    color: #92400e;
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.flight-test-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: #fff7ed;
+    border: 1px solid #fdba74;
+    color: #9a3412;
+    font-size: 11px;
+    font-weight: 800;
+    margin-top: 8px;
+}
+
 .flight-price-main {
     font-size: 36px;
     line-height: 1.1;
@@ -1081,6 +1110,95 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
     border: 1px solid #e2e8f0; background: #fff; color: #64748b;
 }
 .flight-saved-item__remove:hover { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+
+.flight-checkout-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2100;
+    display: none;
+}
+.flight-checkout-modal.is-open {
+    display: block;
+}
+.flight-checkout-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+}
+.flight-checkout-modal__panel {
+    position: relative;
+    max-width: 820px;
+    max-height: calc(100vh - 60px);
+    overflow: auto;
+    margin: 30px auto;
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    padding: 16px;
+}
+.flight-checkout-modal__sub {
+    color: #64748b;
+    font-size: 13px;
+    margin-top: 4px;
+}
+.flight-checkout-summary {
+    margin-top: 12px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: #eff6ff;
+    border: 1px solid #dbeafe;
+    color: #1e3a8a;
+    font-weight: 700;
+}
+.flight-checkout-form {
+    margin-top: 12px;
+}
+.flight-checkout-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+.flight-checkout-grid input {
+    height: 40px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 0 10px;
+    font-size: 14px;
+}
+.flight-passenger-fieldset {
+    margin-top: 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 10px;
+}
+.flight-passenger-fieldset legend {
+    padding: 0 6px;
+    font-size: 12px;
+    color: #334155;
+    font-weight: 700;
+}
+.flight-checkout-actions {
+    margin-top: 14px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.flight-checkout-cancel,
+.flight-checkout-submit {
+    height: 40px;
+    border-radius: 8px;
+    padding: 0 14px;
+    font-weight: 700;
+}
+.flight-checkout-cancel {
+    border: 1px solid #d1d5db;
+    background: #fff;
+}
+.flight-checkout-submit {
+    border: 1px solid #2563eb;
+    background: #2563eb;
+    color: #fff;
+}
 
 .flight-multi-result {
     display: flex;

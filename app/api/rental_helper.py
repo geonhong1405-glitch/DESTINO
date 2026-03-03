@@ -276,50 +276,56 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
         n = _coerce_number(v)
         return int(n) if n is not None else None
 
-    def _first_num(node):
-        if isinstance(node, (int, float, str)):
-            return _coerce_number(node)
+    def _first_number(node, prefer_price=True):
+        if isinstance(node, (int, float)):
+            return float(node)
+        if isinstance(node, str):
+            s = node.strip().replace(",", "")
+            m = re.search(r"-?\d+(?:\.\d+)?", s)
+            if m:
+                try:
+                    return float(m.group(0))
+                except Exception:
+                    return None
+            return None
         if isinstance(node, dict):
-            for k, v in node.items():
-                lk = str(k).lower()
-                if any(x in lk for x in ("price", "amount", "value", "total", "cost", "fare", "pay")):
-                    n = _first_num(v)
-                    if n is not None:
-                        return n
+            # Prefer obvious price-like keys first.
+            if prefer_price:
+                for k, v in node.items():
+                    lk = str(k).lower()
+                    if any(x in lk for x in ("price", "amount", "total", "fare", "cost", "pay", "value")):
+                        n = _first_number(v, prefer_price=False)
+                        if n is not None:
+                            return n
+            for v in node.values():
+                n = _first_number(v, prefer_price=False)
+                if n is not None:
+                    return n
         elif isinstance(node, list):
-            for x in node:
-                n = _first_num(x)
+            for v in node:
+                n = _first_number(v, prefer_price=False)
                 if n is not None:
                     return n
         return None
 
-    def _pick(node, *keys):
-        for k in keys:
-            v = node.get(k)
-            if isinstance(v, str) and v.strip():
-                return v.strip()
-        return None
-
-    def _is_generic_rental_name(name_val: str | None, supplier_val: str | None) -> bool:
-        n = str(name_val or "").strip().lower()
-        if not n:
-            return True
-        if n in {"rental car", "rental", "렌터카", "렌터카 옵션", "car"}:
-            return True
-        if n.endswith("렌터카") or n.endswith("rental car") or n.endswith(" rental"):
-            s = str(supplier_val or "").strip().lower()
-            core = n.replace("렌터카", "").replace("rental car", "").replace("rental", "").strip()
-            if not core or (s and core == s):
-                return True
-        return False
-
     def _walk(node):
         if isinstance(node, dict):
-            name = _pick(
-                node,
-                "car_name", "name", "vehicleName", "vehicle_name", "carModel", "model", "title",
-                "display_name", "vehicle", "category", "vehicle_class", "sipp",
-            )
+            name = None
+            for k in (
+                "car_name",
+                "name",
+                "vehicleName",
+                "vehicle_name",
+                "carModel",
+                "model",
+                "title",
+                "display_name",
+                "vehicle",
+            ):
+                v = node.get(k)
+                if isinstance(v, str) and v.strip():
+                    name = v.strip()
+                    break
 
             price = None
             currency = None
@@ -332,23 +338,53 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
                         or obj.get("value")
                         or obj.get("price")
                         or obj.get("total")
-                        or obj.get("total_price")
-                        or obj.get("base_price")
+                        or obj.get("minPrice")
+                        or obj.get("gross")
+                        or obj.get("payable")
                     )
                 currency = currency or obj.get("currency") or obj.get("currency_code")
             if price is None:
-                n = _first_num(node)
-                price = int(n) if n is not None else None
+                n = _first_number(node)
+                price = int(round(n)) if n is not None else None
+            if currency is None:
+                query = node.get("query")
+                if isinstance(query, dict):
+                    currency = query.get("ccy") or query.get("currency")
 
-            image = _pick(
-                node,
-                "image", "image_url", "photo_url", "thumbnail", "photo", "img", "vehicle_image",
-            )
+            image = None
+            for k in (
+                "image",
+                "image_url",
+                "photo_url",
+                "thumbnail",
+                "photo",
+                "img",
+                "vndr_img",
+                "vehicle_image",
+                "car_image",
+                "imageUrl",
+            ):
+                v = node.get(k)
+                if isinstance(v, str) and v.strip():
+                    image = v.strip()
+                    break
 
-            supplier = _pick(
-                node,
-                "supplier_name", "provider_name", "vendorName", "company", "supplier", "vndr",
-            )
+            supplier = None
+            for k in (
+                "supplier_name",
+                "provider_name",
+                "providerName",
+                "vendorName",
+                "vendor",
+                "company",
+                "supplier",
+                "merchant_name",
+                "vndr",
+            ):
+                v = node.get(k)
+                if isinstance(v, str) and v.strip():
+                    supplier = v.strip()
+                    break
 
             specs = []
             seat_count = None
@@ -398,11 +434,14 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
                 looks_like_car = True
 
             if looks_like_car:
-                category = _pick(node, "vehicle_class", "category", "car_type", "sipp")
-                safe_name = name or category or "\uCC28\uC885 \uC815\uBCF4 \uC5C6\uC74C"
-                if _is_generic_rental_name(safe_name, supplier):
-                    safe_name = category or "\uCC28\uC885 \uC815\uBCF4 \uC5C6\uC74C"
-                key = (safe_name, supplier or "", price or 0)
+                if not name and supplier and price is not None:
+                    name = f"{supplier} 렌터카"
+                # Skip supplier-only skeleton nodes with no car name and no price.
+                if not name and price is None:
+                    for v in node.values():
+                        _walk(v)
+                    return
+                key = (name or "", supplier or "", price or 0)
                 if key not in seen:
                     seen.add(key)
                     results.append(

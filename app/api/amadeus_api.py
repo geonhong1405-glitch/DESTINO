@@ -5,23 +5,29 @@ import requests
 from dotenv import load_dotenv
 from requests import HTTPError
 
-load_dotenv()
+load_dotenv(override=True)
 
-AMADEUS_CLIENT_ID = os.getenv("AMADEUS_CLIENT_ID") or os.getenv("AMADEUS_API_KEY")
-AMADEUS_CLIENT_SECRET = os.getenv("AMADEUS_CLIENT_SECRET") or os.getenv("AMADEUS_API_SECRET")
-AMADEUS_BASE_URL = os.getenv("AMADEUS_BASE_URL", "https://test.api.amadeus.com").rstrip("/")
+
+def _load_amadeus_config() -> tuple[str | None, str | None, str]:
+    # Reload .env each request path so server reflects updated .env reliably.
+    load_dotenv(override=True)
+    client_id = os.getenv("AMADEUS_CLIENT_ID") or os.getenv("AMADEUS_API_KEY")
+    client_secret = os.getenv("AMADEUS_CLIENT_SECRET") or os.getenv("AMADEUS_API_SECRET")
+    base_url = (os.getenv("AMADEUS_BASE_URL") or "https://test.api.amadeus.com").rstrip("/")
+    return client_id, client_secret, base_url
 
 
 def get_amadeus_token() -> str:
-    if not AMADEUS_CLIENT_ID or not AMADEUS_CLIENT_SECRET:
+    amadeus_client_id, amadeus_client_secret, amadeus_base_url = _load_amadeus_config()
+    if not amadeus_client_id or not amadeus_client_secret:
         raise RuntimeError("AMADEUS credentials are not configured.")
 
     response = requests.post(
-        f"{AMADEUS_BASE_URL}/v1/security/oauth2/token",
+        f"{amadeus_base_url}/v1/security/oauth2/token",
         data={
             "grant_type": "client_credentials",
-            "client_id": AMADEUS_CLIENT_ID,
-            "client_secret": AMADEUS_CLIENT_SECRET,
+            "client_id": amadeus_client_id,
+            "client_secret": amadeus_client_secret,
         },
         timeout=15,
     )
@@ -41,7 +47,8 @@ def resolve_location_to_iata(keyword: str, token: Optional[str] = None) -> Optio
         return cleaned.upper()
 
     access_token = token or get_amadeus_token()
-    url = f"{AMADEUS_BASE_URL}/v1/reference-data/locations"
+    _, _, amadeus_base_url = _load_amadeus_config()
+    url = f"{amadeus_base_url}/v1/reference-data/locations"
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {"subType": "CITY,AIRPORT", "keyword": cleaned, "page[limit]": 1}
 
@@ -71,11 +78,13 @@ def search_flight_offers_raw(
     children: int = 0,
     infants: int = 0,
     cabin: Optional[str] = None,
+    currency_code: Optional[str] = None,
     max_results: int = 30,
 ):
     import logging
     logger = logging.getLogger("flight_search")
     token = get_amadeus_token()
+    _, _, amadeus_base_url = _load_amadeus_config()
     params = {
         "originLocationCode": origin_code,
         "destinationLocationCode": destination_code,
@@ -91,10 +100,12 @@ def search_flight_offers_raw(
         params["returnDate"] = return_date
     if cabin:
         params["travelClass"] = cabin
+    if currency_code:
+        params["currencyCode"] = str(currency_code).strip().upper()
     logger.info(f"[amadeus_api] 요청 params: {params}")
     try:
         response = requests.get(
-            f"{AMADEUS_BASE_URL}/v2/shopping/flight-offers",
+            f"{amadeus_base_url}/v2/shopping/flight-offers",
             headers={"Authorization": f"Bearer {token}"},
             params=params,
             timeout=20,
@@ -110,6 +121,56 @@ def search_flight_offers_raw(
     except Exception as e:
         logger.error(f"[amadeus_api] Exception: {e}, response: {getattr(response, 'text', None)}")
         raise
+
+
+def reprice_flight_offers(
+    offers: list[dict],
+    chunk_size: int = 4,
+) -> list[Optional[dict]]:
+    if not offers:
+        return []
+
+    token = get_amadeus_token()
+    _, _, amadeus_base_url = _load_amadeus_config()
+    endpoint = f"{amadeus_base_url}/v1/shopping/flight-offers/pricing"
+    out: list[Optional[dict]] = [None] * len(offers)
+    safe_chunk = max(1, int(chunk_size or 1))
+
+    for start in range(0, len(offers), safe_chunk):
+        chunk = offers[start : start + safe_chunk]
+        body = {
+            "data": {
+                "type": "flight-offers-pricing",
+                "flightOffers": chunk,
+            }
+        }
+        try:
+            response = requests.post(
+                endpoint,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                    # Some Amadeus environments still expect this override for pricing.
+                    "X-HTTP-Method-Override": "GET",
+                },
+                json=body,
+                timeout=20,
+            )
+            response.raise_for_status()
+            payload = response.json() if response.content else {}
+            priced = ((payload.get("data") or {}).get("flightOffers") or []) if isinstance(payload, dict) else []
+            if not isinstance(priced, list):
+                continue
+            for i, row in enumerate(priced):
+                if i >= len(chunk):
+                    break
+                if isinstance(row, dict):
+                    out[start + i] = row
+        except Exception:
+            # Best-effort only: keep original search prices when repricing fails.
+            continue
+
+    return out
 
 
 def search_flights(origin, destination, departure_date):
@@ -134,6 +195,7 @@ def _extract_amadeus_error_text(response: requests.Response) -> str:
 
 def search_hotels(city_code, check_in, check_out, adults=1):
     token = get_amadeus_token()
+    _, _, amadeus_base_url = _load_amadeus_config()
     headers = {"Authorization": f"Bearer {token}"}
 
     params = {
@@ -145,7 +207,7 @@ def search_hotels(city_code, check_in, check_out, adults=1):
 
     # 1) Try cityCode-based offers first.
     response = requests.get(
-        f"{AMADEUS_BASE_URL}/v3/shopping/hotel-offers",
+        f"{amadeus_base_url}/v3/shopping/hotel-offers",
         headers=headers,
         params=params,
         timeout=20,
@@ -160,7 +222,7 @@ def search_hotels(city_code, check_in, check_out, adults=1):
 
     # 2) Expand results: find many hotel IDs in city, then query offers by hotelIds in batches.
     by_city = requests.get(
-        f"{AMADEUS_BASE_URL}/v1/reference-data/locations/hotels/by-city",
+        f"{amadeus_base_url}/v1/reference-data/locations/hotels/by-city",
         headers=headers,
         params={"cityCode": city_code, "radius": 30, "radiusUnit": "KM", "hotelSource": "ALL"},
         timeout=20,
@@ -195,7 +257,7 @@ def search_hotels(city_code, check_in, check_out, adults=1):
     for i in range(0, len(hotel_ids), chunk_size):
         chunk = hotel_ids[i : i + chunk_size]
         offers = requests.get(
-            f"{AMADEUS_BASE_URL}/v3/shopping/hotel-offers",
+            f"{amadeus_base_url}/v3/shopping/hotel-offers",
             headers=headers,
             params={
                 "hotelIds": ",".join(chunk),

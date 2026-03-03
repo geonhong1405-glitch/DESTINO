@@ -1,542 +1,503 @@
-// ?�시리스??버튼 ?�태 ?�데?�트
-function updateWishlistButtons() {
-  if (!packageSavedState || !packageSavedState.wishlist) return;
-  const wishlistNames = packageSavedState.wishlist.map((item) => item.name);
-  document.querySelectorAll(".package-wishlist-btn").forEach((btn) => {
-    let payload;
-    try {
-      payload = JSON.parse(btn.dataset.savePayload);
-    } catch {
-      payload = btn.dataset.savePayload;
-    }
-    const isInWishlist =
-      typeof payload === "object"
-        ? wishlistNames.includes(payload.name)
-        : wishlistNames.includes(payload);
-    // ?�트 ?�이콘만 ?�시 (airport ?��???
-    // 기본 ?�색, in-wishlist???�만 빨간??    let color = btn.classList.contains("in-wishlist") ? "#ff5252" : "#bbb";
-    btn.innerHTML = `<span class='wishlist-icon' style='font-size:22px;color:${color};'>??/span>`;
-    // 마우???�버 ??빨간?? ?�니�??�래 ?�상
-    btn.onmouseenter = function () {
-      btn.querySelector(".wishlist-icon").style.color = "#ff5252";
-    };
-    btn.onmouseleave = function () {
-      let leaveColor = btn.classList.contains("in-wishlist")
-        ? "#ff5252"
-        : "#bbb";
-      btn.querySelector(".wishlist-icon").style.color = leaveColor;
-    };
-    if (!isLoggedIn()) {
-      btn.classList.remove("in-wishlist");
-    } else if (isInWishlist) {
-      btn.classList.add("in-wishlist");
-    } else {
-      btn.classList.remove("in-wishlist");
-    }
-  });
-}
+﻿(() => {
+  const LOGIN_CONFIRM_MESSAGE = "로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?";
+  const CART_LABEL = "장바구니";
+  const CART_IN_LABEL = "담김";
+  const CART_EMPTY_LABEL = "장바구니 항목이 없습니다.";
+  const WISHLIST_EMPTY_LABEL = "위시리스트 항목이 없습니다.";
+  const ALERT_EMPTY_LABEL = "도착한 참여 요청 알림이 없습니다.";
 
-async function addToWishlist(payload) {
-  if (!isLoggedIn()) {
-    if (
-      confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
-    ) {
-      location.href = "/login";
-    }
-    return;
-  }
-  let name = typeof payload === "object" ? payload.name : payload;
-  const wishlistNames = packageSavedState.wishlist.map((item) => item.name);
-  if (wishlistNames.includes(name)) {
-    return;
-  }
-  try {
-    const res = await fetch("/api/saved-items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(
-        typeof payload === "object"
-          ? { ...payload, list_type: "wishlist", item_type: "package" }
-          : {
-              list_type: "wishlist",
-              item_type: "package",
-              name: payload,
-              meta: "",
-              source: "",
-              payload: {},
-            },
-      ),
-    });
-    if (res.status === 401) {
-      if (
-        confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
-      ) {
-        location.href = "/login";
-      }
-      return;
-    }
-    await loadPackageSavedItems();
-    updateWishlistButtons();
-    packageSavedDrawerTab = "wishlist";
-    // keep drawer closed on add/remove
-    renderPackageSavedDrawer();
-  } catch (e) {
-  }
-}
+  let packageSavedDrawerTab = "cart";
+  let packageSavedState = { cart: [], wishlist: [] };
+  let packageAlertState = [];
 
-async function removeFromWishlist(payload) {
-  if (!isLoggedIn()) {
-    if (
-      confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
-    ) {
-      location.href = "/login";
-    }
-    return;
-  }
-  let name = typeof payload === "object" ? payload.name : payload;
-  const wishlistItem = packageSavedState.wishlist.find(
-    (item) => item.name === name,
-  );
-  if (!wishlistItem) {
-    return;
-  }
-  try {
-    const res = await fetch(`/api/saved-items/${wishlistItem.id}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    if (res.status === 401) {
-      if (
-        confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
-      ) {
-        location.href = "/login";
-      }
-      return;
-    }
-    await loadPackageSavedItems();
-    updateWishlistButtons();
-  } catch (e) {
-  }
-}
-
-function bindWishlistButtonEvents() {
-  document.querySelectorAll(".package-wishlist-btn").forEach((btn) => {
-    btn.onclick = async function (e) {
-      e.preventDefault();
-      let payload;
-      try {
-        payload = JSON.parse(btn.dataset.savePayload);
-      } catch {
-        payload = btn.dataset.savePayload;
-      }
-      if (!isLoggedIn()) {
-        if (
-          confirm(
-            "로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??",
-          )
-        ) {
-          location.href = "/login";
-        }
-        return;
-      }
-      const wishlistNames = packageSavedState.wishlist.map((item) => item.name);
-      const isInWishlist =
-        typeof payload === "object"
-          ? wishlistNames.includes(payload.name)
-          : wishlistNames.includes(payload);
-      if (isInWishlist) {
-        await removeFromWishlist(payload);
-      } else {
-        await addToWishlist(payload);
-      }
-      updateWishlistButtons();
-    };
-  });
-}
-// ?�른�??�단 drawer 기능 (airport?� ?�일?�게)
-let packageSavedDrawerTab = "cart"; // 'cart' ?�는 'wishlist'
-let packageSavedState = { cart: [], wishlist: [] };
-// ...existing code...
-
-// ?�품 카드 ?�바구니 버튼 기능 복구
-function updateCartButtons() {
-  // packageSavedState가 undefined??경우 방�?
-  if (!packageSavedState || !packageSavedState.cart) return;
-  const cartNames = packageSavedState.cart.map((item) => item.name);
-  document.querySelectorAll(".package-cart-btn").forEach((btn) => {
-    let payload;
-    try {
-      payload = JSON.parse(btn.dataset.savePayload);
-    } catch {
-      payload = btn.dataset.savePayload;
-    }
-    const isInCart =
-      typeof payload === "object"
-        ? cartNames.includes(payload.name)
-        : cartNames.includes(payload);
-    if (!isLoggedIn()) {
-      btn.textContent = "?�바구니";
-      btn.classList.remove("in-cart");
-    } else if (isInCart) {
-      btn.textContent = "?��?";
-      btn.classList.add("in-cart");
-    } else {
-      btn.textContent = "?�바구니";
-      btn.classList.remove("in-cart");
-    }
-  });
-}
-
-async function addToCart(payload) {
-  if (!isLoggedIn()) {
-    if (
-      confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
-    ) {
-      location.href = "/login";
-    }
-    return;
-  }
-  let name = typeof payload === "object" ? payload.name : payload;
-  const cartNames = packageSavedState.cart.map((item) => item.name);
-  if (cartNames.includes(name)) {
-    return;
-  }
-  try {
-    const res = await fetch("/api/saved-items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(
-        typeof payload === "object"
-          ? { ...payload, list_type: "cart", item_type: "package" }
-          : {
-              list_type: "cart",
-              item_type: "package",
-              name: payload,
-              meta: "",
-              source: "",
-              payload: {},
-            },
-      ),
-    });
-    if (res.status === 401) {
-      if (
-        confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
-      ) {
-        location.href = "/login";
-      }
-      return;
-    }
-    await loadPackageSavedItems();
-    updateCartButtons();
-  } catch (e) {
-  }
-}
-
-async function removeFromCart(payload) {
-  if (!isLoggedIn()) {
-    if (
-      confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
-    ) {
-      location.href = "/login";
-    }
-    return;
-  }
-  let name = typeof payload === "object" ? payload.name : payload;
-  const cartItem = packageSavedState.cart.find((item) => item.name === name);
-  if (!cartItem) {
-    return;
-  }
-  try {
-    const res = await fetch(`/api/saved-items/${cartItem.id}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    if (res.status === 401) {
-      if (
-        confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
-      ) {
-        location.href = "/login";
-      }
-      return;
-    }
-    await loadPackageSavedItems();
-    updateCartButtons();
-  } catch (e) {
-  }
-}
-function bindCartButtonEvents() {
-  document.querySelectorAll(".package-cart-btn").forEach((btn) => {
-    btn.onclick = async function (e) {
-      e.preventDefault();
-      let payload;
-      try {
-        payload = JSON.parse(btn.dataset.savePayload);
-      } catch {
-        payload = btn.dataset.savePayload;
-      }
-      if (!isLoggedIn()) {
-        if (
-          confirm(
-            "로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??",
-          )
-        ) {
-          location.href = "/login";
-        }
-        return;
-      }
-      const cartNames = packageSavedState.cart.map((item) => item.name);
-      const isInCart =
-        typeof payload === "object"
-          ? cartNames.includes(payload.name)
-          : cartNames.includes(payload);
-      if (isInCart) {
-        await removeFromCart(payload);
-      } else {
-        await addToCart(payload);
-      }
-      updateCartButtons();
-    };
-  });
-}
-document.addEventListener("DOMContentLoaded", () => {
-  bindCartButtonEvents();
-  updateCartButtons();
-});
-window.addEventListener("authchange", () => {
-  loadPackageSavedItems().then(() => {
-    bindCartButtonEvents();
-    updateCartButtons();
-  });
-});
-updateCartButtons();
-
-// ?�른�??�단 drawer 기능 (airport?� ?�일?�게)
-// ...existing code...
-
-function bindCartButtonEvents() {
-  document.querySelectorAll(".package-cart-btn").forEach((btn) => {
-    btn.onclick = async function (e) {
-      e.preventDefault();
-      if (!isLoggedIn()) {
-        return;
-      }
-      const payload = btn.dataset.savePayload;
-      const cartNames = packageSavedState.cart.map((item) => item.name);
-      if (cartNames.includes(payload)) {
-        await removeFromCart(payload);
-      } else {
-        await addToCart(payload);
-      }
-      updateCartButtons();
-    };
-  });
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  bindCartButtonEvents();
-  updateCartButtons();
-});
-
-window.addEventListener("authchange", () => {
-  loadPackageSavedItems();
-  bindCartButtonEvents();
-  updateCartButtons();
-});
-
-function isLoggedIn() {
-  return (
-    typeof window.__AUTH__ !== "undefined" &&
-    window.__AUTH__ !== null &&
-    window.__AUTH__ !== ""
-  );
-}
-
-async function savedItemsApi(path = "/api/saved-items", options = {}) {
-  const res = await fetch(path, {
-    credentials: "same-origin",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
-  if (res.status === 401) {
-    const err = new Error("LOGIN_REQUIRED");
-    err.code = "LOGIN_REQUIRED";
-    throw err;
-  }
-  let data = null;
-  try {
-    data = await res.json();
-  } catch (_e) {}
-  if (!res.ok) {
-    const err = new Error(
-      (data && (data.detail || data.error)) || `HTTP ${res.status}`,
+  function isLoggedIn() {
+    return (
+      typeof window.__AUTH__ !== "undefined" &&
+      window.__AUTH__ !== null &&
+      window.__AUTH__ !== ""
     );
-    err.code = "API_ERROR";
-    err.payload = data;
-    throw err;
   }
-  return data;
-}
 
-function requireLoginMessage() {
-  if (
-    confirm("로그?????�용 가?�한 기능?�니?? 로그???�이지�??�동?�까??")
-  ) {
-    location.href = "/login";
-  }
-}
-
-async function loadPackageSavedItems() {
-  try {
-    const data = await savedItemsApi("/api/saved-items", {
-      method: "GET",
-      headers: {},
-    });
-    packageSavedState = {
-      cart: Array.isArray(data?.cart) ? data.cart : [],
-      wishlist: Array.isArray(data?.wishlist) ? data.wishlist : [],
-    };
-  } catch (e) {
-    packageSavedState = { cart: [], wishlist: [] };
-  }
-  renderPackageSavedDrawer();
-}
-
-function setPackageSavedDrawer(open) {
-  const drawer = document.getElementById("packageSavedDrawer");
-  const fab = document.getElementById("packageSavedFab");
-  if (!drawer || !fab) return;
-  drawer.classList.toggle("is-open", !!open);
-  drawer.setAttribute("aria-hidden", open ? "false" : "true");
-  fab.setAttribute("aria-expanded", open ? "true" : "false");
-}
-
-function renderPackageSavedDrawer() {
-  const listEl = document.getElementById("packageSavedList");
-  const emptyEl = document.getElementById("packageSavedEmpty");
-  const countEl = document.getElementById("packageSavedFabCount");
-  const cartTab = document.getElementById("packageSavedTabCart");
-  const wishlistTab = document.getElementById("packageSavedTabWishlist");
-  if (!listEl || !emptyEl) return;
-  // tab state
-  // tab state
-  if (cartTab) {
-    if (packageSavedDrawerTab === "cart") {
-      cartTab.classList.add("is-active");
-      cartTab.setAttribute("aria-selected", "true");
-    } else {
-      cartTab.classList.remove("is-active");
-      cartTab.setAttribute("aria-selected", "false");
+  function requireLoginMessage() {
+    if (confirm(LOGIN_CONFIRM_MESSAGE)) {
+      location.href = "/login";
     }
   }
-  if (wishlistTab) {
-    if (packageSavedDrawerTab === "wishlist") {
-      wishlistTab.classList.add("is-active");
-      wishlistTab.setAttribute("aria-selected", "true");
-    } else {
-      wishlistTab.classList.remove("is-active");
-      wishlistTab.setAttribute("aria-selected", "false");
-    }
-  }
-  // ?�이???�더�?  // FAB count: ?�바구니+?�시리스???�체 ?�계
-  const cartCount = Array.isArray(packageSavedState.cart)
-    ? packageSavedState.cart.length
-    : 0;
-  const wishlistCount = Array.isArray(packageSavedState.wishlist)
-    ? packageSavedState.wishlist.length
-    : 0;
-  const total = cartCount + wishlistCount;
-  if (countEl) {
-    countEl.hidden = total === 0;
-    countEl.textContent = String(total || 0);
-  }
-  // current tab items
-  const items = Array.isArray(packageSavedState[packageSavedDrawerTab])
-    ? packageSavedState[packageSavedDrawerTab]
-    : [];
-  listEl.innerHTML = "";
-  emptyEl.style.display = items.length ? "none" : "block";
-  emptyEl.textContent =
-    packageSavedDrawerTab === "cart"
-      ? "?�바구니 ??��???�습?�다."
-      : "?�시리스????��???�습?�다.";
-  items.forEach((item) => {
-    const li = document.createElement("li");
-    li.className = "flight-saved-item";
-    const typeText = item.item_type || (packageSavedDrawerTab === "cart" ? "package" : "wishlist");
-    const metaHtml = item.meta ? `<div class="flight-saved-item__meta">${item.meta}</div>` : "";
-    li.innerHTML = `
-                <div class="flight-saved-item__type">${typeText}</div>
-                <div class="flight-saved-item__name">${item.name || "-"}</div>
-                ${metaHtml}
-                <button type="button" class="flight-saved-item__remove" data-package-saved-remove="${item.id}" title="remove">x</button>
-            `;
-    listEl.appendChild(li);
-  });
-}
 
-function initPackageSavedDrawer() {
-  const fab = document.getElementById("packageSavedFab");
-  const drawer = document.getElementById("packageSavedDrawer");
-  const listEl = document.getElementById("packageSavedList");
-  const cartTab = document.getElementById("packageSavedTabCart");
-  const wishlistTab = document.getElementById("packageSavedTabWishlist");
-  if (!fab || !drawer) return;
-  fab.addEventListener("click", () => {
-    setPackageSavedDrawer(!drawer.classList.contains("is-open"));
-  });
-  document.querySelectorAll("[data-package-saved-close]").forEach((el) => {
-    el.addEventListener("click", () => setPackageSavedDrawer(false));
-  });
-  // tab click events
-  cartTab?.addEventListener("click", () => {
-    renderPackageSavedDrawer();
-  });
-  wishlistTab?.addEventListener("click", () => {
-    packageSavedDrawerTab = "wishlist";
-    renderPackageSavedDrawer();
-  });
-  // ?�이????��
-  listEl?.addEventListener("click", async (e) => {
-    const btn = e.target.closest("[data-package-saved-remove]");
-    if (!btn) return;
-    const itemId = Number(btn.getAttribute("data-package-saved-remove"));
-    if (Number.isNaN(itemId)) return;
+  function parsePayload(raw) {
+    if (!raw) return null;
+    if (typeof raw === "object") return raw;
     try {
-      await fetch(`/api/saved-items/${itemId}`, {
-        method: "DELETE",
-        credentials: "include",
+      const p = JSON.parse(raw);
+      return p && typeof p === "object" ? p : null;
+    } catch (_e) {
+      const name = String(raw).trim();
+      if (!name) return null;
+      return { name, source: "package", payload: {} };
+    }
+  }
+
+  function parseBackgroundImageUrl(value) {
+    const s = String(value || "");
+    const m = s.match(/url\((['"]?)(.*?)\1\)/i);
+    return m && m[2] ? m[2] : "";
+  }
+
+  function getCardContext(buttonEl) {
+    const card = buttonEl?.closest?.(".package-card");
+    if (!card) return {};
+    const title = (card.querySelector(".package-name")?.textContent || "").trim();
+    const location = (card.querySelector(".package-loc")?.textContent || "").trim();
+    const priceText = (card.querySelector(".price-val")?.textContent || "").trim();
+    const imageWrap = card.querySelector(".package-image");
+    let image = "";
+    if (imageWrap) {
+      const inlineBg = parseBackgroundImageUrl(imageWrap.style?.backgroundImage || "");
+      const computedBg = parseBackgroundImageUrl(window.getComputedStyle(imageWrap).backgroundImage || "");
+      const imageTag = imageWrap.querySelector("img")?.getAttribute("src") || "";
+      image = inlineBg || computedBg || imageTag || "";
+    }
+    const href = card.getAttribute("href") || "";
+    return { title, location, priceText, image, href };
+  }
+
+  function payloadName(payload) {
+    const p = parsePayload(payload);
+    return String(p?.name || "").trim();
+  }
+
+  async function savedItemsApi(path = "/api/saved-items", options = {}) {
+    const res = await fetch(path, {
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      ...options,
+    });
+
+    if (res.status === 401) {
+      const err = new Error("LOGIN_REQUIRED");
+      err.code = "LOGIN_REQUIRED";
+      throw err;
+    }
+
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (_e) {}
+
+    if (!res.ok) {
+      const err = new Error((data && (data.detail || data.error)) || `HTTP ${res.status}`);
+      err.code = "API_ERROR";
+      err.payload = data;
+      throw err;
+    }
+
+    return data;
+  }
+
+  async function loadPackageSavedItems() {
+    try {
+      const data = await savedItemsApi("/api/saved-items", { method: "GET", headers: {} });
+      packageSavedState = {
+        cart: Array.isArray(data?.cart) ? data.cart : [],
+        wishlist: Array.isArray(data?.wishlist) ? data.wishlist : [],
+      };
+    } catch (_e) {
+      packageSavedState = { cart: [], wishlist: [] };
+    }
+    renderPackageSavedDrawer();
+  }
+
+  async function loadPackageAlerts() {
+    try {
+      const res = await fetch("/api/group-buy/join-requests/inbox", { credentials: "include" });
+      if (res.status === 401) {
+        packageAlertState = [];
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      packageAlertState = Array.isArray(data) ? data : [];
+    } catch (_e) {
+      packageAlertState = [];
+    }
+  }
+
+  async function decidePackageAlert(requestId, action) {
+    const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}/decision`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await loadPackageAlerts();
+  }
+
+  async function removePackageAlert(requestId) {
+    const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    packageAlertState = (packageAlertState || []).filter((x) => Number(x?.id) !== Number(requestId));
+  }
+
+  function ensurePackageAlertsTab() {
+    const tabsWrap = document.querySelector(".flight-saved-tabs");
+    if (!tabsWrap) return null;
+    let alertTab = tabsWrap.querySelector('[data-package-saved-tab="alerts"]');
+    if (!alertTab) {
+      alertTab = document.createElement("button");
+      alertTab.type = "button";
+      alertTab.id = "packageSavedTabAlerts";
+      alertTab.className = "flight-saved-tab";
+      alertTab.setAttribute("data-package-saved-tab", "alerts");
+      alertTab.setAttribute("aria-selected", "false");
+      alertTab.textContent = "알림";
+      tabsWrap.appendChild(alertTab);
+    }
+    return alertTab;
+  }
+
+  function updateWishlistButtons() {
+    const wishlistNames = new Set((packageSavedState.wishlist || []).map((item) => item?.name));
+    document.querySelectorAll(".package-wishlist-btn").forEach((btn) => {
+      const payload = parsePayload(btn.dataset.savePayload);
+      const inWishlist = !!payload && wishlistNames.has(payload.name);
+      const color = inWishlist ? "#ff5252" : "#bbb";
+      btn.innerHTML = `<span class='wishlist-icon' style='font-size:22px;color:${color};'>&hearts;</span>`;
+      btn.classList.toggle("in-wishlist", inWishlist);
+
+      btn.onmouseenter = function () {
+        const icon = btn.querySelector(".wishlist-icon");
+        if (icon) icon.style.color = "#ff5252";
+      };
+      btn.onmouseleave = function () {
+        const icon = btn.querySelector(".wishlist-icon");
+        if (icon) icon.style.color = btn.classList.contains("in-wishlist") ? "#ff5252" : "#bbb";
+      };
+    });
+  }
+
+  function updateCartButtons() {
+    const cartNames = new Set((packageSavedState.cart || []).map((item) => item?.name));
+    document.querySelectorAll(".package-cart-btn").forEach((btn) => {
+      const payload = parsePayload(btn.dataset.savePayload);
+      const inCart = !!payload && cartNames.has(payload.name);
+      btn.textContent = inCart ? CART_IN_LABEL : CART_LABEL;
+      btn.classList.toggle("in-cart", inCart);
+    });
+  }
+
+  function buildSavePayload(rawPayload, listType, buttonEl = null) {
+    const payload = parsePayload(rawPayload);
+    const ctx = getCardContext(buttonEl);
+    const name = String(payload?.name || ctx.title || "").trim();
+    if (!name) return null;
+
+    const payloadBody = payload?.payload && typeof payload.payload === "object" ? payload.payload : {};
+    const meta = [ctx.location, ctx.priceText].filter(Boolean).join(" | ");
+    const normalizedPayload = {
+      ...payloadBody,
+      name,
+      image: String(payloadBody?.image || payload?.image || ctx.image || "").trim(),
+      image_url: String(payloadBody?.image_url || payload?.image_url || ctx.image || "").trim(),
+      location: String(payloadBody?.location || payload?.location || ctx.location || "").trim(),
+      price_text: String(payloadBody?.price_text || payload?.price_text || ctx.priceText || "").trim(),
+      detail_url: String(payloadBody?.detail_url || payload?.detail_url || ctx.href || "").trim(),
+    };
+
+    return {
+      ...(typeof payload === "object" ? payload : {}),
+      list_type: listType,
+      item_type: "package",
+      source: payload?.source || "package",
+      meta: payload?.meta || meta,
+      payload: normalizedPayload,
+      name,
+    };
+  }
+
+  async function addToWishlist(rawPayload, buttonEl = null) {
+    if (!isLoggedIn()) return requireLoginMessage();
+    const payload = buildSavePayload(rawPayload, "wishlist", buttonEl);
+    if (!payload) return;
+
+    const exists = (packageSavedState.wishlist || []).some((item) => item?.name === payload.name);
+    if (exists) return;
+
+    try {
+      await savedItemsApi("/api/saved-items", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      await loadPackageSavedItems();
+      updateWishlistButtons();
+      renderPackageSavedDrawer();
+    } catch (e) {
+      if (e?.code === "LOGIN_REQUIRED") requireLoginMessage();
+    }
+  }
+
+  async function removeFromWishlist(rawPayload) {
+    if (!isLoggedIn()) return requireLoginMessage();
+    const name = payloadName(rawPayload);
+    const row = (packageSavedState.wishlist || []).find((item) => item?.name === name);
+    if (!row) return;
+
+    try {
+      await savedItemsApi(`/api/saved-items/${row.id}`, { method: "DELETE", headers: {} });
+      await loadPackageSavedItems();
+      updateWishlistButtons();
+      renderPackageSavedDrawer();
+    } catch (e) {
+      if (e?.code === "LOGIN_REQUIRED") requireLoginMessage();
+    }
+  }
+
+  async function addToCart(rawPayload, buttonEl = null) {
+    if (!isLoggedIn()) return requireLoginMessage();
+    const payload = buildSavePayload(rawPayload, "cart", buttonEl);
+    if (!payload) return;
+
+    const exists = (packageSavedState.cart || []).some((item) => item?.name === payload.name);
+    if (exists) return;
+
+    try {
+      await savedItemsApi("/api/saved-items", {
+        method: "POST",
+        body: JSON.stringify(payload),
       });
       await loadPackageSavedItems();
       updateCartButtons();
-      updateWishlistButtons();
-    } catch (err) {
+      renderPackageSavedDrawer();
+    } catch (e) {
+      if (e?.code === "LOGIN_REQUIRED") requireLoginMessage();
     }
-  });
-  renderPackageSavedDrawer();
-}
+  }
 
-document.addEventListener("DOMContentLoaded", () => {
-  initPackageSavedDrawer();
-  loadPackageSavedItems().then(() => {
-    bindCartButtonEvents();
-    updateCartButtons();
-    bindWishlistButtonEvents();
-    updateWishlistButtons();
-  });
-  window.addEventListener("authchange", () => {
-    loadPackageSavedItems().then(() => {
+  async function removeFromCart(rawPayload) {
+    if (!isLoggedIn()) return requireLoginMessage();
+    const name = payloadName(rawPayload);
+    const row = (packageSavedState.cart || []).find((item) => item?.name === name);
+    if (!row) return;
+
+    try {
+      await savedItemsApi(`/api/saved-items/${row.id}`, { method: "DELETE", headers: {} });
+      await loadPackageSavedItems();
+      updateCartButtons();
+      renderPackageSavedDrawer();
+    } catch (e) {
+      if (e?.code === "LOGIN_REQUIRED") requireLoginMessage();
+    }
+  }
+
+  function bindWishlistButtonEvents() {
+    document.querySelectorAll(".package-wishlist-btn").forEach((btn) => {
+      btn.onclick = async function (e) {
+        e.preventDefault();
+        const payload = parsePayload(btn.dataset.savePayload);
+        if (!payload) return;
+        const inWishlist = (packageSavedState.wishlist || []).some((item) => item?.name === payload.name);
+        if (inWishlist) await removeFromWishlist(payload);
+        else await addToWishlist(payload, btn);
+      };
+    });
+  }
+
+  function bindCartButtonEvents() {
+    document.querySelectorAll(".package-cart-btn").forEach((btn) => {
+      btn.onclick = async function (e) {
+        e.preventDefault();
+        const payload = parsePayload(btn.dataset.savePayload);
+        if (!payload) return;
+        const inCart = (packageSavedState.cart || []).some((item) => item?.name === payload.name);
+        if (inCart) await removeFromCart(payload);
+        else await addToCart(payload, btn);
+      };
+    });
+  }
+
+  function setPackageSavedDrawer(open) {
+    const drawer = document.getElementById("packageSavedDrawer");
+    const fab = document.getElementById("packageSavedFab");
+    if (!drawer || !fab) return;
+    drawer.classList.toggle("is-open", !!open);
+    drawer.setAttribute("aria-hidden", open ? "false" : "true");
+    fab.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  function renderPackageSavedDrawer() {
+    const listEl = document.getElementById("packageSavedList");
+    const emptyEl = document.getElementById("packageSavedEmpty");
+    const countEl = document.getElementById("packageSavedFabCount");
+    const cartTab = document.getElementById("packageSavedTabCart");
+    const wishlistTab = document.getElementById("packageSavedTabWishlist");
+    const alertsTab = ensurePackageAlertsTab();
+    if (!listEl || !emptyEl) return;
+
+    [cartTab, wishlistTab, alertsTab].forEach((tab) => {
+      if (!tab) return;
+      const active = tab.getAttribute("data-package-saved-tab") === packageSavedDrawerTab;
+      tab.classList.toggle("is-active", active);
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+    });
+
+    const total = (packageSavedState.cart?.length || 0) + (packageSavedState.wishlist?.length || 0) + (packageAlertState?.length || 0);
+    if (countEl) {
+      countEl.hidden = total === 0;
+      countEl.textContent = String(total || 0);
+    }
+
+    if (packageSavedDrawerTab === "alerts") {
+      listEl.innerHTML = "";
+      emptyEl.style.display = packageAlertState.length ? "none" : "block";
+      emptyEl.textContent = ALERT_EMPTY_LABEL;
+
+      packageAlertState.forEach((alert) => {
+        const li = document.createElement("li");
+        li.className = "flight-saved-item";
+        const status = String(alert?.status || "pending");
+        const statusLabel = status === "accepted" ? "수락됨" : status === "rejected" ? "거절됨" : "대기중";
+        const incoming = String(alert?.direction || "incoming") !== "mine";
+        li.innerHTML = `
+          <div class="flight-saved-item__type">알림</div>
+          <div class="flight-saved-item__name">${alert?.post_title || "공동구매 참여 요청"}</div>
+          <div class="flight-saved-item__meta">${alert?.requester_name || "사용자"} · ${statusLabel}</div>
+          ${alert?.message ? `<div class="flight-saved-item__meta">${alert.message}</div>` : ""}
+          ${incoming && status === "pending" ? `
+            <div style="display:flex;gap:6px;margin-top:8px;">
+              <button type="button" data-package-alert-decision="accept" data-package-alert-id="${Number(alert?.id)}" style="padding:4px 8px;border-radius:8px;border:1px solid #a7f3d0;background:#ecfdf5;color:#065f46;font-size:12px;font-weight:700;">수락</button>
+              <button type="button" data-package-alert-decision="reject" data-package-alert-id="${Number(alert?.id)}" style="padding:4px 8px;border-radius:8px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;font-size:12px;font-weight:700;">거절</button>
+            </div>
+          ` : ""}
+          ${status !== "pending" ? `<button type="button" class="flight-saved-item__remove" data-package-alert-remove="${Number(alert?.id)}" title="삭제">×</button>` : ""}
+        `;
+        listEl.appendChild(li);
+      });
+      return;
+    }
+
+    const items = Array.isArray(packageSavedState[packageSavedDrawerTab])
+      ? packageSavedState[packageSavedDrawerTab]
+      : [];
+
+    listEl.innerHTML = "";
+    emptyEl.style.display = items.length ? "none" : "block";
+    emptyEl.textContent = packageSavedDrawerTab === "cart" ? CART_EMPTY_LABEL : WISHLIST_EMPTY_LABEL;
+
+    items.forEach((item) => {
+      const li = document.createElement("li");
+      li.className = "flight-saved-item";
+      const typeText = item.item_type || (packageSavedDrawerTab === "cart" ? "package" : "wishlist");
+      const metaHtml = item.meta ? `<div class=\"flight-saved-item__meta\">${item.meta}</div>` : "";
+      li.innerHTML = `
+        <div class=\"flight-saved-item__type\">${typeText}</div>
+        <div class=\"flight-saved-item__name\">${item.name || "-"}</div>
+        ${metaHtml}
+        <button type=\"button\" class=\"flight-saved-item__remove\" data-package-saved-remove=\"${item.id}\" title=\"삭제\">×</button>
+      `;
+      listEl.appendChild(li);
+    });
+  }
+
+  function initPackageSavedDrawer() {
+    const fab = document.getElementById("packageSavedFab");
+    const drawer = document.getElementById("packageSavedDrawer");
+    const listEl = document.getElementById("packageSavedList");
+    const cartTab = document.getElementById("packageSavedTabCart");
+    const wishlistTab = document.getElementById("packageSavedTabWishlist");
+    const alertsTab = ensurePackageAlertsTab();
+    if (!fab || !drawer) return;
+
+    fab.addEventListener("click", () => {
+      setPackageSavedDrawer(!drawer.classList.contains("is-open"));
+    });
+
+    document.querySelectorAll("[data-package-saved-close]").forEach((el) => {
+      el.addEventListener("click", () => setPackageSavedDrawer(false));
+    });
+
+    cartTab?.addEventListener("click", () => {
+      packageSavedDrawerTab = "cart";
+      renderPackageSavedDrawer();
+    });
+    wishlistTab?.addEventListener("click", () => {
+      packageSavedDrawerTab = "wishlist";
+      renderPackageSavedDrawer();
+    });
+    alertsTab?.addEventListener("click", async () => {
+      packageSavedDrawerTab = "alerts";
+      await loadPackageAlerts();
+      renderPackageSavedDrawer();
+    });
+
+    listEl?.addEventListener("click", async (e) => {
+      const decisionBtn = e.target.closest("[data-package-alert-decision]");
+      if (decisionBtn) {
+        const requestId = Number(decisionBtn.getAttribute("data-package-alert-id"));
+        const action = decisionBtn.getAttribute("data-package-alert-decision");
+        if (!requestId || !action) return;
+        try {
+          await decidePackageAlert(requestId, action);
+          renderPackageSavedDrawer();
+        } catch (_err) {}
+        return;
+      }
+
+      const removeAlertBtn = e.target.closest("[data-package-alert-remove]");
+      if (removeAlertBtn) {
+        const requestId = Number(removeAlertBtn.getAttribute("data-package-alert-remove"));
+        if (!requestId) return;
+        try {
+          await removePackageAlert(requestId);
+          renderPackageSavedDrawer();
+        } catch (_err) {}
+        return;
+      }
+
+      const btn = e.target.closest("[data-package-saved-remove]");
+      if (!btn) return;
+      const itemId = Number(btn.getAttribute("data-package-saved-remove"));
+      if (Number.isNaN(itemId)) return;
+
+      try {
+        await savedItemsApi(`/api/saved-items/${itemId}`, { method: "DELETE", headers: {} });
+        await loadPackageSavedItems();
+        updateCartButtons();
+        updateWishlistButtons();
+      } catch (_err) {}
+    });
+
+    renderPackageSavedDrawer();
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    initPackageSavedDrawer();
+    Promise.all([loadPackageSavedItems(), loadPackageAlerts()]).then(() => {
       bindCartButtonEvents();
       updateCartButtons();
       bindWishlistButtonEvents();
       updateWishlistButtons();
+      renderPackageSavedDrawer();
     });
-  });
-});
-lucide.createIcons();
 
-// ...existing code...
+    window.addEventListener("authchange", () => {
+      Promise.all([loadPackageSavedItems(), loadPackageAlerts()]).then(() => {
+        bindCartButtonEvents();
+        updateCartButtons();
+        bindWishlistButtonEvents();
+        updateWishlistButtons();
+        renderPackageSavedDrawer();
+      });
+    });
+
+    if (window.lucide && lucide.createIcons) {
+      lucide.createIcons();
+    }
+  });
+})();
+

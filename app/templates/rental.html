@@ -236,10 +236,15 @@
                         {% endif %}
                         <div class="car-price-row">
                             <div class="car-price">
-                                {% if car.price %}{{ '{:,}'.format(car.price|int) }}{% else %}-{% endif %}
-                                <span>{{ car.currency or 'KRW' }} / 총액 추정</span>
+                                {% if car.price %}{{ '{:,}'.format(car.price|int) }}{% else %}요금 확인 필요{% endif %}
+                                <span>{% if car.price %}{{ car.currency or 'KRW' }} / 총액 추정{% else %}공급사 요금 재확인 필요{% endif %}</span>
                             </div>
                         </div>
+                        {% if car.fx_applied and car.original_price and car.original_currency %}
+                        <div class="rental-price-sub" style="margin-top:4px; opacity:.75;">
+                            환산 전 {{ '{:,}'.format(car.original_price|int) }} {{ car.original_currency }}
+                        </div>
+                        {% endif %}
                         {% if car.price_per_day %}
                         <div class="rental-price-sub">1일당 약 {{ '{:,}'.format(car.price_per_day|int) }} {{ car.currency or 'KRW' }}</div>
                         {% endif %}

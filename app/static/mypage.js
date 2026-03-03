@@ -285,17 +285,26 @@ function getFlightAirlineLogoUrl(code) {
 }
 
 function getSavedItemImageUrl(item) {
-    const payload = item?.payload || {};
+    const payload = item?.payload && typeof item.payload === 'object' ? item.payload : {};
+    const nested = payload?.payload && typeof payload.payload === 'object' ? payload.payload : {};
+
     if (item?.item_type === 'flight') {
-        return getFlightAirlineLogoUrl(payload?.airline_code || '');
+        return getFlightAirlineLogoUrl(payload?.airline_code || nested?.airline_code || '');
     }
+
     return (
         payload?.image_url ||
         payload?.image ||
+        nested?.image_url ||
+        nested?.image ||
         payload?.thumbnail ||
         payload?.photo ||
+        nested?.thumbnail ||
+        nested?.photo ||
         (Array.isArray(payload?.images) ? payload.images[0] : '') ||
         (Array.isArray(payload?.photos) ? payload.photos[0] : '') ||
+        (Array.isArray(nested?.images) ? nested.images[0] : '') ||
+        (Array.isArray(nested?.photos) ? nested.photos[0] : '') ||
         ''
     );
 }
@@ -304,6 +313,7 @@ function getItemTypeLabel(itemType) {
     const type = String(itemType || '').toLowerCase();
     if (type === 'flight') return '항공';
     if (type === 'hotel' || type === 'stay' || type === 'accommodation') return '숙박';
+    if (type === 'package' || type === 'pkg') return '패키지';
     if (type === 'rental' || type === 'car' || type === 'rentcar') return '렌터카';
     if (type === 'groupbuy' || type === 'travel-group') return '공동구매';
     return type ? type.toUpperCase() : 'ITEM';
@@ -358,6 +368,7 @@ function getWishlistCategory(item) {
     const type = String(item?.item_type || '').toLowerCase();
     if (type === 'flight') return '항공';
     if (type === 'hotel' || type === 'stay' || type === 'accommodation') return '숙박';
+    if (type === 'package' || type === 'pkg') return '패키지';
     if (type === 'rental' || type === 'car' || type === 'rentcar') return '렌터카';
     if (type === 'groupbuy' || type === 'travel-group') return '공동구매';
     return '기타';
@@ -565,12 +576,12 @@ function renderSavedItemsList(container, listType, items) {
 
 function renderWishlistGrouped(container, items) {
     if (!container) return;
-    const groups = { 항공: [], 숙박: [], 렌터카: [], 공동구매: [] };
+    const groups = { 항공: [], 숙박: [], 패키지: [], 렌터카: [], 공동구매: [], 기타: [] };
     (items || []).forEach((item) => {
         const key = getWishlistCategory(item);
         if (groups[key]) groups[key].push(item);
     });
-    const sections = ['항공', '숙박', '렌터카', '공동구매']
+    const sections = ['항공', '숙박', '패키지', '렌터카', '공동구매', '기타']
         .map((label) => {
             const rows = groups[label] || [];
             return `
@@ -597,11 +608,7 @@ function renderSavedItems() {
     if (wishTitle) wishTitle.innerText = `위시리스트 (${savedItemsState.wishlist.length})`;
     if (cartTitle) cartTitle.innerText = `장바구니 (${savedItemsState.cart.length})`;
 
-    if ((savedItemsState.wishlist || []).length === 0) {
-        renderSavedItemsList(wishContainer, 'wishlist', []);
-    } else {
-        renderWishlistGrouped(wishContainer, savedItemsState.wishlist);
-    }
+    renderWishlistGrouped(wishContainer, savedItemsState.wishlist || []);
     renderSavedItemsList(cartContainer, 'cart', savedItemsState.cart);
     renderCartSubTab();
     renderRecentCartPreview();
@@ -799,3 +806,4 @@ window.addEventListener('focus', () => {
     loadMyTripPosts();
     loadJoinRequestInbox();
 });
+

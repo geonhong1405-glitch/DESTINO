@@ -108,6 +108,146 @@ function requireLoginMessage() {
     }
 }
 
+function loadTossPaymentsScript() {
+    if (window.TossPayments) return Promise.resolve(window.TossPayments);
+    return new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-toss-sdk="1"]');
+        if (existing) {
+            existing.addEventListener('load', () => resolve(window.TossPayments));
+            existing.addEventListener('error', () => reject(new Error('토스 스크립트 로드 실패')));
+            return;
+        }
+        const s = document.createElement('script');
+        s.src = 'https://js.tosspayments.com/v1/payment';
+        s.async = true;
+        s.dataset.tossSdk = '1';
+        s.onload = () => resolve(window.TossPayments);
+        s.onerror = () => reject(new Error('토스 스크립트 로드 실패'));
+        document.head.appendChild(s);
+    });
+}
+
+function ensureFlightCheckoutModal() {
+    let root = document.getElementById('flightCheckoutModal');
+    if (root) return root;
+    root = document.createElement('div');
+    root.id = 'flightCheckoutModal';
+    root.className = 'flight-checkout-modal';
+    root.innerHTML = `
+        <div class="flight-checkout-modal__backdrop" data-flight-checkout-close></div>
+        <section class="flight-checkout-modal__panel">
+            <h3>예약자/탑승자 정보 입력</h3>
+            <p class="flight-checkout-modal__sub">여권 정보 입력 후 결제를 진행합니다.</p>
+            <div id="flightCheckoutSummary" class="flight-checkout-summary"></div>
+            <form id="flightCheckoutForm" class="flight-checkout-form">
+                <div class="flight-checkout-grid">
+                    <input name="customer_name" placeholder="예약자 이름" required>
+                    <input name="customer_email" type="email" placeholder="예약자 이메일" required>
+                    <input name="customer_phone" placeholder="예약자 연락처(선택)">
+                </div>
+                <div id="flightPassengerFields"></div>
+                <div class="flight-checkout-actions">
+                    <button type="button" class="flight-checkout-cancel" data-flight-checkout-close>취소</button>
+                    <button type="submit" class="flight-checkout-submit">결제 진행</button>
+                </div>
+            </form>
+        </section>
+    `;
+    document.body.appendChild(root);
+    root.querySelectorAll('[data-flight-checkout-close]').forEach((el) => {
+        el.addEventListener('click', () => root.classList.remove('is-open'));
+    });
+    return root;
+}
+
+function getPassengerCountForCheckout() {
+    const total = Number(passengerState?.adult || 0) + Number(passengerState?.child || 0) + Number(passengerState?.infant || 0);
+    return Math.max(1, total);
+}
+
+function renderPassengerFields(count) {
+    const mount = document.getElementById('flightPassengerFields');
+    if (!mount) return;
+    let html = '';
+    for (let i = 0; i < count; i += 1) {
+        html += `
+        <fieldset class="flight-passenger-fieldset">
+            <legend>탑승자 ${i + 1}</legend>
+            <div class="flight-checkout-grid">
+                <input name="p_${i}_last_name" placeholder="성(영문)" required>
+                <input name="p_${i}_first_name" placeholder="이름(영문)" required>
+                <input name="p_${i}_birth_date" type="date" required>
+                <input name="p_${i}_nationality" placeholder="국적(예: KR)" required>
+                <input name="p_${i}_passport_number" placeholder="여권번호" required>
+                <input name="p_${i}_passport_expiry" type="date" required>
+            </div>
+        </fieldset>`;
+    }
+    mount.innerHTML = html;
+}
+
+async function startFlightCheckout(savePayload) {
+    const modal = ensureFlightCheckoutModal();
+    const summary = modal.querySelector('#flightCheckoutSummary');
+    const form = modal.querySelector('#flightCheckoutForm');
+    const count = getPassengerCountForCheckout();
+    renderPassengerFields(count);
+    const priceLabel = String(savePayload?.meta || '').split('|')[0] || '';
+    summary.textContent = `${savePayload?.name || '항공권'} ${priceLabel ? `· ${priceLabel}` : ''}`;
+    modal.classList.add('is-open');
+
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const passengers = [];
+        for (let i = 0; i < count; i += 1) {
+            passengers.push({
+                last_name: String(fd.get(`p_${i}_last_name`) || '').trim(),
+                first_name: String(fd.get(`p_${i}_first_name`) || '').trim(),
+                birth_date: String(fd.get(`p_${i}_birth_date`) || '').trim(),
+                nationality: String(fd.get(`p_${i}_nationality`) || '').trim().toUpperCase(),
+                passport_number: String(fd.get(`p_${i}_passport_number`) || '').trim().toUpperCase(),
+                passport_expiry: String(fd.get(`p_${i}_passport_expiry`) || '').trim(),
+            });
+        }
+        const body = {
+            offer: savePayload?.payload || {},
+            customer_name: String(fd.get('customer_name') || '').trim(),
+            customer_email: String(fd.get('customer_email') || '').trim(),
+            customer_phone: String(fd.get('customer_phone') || '').trim(),
+            passengers,
+        };
+        try {
+            const checkout = await savedItemsApi('/api/flight/checkout', {
+                method: 'POST',
+                body: JSON.stringify(body),
+            });
+            if (checkout.payment_mode !== 'toss' || !checkout.toss_client_key) {
+                modal.classList.remove('is-open');
+                alert(`[모의 결제] 주문번호: ${checkout.order_id}\n결제금액: ${checkout.amount.toLocaleString('ko-KR')}원`);
+                return;
+            }
+            const TossPayments = await loadTossPaymentsScript();
+            const toss = TossPayments(checkout.toss_client_key);
+            await toss.requestPayment('카드', {
+                amount: checkout.amount,
+                orderId: checkout.order_id,
+                orderName: checkout.order_name,
+                customerName: body.customer_name,
+                customerEmail: body.customer_email,
+                successUrl: checkout.success_url,
+                failUrl: checkout.fail_url,
+            });
+        } catch (err) {
+            if (err?.code === 'LOGIN_REQUIRED') {
+                alert('로그인이 필요합니다. 같은 주소(127.0.0.1 또는 localhost)로 로그인했는지 확인해 주세요.');
+                return requireLoginMessage();
+            }
+            alert(err?.message || '결제 준비 중 오류가 발생했습니다.');
+        }
+    };
+}
+
 async function loadSavedItems() {
     try {
         const data = await savedItemsApi('/api/saved-items', { method: 'GET', headers: {} });
@@ -316,13 +456,13 @@ function initFlightSavedDrawer() {
 function buildFlightSavedItemPayload(offer, airline) {
     const itineraries = Array.isArray(offer?.itineraries) ? offer.itineraries : [];
     const firstSeg = itineraries?.[0]?.segments?.[0] || {};
-    const lastItin = itineraries[itineraries.length - 1] || itineraries[0] || {};
-    const lastSegs = Array.isArray(lastItin?.segments) ? lastItin.segments : [];
-    const lastSeg = lastSegs[lastSegs.length - 1] || {};
+    const outboundItin = itineraries?.[0] || {};
+    const outboundSegs = Array.isArray(outboundItin?.segments) ? outboundItin.segments : [];
+    const outboundLastSeg = outboundSegs[outboundSegs.length - 1] || {};
     const depCode = firstSeg?.departure?.iataCode || '';
-    const arrCode = lastSeg?.arrival?.iataCode || '';
+    const arrCode = outboundLastSeg?.arrival?.iataCode || '';
     const depAt = firstSeg?.departure?.at || '';
-    const arrAt = lastSeg?.arrival?.at || '';
+    const arrAt = outboundLastSeg?.arrival?.at || '';
     const priceLabel = getDisplayPrice(offer);
     const routeLabel = `${depCode} → ${arrCode}`.trim();
     const name = `${airline?.name || '항공권'} ${routeLabel}`.trim();
@@ -363,6 +503,9 @@ function initFlightSavedItemActions() {
             alert('항목 정보를 읽지 못했습니다.');
             return;
         }
+        if (payBtn) {
+            return startFlightCheckout(payload);
+        }
         const listType = heartBtn ? 'wishlist' : 'cart';
         try {
             await savedItemsApi('/api/saved-items', {
@@ -371,12 +514,9 @@ function initFlightSavedItemActions() {
             });
             await loadSavedItems();
             renderFlightSavedDrawer();
-            if (!heartBtn) {
+            if (cartBtn) {
                 btn.textContent = '담김';
                 setFlightSavedDrawer(true);
-                if (payBtn) {
-                    alert('결제하기 기능은 다음 단계에서 연결됩니다. 우선 장바구니에 담았습니다.');
-                }
             }
         } catch (err) {
             if (err?.code === 'LOGIN_REQUIRED') {
@@ -948,12 +1088,22 @@ function getDisplayPrice(offer) {
 function buildFlightCardsHtml(data) {
     const results = data && (data.results || data.data);
     if (!results || results.length === 0) {
+        const apiErr = String(data?.raw?.amadeus_error || data?.amadeus_error || '').trim();
+        if (apiErr) {
+            return `<div class="flight-error">검색 결과가 없습니다. (${escapeHtml(apiErr)})</div>`;
+        }
         return '<div class="flight-no-result">검색 결과가 없습니다.</div>';
     }
     const carriers = getCarrierDict(data);
     const sorted = sortOffersForDisplay(results);
+    const isTestPricing = String(data?.pricing_mode || '').toLowerCase() === 'test';
+    const pricingNotice = String(data?.pricing_notice || '').trim() || '테스트 요금(참고용)';
 
-    let html = '<div class="flight-result-list">';
+    let html = '';
+    if (isTestPricing) {
+        html += `<div class="flight-pricing-notice">${escapeHtml(pricingNotice)}: 실제 결제 단계에서 금액이 달라질 수 있습니다.</div>`;
+    }
+    html += '<div class="flight-result-list">';
     sorted.forEach((f) => {
         const itineraries = Array.isArray(f.itineraries) ? f.itineraries : [];
         const airline = getAirlineDisplay(f, carriers);
@@ -991,6 +1141,7 @@ function buildFlightCardsHtml(data) {
                         title="위시리스트"
                     >♥</button>
                     <div class="flight-offer-count">총 ${itineraries.length}구간</div>
+                    ${isTestPricing ? '<div class="flight-test-badge">TEST FARE</div>' : ''}
                     <div class="flight-price-main">${getDisplayPrice(f)}</div>
                     <div class="flight-price-sub">${escapeHtml(f?.price?.currency || "")} ${escapeHtml(f?.price?.total || "")}</div>
                     <div class="flight-card-actions">

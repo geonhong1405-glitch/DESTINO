@@ -1,5 +1,5 @@
 ﻿from app.api.booking_hotel_flight_api import search_hotels as booking_search_hotels, search_flights as booking_search_flights
-from app.session import get_user_id_from_session, create_session, delete_session, clear_all_sessions
+from app.session import get_user_id_from_session, create_session, delete_session, clear_all_sessions, SESSION_EXPIRE_MINUTES
 from app.db.db import Base, engine, SessionLocal
 from fastapi import FastAPI, Query, Request, Depends, Form, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -1554,7 +1554,14 @@ def signin_post(
 
     session_token = create_session(matched_user.id)
     response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
-    response.set_cookie(key="session_token", value=session_token, httponly=True)
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        samesite="lax",
+        max_age=SESSION_EXPIRE_MINUTES * 60,
+        path="/",
+    )
     return response
 
 
