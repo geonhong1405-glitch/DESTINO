@@ -10,6 +10,8 @@
     <script>
         // 서버 템플릿에서 로그인 여부에 따라 true/false로 세팅 (Jinja2/Flask 예시)
         window.isLoggedIn = {{ (user_is_authenticated | default(false)) | tojson }};
+        // 서버에서 닉네임을 window.nickname에 할당 (없으면 빈 문자열)
+        window.nickname = {{ (nickname | default('')) | tojson }};
     </script>
     
 </head>
@@ -61,8 +63,8 @@
 
     <main class="max-w-6xl mx-auto px-4 py-6">
         <nav class="flex items-center gap-2 text-[11px] text-gray-400 mb-6">
-            <span>홈</span> <i class="fa-solid fa-chevron-right text-[7px]"></i>
-            <span>해외투어</span> <i class="fa-solid fa-chevron-right text-[7px]"></i>
+            <a href="/"><span>홈</span></a> <i class="fa-solid fa-chevron-right text-[7px]"></i>
+            <a href="/tour"><span>티켓</span></a> <i class="fa-solid fa-chevron-right text-[7px]"></i>
             <span class="text-gray-900 font-medium text-[12px]">프랑스/스위스/이탈리아</span>
         </nav>
 
@@ -190,7 +192,7 @@
                                 [단독/야경특전] 파리 에펠탑 패스트트랙 & 센강 크루즈 콤보 티켓
                             </h2>
                             <div class="flex items-center gap-3 text-xs text-gray-400 font-medium">
-                                <span class="flex items-center gap-1"><i class="fa-solid fa-star text-yellow-400"></i> <b class="text-gray-900">4.9</b> (2,408)</span>
+                                <span class="flex items-center gap-1"><i class="fa-solid fa-star text-yellow-400"></i> <b class="text-gray-900">4.9</b></span>
                                 <span>|</span>
                                 <span class="flex items-center gap-1"><i class="fa-solid fa-location-dot"></i> 파리, 프랑스</span>
                             </div>
@@ -264,7 +266,7 @@
         </div>
     </main>
 
-    <div id="reviewModal" class="fixed inset-0 z-[100] bg-gray-900/60 items-center justify-center px-4 backdrop-blur-sm" style="display:none;">
+    <div id="reviewModal" class="fixed inset-0 z-[9999] bg-gray-900/60 items-center justify-center px-4 backdrop-blur-sm" style="display:none;">
         <div class="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl">
             <div class="p-6 border-b border-gray-50 flex justify-between items-center">
                 <h3 class="text-lg font-bold">리뷰 남기기</h3>
@@ -283,7 +285,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-2">상세 후기</label>
-                    <textarea id="reviewText" rows="4" class="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-gray-300" placeholder="투어의 좋았던 점이나 아쉬웠던 점을 적어주세요."></textarea>
+                        <textarea id="reviewText" rows="4" maxlength="500" class="w-full border border-gray-100 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all resize-none" placeholder="솔직한 후기를 남겨주세요!" style="height:80px;min-height:80px;max-height:80px;"></textarea>
                 </div>
                 <button onclick="submitReview()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl hover:bg-blue-700 transition-shadow">
                     리뷰 등록하기
