@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -30,7 +30,7 @@
         <div class="overlay" id="overlay"></div>
 
         <section class="hero-section">
-            <h1 class="hero-title">가장 편안한 여행의 시작, 렌터카 예약</h1>
+            <h1 class="hero-title">가장 편한 여행의 시작, 렌터카 예약</h1>
             <div class="search-widget">
                 <form class="search-form rental-grid" id="rentalSearchForm" method="get" action="/rental">
                     <div class="input-group" id="destinationInputGroup">
@@ -42,7 +42,7 @@
                             <div class="destination-sidebar" id="destinationRegionList"></div>
                             <div class="destination-main">
                                 <div class="destination-panel-title" id="destinationPanelTitle">주요 도시 선택</div>
-                                <input type="text" id="destinationSearchInput" class="popover-search-input destination-search-input" placeholder="도시명을 입력하고 검색 버튼을 누르세요">
+                                <input type="text" id="destinationSearchInput" class="popover-search-input destination-search-input" placeholder="도시명을 입력하고 검색 버튼을 눌러주세요">
                                 <button type="button" id="destinationSearchBtn" class="destination-search-btn">검색</button>
                                 <div class="destination-search-meta" id="destinationSearchMeta"></div>
                                 <div class="location-list destination-search-list" id="destinationSearchList"></div>
@@ -72,7 +72,7 @@
 
                     <div class="input-group" id="dropoffLocInputGroup">
                         <label><i data-lucide="corner-down-left" width="14"></i> 반납 장소</label>
-                        <div class="display-text" id="dropoffLocDisplay">{{ dropoff_name or '반납 장소를 선택하세요 (기본: 대여 장소)' }}</div>
+                        <div class="display-text" id="dropoffLocDisplay">{{ dropoff_name or '반납 장소를 선택하세요(기본: 대여 장소)' }}</div>
                         <input type="hidden" name="dropoff_name" id="dropoffNameHidden" value="{{ dropoff_name or '' }}">
                         <input type="hidden" name="dropoff_lat" id="dropoffLatHidden" value="{{ dropoff_lat or '' }}">
                         <input type="hidden" name="dropoff_lon" id="dropoffLonHidden" value="{{ dropoff_lon or '' }}">
@@ -174,17 +174,11 @@
                 {% if rental_provider %}
                 <div style="margin-top:6px; font-size:12px; color:#7f1d1d;">Provider: {{ rental_provider }}</div>
                 {% endif %}
-                {% if rental_provider_detail %}
-                <div style="margin-top:4px; font-size:11px; color:#991b1b; opacity:.85;">{{ rental_provider_detail }}</div>
-                {% endif %}
             </div>
             {% endif %}
 
             {% if rental_cars and rental_provider %}
             <div style="margin:8px 0 0; font-size:12px; color:#64748b;">Provider: {{ rental_provider }}</div>
-            {% if rental_provider_detail %}
-            <div style="margin:4px 0 0; font-size:11px; color:#64748b; opacity:.9;">{{ rental_provider_detail }}</div>
-            {% endif %}
             {% endif %}
 
             {% if rental_cars %}
@@ -271,7 +265,7 @@
                 <div class="car-card">
                     <div class="car-img-box"><img src="https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?q=80&w=400&auto=format&fit=crop" class="car-img" alt="sample car"></div>
                     <div class="car-info">
-                        <h3 class="car-name">대여/반납 장소와 시간을 선택하면 실시간 차량을 조회합니다</h3>
+                        <h3 class="car-name">대여/반납 장소와 시간을 선택하면 실시간 차량을 조회합니다.</h3>
                         <div class="car-specs"><span>도시/공항/역 검색</span>|<span>필터/정렬 지원</span></div>
                         <div class="car-price-row"><div class="car-price">실시간 조회<span>Sky Cars</span></div></div>
                     </div>
@@ -290,7 +284,7 @@
             <section class="rental-saved-drawer__panel">
                 <div class="rental-saved-drawer__grab"></div>
                 <div class="rental-saved-drawer__header">
-                    <div class="rental-saved-tabs" role="tablist" aria-label="저장 항목 탭">
+                    <div class="rental-saved-tabs" role="tablist" aria-label="저장된 항목 탭">
                         <button type="button" class="rental-saved-tab is-active" data-rental-saved-tab="cart" aria-selected="true">장바구니</button>
                         <button type="button" class="rental-saved-tab" data-rental-saved-tab="wishlist" aria-selected="false">위시리스트</button>
                         <button type="button" class="rental-saved-tab" data-rental-saved-tab="alerts" aria-selected="false">알림</button>
@@ -317,7 +311,79 @@
             pickupAt: {{ (pickup_at or '')|tojson }},
             dropoffAt: {{ (dropoff_at or '')|tojson }}
         };
+        window.__RENTAL_LOGGED_IN__ = {{ (true if nickname else false)|tojson }};
     </script>
-    <script src="/static/rental.js?v=20260227b"></script>
+    <script src="/static/rental.js?v=20260304i"></script>
+    <script>
+        // Fallback date-popover binding: keeps date fields usable even if main JS partially fails.
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.__RENTAL_MAIN_BOUND) return;
+            const overlay = document.getElementById('overlay');
+            const startGroup = document.getElementById('startInputGroup');
+            const endGroup = document.getElementById('endInputGroup');
+            const startPopover = document.getElementById('startDtPopover');
+            const endPopover = document.getElementById('endDtPopover');
+            const startDate = document.getElementById('startDate');
+            const startTime = document.getElementById('startTime');
+            const endDate = document.getElementById('endDate');
+            const endTime = document.getElementById('endTime');
+            const startDisplay = document.getElementById('startDtDisplay');
+            const endDisplay = document.getElementById('endDtDisplay');
+            const pickupAtHidden = document.getElementById('pickupAtHidden');
+            const dropoffAtHidden = document.getElementById('dropoffAtHidden');
+
+            if (!startGroup || !endGroup || !startPopover || !endPopover) return;
+
+            function closeDatePopovers() {
+                startPopover.classList.remove('active');
+                endPopover.classList.remove('active');
+                if (overlay) overlay.classList.remove('active');
+            }
+
+            function syncDateDisplay() {
+                const s = `${startDate?.value || ''} ${startTime?.value || ''}`.trim();
+                const e = `${endDate?.value || ''} ${endTime?.value || ''}`.trim();
+                if (startDisplay) startDisplay.textContent = s || '?좎쭨? ?쒓컙???좏깮';
+                if (endDisplay) endDisplay.textContent = e || '?좎쭨? ?쒓컙???좏깮';
+                if (pickupAtHidden) pickupAtHidden.value = s;
+                if (dropoffAtHidden) dropoffAtHidden.value = e;
+            }
+
+            startGroup.addEventListener('click', function () {
+                const open = startPopover.classList.contains('active');
+                closeDatePopovers();
+                if (!open) {
+                    startPopover.classList.add('active');
+                    if (overlay) overlay.classList.add('active');
+                }
+            });
+
+            endGroup.addEventListener('click', function () {
+                const open = endPopover.classList.contains('active');
+                closeDatePopovers();
+                if (!open) {
+                    endPopover.classList.add('active');
+                    if (overlay) overlay.classList.add('active');
+                }
+            });
+
+            if (overlay) overlay.addEventListener('click', closeDatePopovers);
+            if (startDate) startDate.addEventListener('change', syncDateDisplay);
+            if (startTime) startTime.addEventListener('change', syncDateDisplay);
+            if (endDate) endDate.addEventListener('change', syncDateDisplay);
+            if (endTime) endTime.addEventListener('change', syncDateDisplay);
+
+            document.querySelectorAll('#startDtPopover .btn-confirm, #endDtPopover .btn-confirm')
+                .forEach(function (btn) {
+                    btn.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        syncDateDisplay();
+                        closeDatePopovers();
+                    });
+                });
+
+            syncDateDisplay();
+        });
+    </script>
 </body>
 </html>

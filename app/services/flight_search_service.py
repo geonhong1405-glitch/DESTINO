@@ -1,4 +1,6 @@
+import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Any, Optional
 
@@ -211,8 +213,10 @@ def _search_flights(
         raise ValueError(f"출발/도착지를 공항 코드로 해석하지 못했습니다. origin={origin}, destination={destination}")
 
     amadeus_error = None
-    try:
-        data = search_flight_offers_raw(
+    data: dict[str, Any] = {"data": []}
+
+    def _run_amadeus() -> dict[str, Any]:
+        return search_flight_offers_raw(
             origin_code=origin_iata,
             destination_code=destination_iata,
             departure_date=departure_date,
@@ -224,23 +228,35 @@ def _search_flights(
             currency_code=currency_code,
             max_results=max_results,
         )
-    except Exception as e:
-        amadeus_error = str(e)
-        data = {"data": []}
 
-    try:
-        b = booking_search_flights(origin_iata, destination_iata, departure_date, return_date, adults)
-        data["booking_reference"] = b.get("data", [])
-    except Exception as e:
-        data["booking_reference_error"] = str(e)
+    def _run_booking() -> dict[str, Any]:
+        return booking_search_flights(origin_iata, destination_iata, departure_date, return_date, adults)
+
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        amadeus_future = ex.submit(_run_amadeus)
+        booking_future = ex.submit(_run_booking)
+
+        try:
+            data = amadeus_future.result()
+        except Exception as e:
+            amadeus_error = str(e)
+            data = {"data": []}
+
+        try:
+            b = booking_future.result()
+            data["booking_reference"] = b.get("data", [])
+        except Exception as e:
+            data["booking_reference_error"] = str(e)
 
     if amadeus_error:
         data["amadeus_error"] = amadeus_error
 
     # Normalize total price by summing traveler-level pricing when present.
     _normalize_offer_totals_from_travelers(data)
-    # Re-validate top offers with pricing endpoint for closer-to-booking totals.
-    _reprice_top_offers(data, limit=12)
+    # Re-validation is expensive; keep it opt-in to reduce search latency.
+    reprice_limit = int(os.getenv("FLIGHT_REPRICE_LIMIT", "0") or 0)
+    if reprice_limit > 0:
+        _reprice_top_offers(data, limit=reprice_limit)
     _dedupe_offers_by_itinerary(data)
 
     if max_price is not None:

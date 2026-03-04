@@ -39,7 +39,13 @@ def _serialize_row(row: UserSavedItem) -> dict:
 
 @router.get("/saved-items")
 def get_saved_items(request: Request):
-    user_id = _require_user_id(request)
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        # UI initializes this endpoint on anonymous pages as well.
+        # Return an empty payload instead of 401 to avoid noisy console errors.
+        return {"wishlist": [], "cart": []}
+    user_id = int(user_id)
     db = SessionLocal()
     try:
         rows = (

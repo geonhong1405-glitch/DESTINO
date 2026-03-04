@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+﻿document.addEventListener('DOMContentLoaded', () => {
   if (window.lucide) lucide.createIcons();
   initRentalApp();
   initRentalSavedUi();
@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
 const DESTINATION_REGIONS = [
   { key: 'jp', label: '일본', countryCode: 'JP', cities: ['도쿄', '오사카', '후쿠오카', '삿포로', '오키나와', '나고야', '교토', '고베'] },
   { key: 'sea', label: '동남아', countryCode: 'TH', cities: ['방콕', '푸켓', '치앙마이', '파타야', '다낭', '하노이', '호치민', '싱가포르'] },
-  { key: 'cn', label: '홍콩/마카오/중국', countryCode: 'TW', cities: ['타이베이', '타이중', '가오슝', '홍콩', '마카오', '상하이'] },
+  { key: 'cn', label: '홍콩/마카오/중국', countryCode: 'CN', cities: ['타이베이', '타이중', '가오슝', '홍콩', '마카오', '상하이'] },
   { key: 'pac', label: '남태평양', countryCode: 'US', cities: ['하와이', '괌', '사이판'] },
   { key: 'us', label: '미주', countryCode: 'US', cities: ['뉴욕', '로스앤젤레스', '라스베이거스', '샌프란시스코'] },
   { key: 'eu', label: '유럽', countryCode: 'FR', cities: ['파리', '로마', '런던', '바르셀로나'] },
@@ -86,15 +86,20 @@ function initRentalApp() {
   bindFormSubmit(els);
 
   if (initial.pickupName) {
-    els.pickupDisplay.textContent = initial.pickupName;
-    els.pickupSearchInput.value = initial.pickupName;
+    const localizedPickup = localizeLocationName(initial.pickupName);
+    els.pickupDisplay.textContent = localizedPickup;
+    els.pickupSearchInput.value = localizedPickup;
   }
   if (initial.dropoffName) {
-    els.dropoffDisplay.textContent = initial.dropoffName;
-    els.dropoffSearchInput.value = initial.dropoffName;
+    const localizedDropoff = localizeLocationName(initial.dropoffName);
+    els.dropoffDisplay.textContent = localizedDropoff;
+    els.dropoffSearchInput.value = localizedDropoff;
   }
   renderLocationList(els, 'pickup', []);
   renderLocationList(els, 'dropoff', []);
+
+  // Signal that the main rental UI bindings are healthy.
+  window.__RENTAL_MAIN_BOUND = true;
 }
 
 function initDestinationPicker(els, state, initial) {
@@ -164,7 +169,7 @@ function renderDestinationCities(els, state) {
   }
   els.destinationCityGrid.style.display = '';
   els.destinationCityGrid.innerHTML = region.cities.map((city) => `
-    <button type="button" class="destination-city-btn" data-country="${region.countryCode}" data-city="${escapeHtml(city)}">${escapeHtml(city)}</button>
+    <button type="button" class="destination-city-btn" data-country="${inferDestinationCountryCode(city, region.countryCode)}" data-city="${escapeHtml(city)}">${escapeHtml(city)}</button>
   `).join('');
 
   els.destinationCityGrid.querySelectorAll('.destination-city-btn').forEach((btn) => {
@@ -251,7 +256,7 @@ function renderDestinationSearchArea(els, state) {
       if (!item) return;
       await selectDestinationCity(els, state, {
         city: item.name || '',
-        countryCode: getDestinationRegionCountryCode(state),
+        countryCode: (item.country_code || inferDestinationCountryCode(item.name || '', getDestinationRegionCountryCode(state))),
       });
     });
   });
@@ -260,6 +265,44 @@ function renderDestinationSearchArea(els, state) {
 function getDestinationRegionCountryCode(state) {
   const region = DESTINATION_REGIONS.find((r) => r.key === state.destinationRegionKey) || DESTINATION_REGIONS[0];
   return region?.countryCode || 'JP';
+}
+
+async function fetchRentalLocations({ q, category = 'all', countryCode = '' }) {
+  const cc = String(countryCode || '').trim().toUpperCase();
+  const base = `/api/rental/location-search?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`;
+  const url = cc ? `${base}&country_code=${encodeURIComponent(cc)}` : base;
+  const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+  const data = await resp.json();
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
+function inferDestinationCountryCode(cityName, fallbackCode = 'JP') {
+  const n = String(cityName || '').trim().toLowerCase();
+  const map = {
+    '홍콩': 'HK',
+    'hong kong': 'HK',
+    'hongkong': 'HK',
+    'hkg': 'HK',
+    '마카오': 'MO',
+    'macau': 'MO',
+    'macao': 'MO',
+    'mfm': 'MO',
+    '상하이': 'CN',
+    'shanghai': 'CN',
+    '베이징': 'CN',
+    'beijing': 'CN',
+    '광저우': 'CN',
+    'guangzhou': 'CN',
+    '칭다오': 'CN',
+    'qingdao': 'CN',
+    '타이베이': 'TW',
+    'taipei': 'TW',
+    '타이중': 'TW',
+    'taichung': 'TW',
+    '가오슝': 'TW',
+    'kaohsiung': 'TW',
+  };
+  return map[n] || String(fallbackCode || 'JP').toUpperCase();
 }
 
 async function triggerDestinationSearch(els, state) {
@@ -281,11 +324,11 @@ async function triggerDestinationSearch(els, state) {
   try {
     const countryCode = getDestinationRegionCountryCode(state);
     const searchQ = normalizeDestinationKeyword(q);
-    const url = `/api/rental/location-search?q=${encodeURIComponent(searchQ)}&category=city&country_code=${encodeURIComponent(countryCode)}`;
-    const resp = await fetch(url, { headers: { Accept: 'application/json' } });
-    const data = await resp.json();
+    let items = await fetchRentalLocations({ q: searchQ, category: 'city', countryCode });
+    if (!items.length) {
+      items = await fetchRentalLocations({ q: searchQ, category: 'city', countryCode: '' });
+    }
     if (seq !== state.destinationSearchSeq) return;
-    const items = Array.isArray(data.items) ? data.items : [];
     const dedup = [];
     const seen = new Set();
     for (const item of items) {
@@ -312,12 +355,10 @@ function normalizeDestinationKeyword(q) {
 
   const aliasMap = new Map([
     ['훗카이도', '삿포로'],
-    ['홋카이도', '삿포로'],
     ['북해도', '삿포로'],
+    ['beppu', '벳푸'],
     ['벳부', '벳푸'],
     ['벳푸', '벳푸'],
-    ['뱃부', '벳푸'],
-    ['뱃푸', '벳푸'],
   ]);
 
   return aliasMap.get(s) || s;
@@ -338,13 +379,14 @@ async function selectDestinationCity(els, state, payload) {
   state.destinationSearching = false;
 
   resetSelectedLocations(els);
-  // 목적지 선택 후에는 검색창 텍스트를 비워 수동 검색이 편하도록 유지
+  // 紐⑹쟻吏 ?좏깮 ?꾩뿉??寃?됱갹 ?띿뒪?몃? 鍮꾩썙 ?섎룞 寃?됱씠 ?명븯?꾨줉 ?좎?
   if (els.pickupSearchInput) els.pickupSearchInput.value = '';
   if (els.dropoffSearchInput) els.dropoffSearchInput.value = '';
   closeAllPopovers(els);
 
   if (!city) return;
   await triggerLocationSearch(els, state, 'pickup', city);
+  await triggerLocationSearch(els, state, 'dropoff', city);
   if (els.pickupPopover) {
     els.pickupPopover.classList.add('active');
     els.overlay?.classList.add('active');
@@ -359,9 +401,9 @@ function closeAllPopovers(els) {
 function initDates(els, initial) {
   const now = new Date();
   const startDefault = new Date(now);
-  startDefault.setHours(11, 0, 0, 0); // 기본: 오늘 오전 11시
+  startDefault.setHours(10, 0, 0, 0);
   const endDefault = new Date(startDefault);
-  endDefault.setDate(endDefault.getDate() + 1); // 기본: 다음 날 오전 11시
+  endDefault.setDate(endDefault.getDate() + 1);
   const s = parseLocalDateTime(initial.pickupAt) || startDefault;
   const e = parseLocalDateTime(initial.dropoffAt) || endDefault;
   const minDate = formatDate(now);
@@ -401,6 +443,7 @@ function bindPopoverToggles(els) {
 
 function bindDateHandlers(els) {
   ['startDate', 'startTime', 'endDate', 'endTime'].forEach((id) => {
+    if (!els[id]) return;
     els[id].addEventListener('change', () => {
       validateDates(els);
       syncDateDisplays(els);
@@ -418,7 +461,8 @@ function bindLocationSearch(els, state, target) {
       categoryButtons.forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       state[target].category = btn.dataset.category || 'all';
-      triggerLocationSearch(els, state, target, searchInput.value.trim());
+      const q = getLocationSearchQuery(els, target, searchInput.value.trim());
+      triggerLocationSearch(els, state, target, q);
     });
   });
 
@@ -430,15 +474,18 @@ function bindLocationSearch(els, state, target) {
 
   const group = target === 'pickup' ? els.pickupGroup : els.dropoffGroup;
   group.addEventListener('click', () => {
-    const fallbackQ = searchInput.value.trim()
-      || (target === 'dropoff' ? (els.pickupNameHidden.value || '') : '')
-      || (els.cityHintHidden?.value || '')
-      || (els.destinationDisplay?.textContent || '');
+    const fallbackQ = getLocationSearchQuery(els, target, searchInput.value.trim());
     if (fallbackQ) {
-      searchInput.value = fallbackQ;
       triggerLocationSearch(els, state, target, fallbackQ);
     }
   });
+}
+
+function getLocationSearchQuery(els, target, typed) {
+  return String(typed || '').trim()
+    || (target === 'dropoff' ? String(els.pickupNameHidden?.value || '').trim() : '')
+    || String(els.cityHintHidden?.value || '').trim()
+    || String(els.destinationDisplay?.textContent || '').trim();
 }
 
 async function triggerLocationSearch(els, state, target, q) {
@@ -447,15 +494,61 @@ async function triggerLocationSearch(els, state, target, q) {
   try {
     const category = state[target].category || 'all';
     const countryCode = els.countryCodeHidden?.value || 'JP';
-    const url = `/api/rental/location-search?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}&country_code=${encodeURIComponent(countryCode)}`;
-    const resp = await fetch(url, { headers: { Accept: 'application/json' } });
-    const data = await resp.json();
-    const items = Array.isArray(data.items) ? data.items : [];
+    const variants = buildLocationQueryVariants(q);
+    let items = [];
+    for (const keyword of variants) {
+      items = await fetchRentalLocations({ q: keyword, category, countryCode });
+      if (items.length) break;
+      items = await fetchRentalLocations({ q: keyword, category, countryCode: '' });
+      if (items.length) break;
+    }
+    if (!items.length && category !== 'all') {
+      for (const keyword of variants) {
+        items = await fetchRentalLocations({ q: keyword, category: 'all', countryCode });
+        if (items.length) break;
+        items = await fetchRentalLocations({ q: keyword, category: 'all', countryCode: '' });
+        if (items.length) break;
+      }
+    }
     state[target].items = items;
     renderLocationList(els, target, items);
   } catch (_e) {
     renderLocationList(els, target, [], '지역 검색 중 오류가 발생했습니다.');
   }
+}
+
+function buildLocationQueryVariants(q) {
+  const src = String(q || '').trim();
+  if (!src) return [];
+  const out = [];
+  const push = (v) => {
+    const s = String(v || '').trim();
+    if (!s) return;
+    if (!out.includes(s)) out.push(s);
+  };
+
+  push(src);
+  const map = new Map([
+    ['도쿄', ['Tokyo', 'Narita Airport', 'Haneda Airport', 'NRT', 'HND']],
+    ['방콕', ['Bangkok', 'Suvarnabhumi Airport', 'BKK']],
+    ['홍콩', ['Hong Kong', 'Hong Kong Intl Airport', 'HKG']],
+    ['두바이', ['Dubai', 'Dubai Airport', 'DXB']],
+    ['오사카', ['Osaka', 'Kansai Airport', 'KIX']],
+    ['삿포로', ['Sapporo', 'CTS']],
+    ['후쿠오카', ['Fukuoka', 'FUK']],
+    ['싱가포르', ['Singapore', 'Changi Airport', 'SIN']],
+    ['뉴욕', ['New York', 'JFK Airport', 'JFK', 'EWR', 'LGA']],
+    ['런던', ['London', 'Heathrow Airport', 'LHR']],
+    ['파리', ['Paris', 'CDG Airport', 'CDG']],
+    ['로마', ['Rome', 'Fiumicino Airport', 'FCO']],
+    ['타이베이', ['Taipei', 'Taoyuan Airport', 'TPE']],
+    ['시드니', ['Sydney', 'Sydney Airport', 'SYD']],
+    ['서울', ['Seoul', 'Incheon Airport', 'ICN', 'GMP']],
+    ['부산', ['Busan', 'Gimhae Airport', 'PUS']],
+  ]);
+  const alias = map.get(src);
+  if (Array.isArray(alias)) alias.forEach(push);
+  return out;
 }
 
 function renderLocationList(els, target, items, errorMsg) {
@@ -476,7 +569,7 @@ function renderLocationList(els, target, items, errorMsg) {
     <button type="button" class="location-item" data-idx="${idx}">
       <i data-lucide="${iconByCategory[item.category] || 'map-pin'}" width="16"></i>
       <div class="loc-info">
-        <span class="loc-name">${escapeHtml(item.name || '')}</span>
+        <span class="loc-name">${escapeHtml(localizeLocationName(item.name || ''))}</span>
         <span class="loc-sub">${escapeHtml(item.sub || '')}</span>
       </div>
     </button>
@@ -498,18 +591,74 @@ function selectLocation(els, target, item) {
   const latHidden = isPickup ? els.pickupLatHidden : els.dropoffLatHidden;
   const lonHidden = isPickup ? els.pickupLonHidden : els.dropoffLonHidden;
 
-  display.textContent = item.name || '장소 선택';
-  nameHidden.value = item.name || '';
+  const localizedName = localizeLocationName(item.name || '');
+  display.textContent = localizedName || '장소 선택';
+  nameHidden.value = localizedName || '';
   latHidden.value = item.lat ?? '';
   lonHidden.value = item.lon ?? '';
 
-  if (isPickup && !els.dropoffNameHidden.value) {
-    els.dropoffDisplay.textContent = item.name || '장소 선택';
-    els.dropoffNameHidden.value = item.name || '';
+  // Keep classic UX: when dropoff is not selected yet, follow pickup automatically.
+  if (isPickup && !String(els.dropoffNameHidden?.value || '').trim()) {
+    els.dropoffDisplay.textContent = localizedName || '장소 선택';
+    els.dropoffNameHidden.value = localizedName || '';
     els.dropoffLatHidden.value = item.lat ?? '';
     els.dropoffLonHidden.value = item.lon ?? '';
   }
   closeAllPopovers(els);
+}
+
+function localizeLocationName(name) {
+  const src = String(name || '').trim();
+  if (!src) return '';
+
+  const iataMatch = src.match(/\(([A-Z]{3})\)/);
+  const iata = iataMatch ? iataMatch[1] : '';
+
+  const aliases = new Map([
+    ['narita airport', '나리타 공항'],
+    ['haneda airport', '하네다 공항'],
+    ['incheon intl airport', '인천국제공항'],
+    ['incheon airport', '인천국제공항'],
+    ['gimhae airport', '김해국제공항'],
+    ['kansai airport', '간사이국제공항'],
+    ['suvarnabhumi airport', '수완나품공항'],
+    ['hong kong intl airport', '홍콩국제공항'],
+    ['taoyuan airport', '타오위안공항'],
+    ['sydney airport', '시드니공항'],
+    ['jfk airport', 'JFK 공항'],
+    ['lax airport', 'LAX 공항'],
+    ['heathrow airport', '히드로공항'],
+    ['fiumicino airport', '피우미치노공항'],
+    ['dubai airport', '두바이공항'],
+    ['tokyo', '도쿄'],
+    ['osaka', '오사카'],
+    ['sapporo', '삿포로'],
+    ['new york', '뉴욕'],
+    ['los angeles', '로스앤젤레스'],
+    ['london', '런던'],
+    ['paris', '파리'],
+    ['rome', '로마'],
+    ['dubai', '두바이'],
+    ['bangkok', '방콕'],
+    ['singapore', '싱가포르'],
+    ['hong kong', '홍콩'],
+    ['taipei', '타이베이'],
+    ['sydney', '시드니'],
+    ['seoul', '서울'],
+    ['busan', '부산'],
+  ]);
+
+  const lower = src.toLowerCase();
+  let localized = '';
+  for (const [key, value] of aliases.entries()) {
+    if (lower === key || lower.startsWith(`${key} (`)) {
+      localized = value;
+      break;
+    }
+  }
+  if (!localized) return src;
+  if (iata) return `${localized} (${iata})`;
+  return localized;
 }
 
 function resetSelectedLocations(els) {
@@ -743,7 +892,7 @@ function renderRentalSavedDrawer() {
     if (!rentalAlertState.length) {
       listEl.innerHTML = '';
       emptyEl.style.display = 'block';
-      emptyEl.textContent = '도착한 참여 요청 알림이 없습니다.';
+      emptyEl.textContent = '공동구매 참여 요청 알림이 없습니다.';
       return;
     }
     emptyEl.style.display = 'none';
@@ -753,7 +902,7 @@ function renderRentalSavedDrawer() {
       const statusLabel = status === 'accepted' ? '수락됨' : (status === 'rejected' ? '거절됨' : '대기중');
       const incoming = String(item.direction || 'incoming') !== 'mine';
       const reqTitle = incoming
-        ? `${escapeHtml(item.requester_name || '-')}님이 요청했습니다`
+        ? `${escapeHtml(item.requester_name || '-')}님의 요청입니다`
         : `${escapeHtml(item.requester_name || '작성자')}님의 응답`;
       const li = document.createElement('li');
       li.className = 'rental-saved-item';
@@ -796,7 +945,7 @@ function renderRentalSavedDrawer() {
         <div class="rental-saved-item__name">${escapeHtml(item?.name || '-')}</div>
         ${item?.meta ? `<div class="rental-saved-item__meta">${escapeHtml(item.meta).replace(/\|/g, '<br>')}</div>` : ''}
       </div>
-      <button type="button" class="rental-saved-item__remove" data-rental-saved-remove="${Number(item.id)}" title="삭제">×</button>
+      <button type="button" class="rental-saved-item__remove" data-rental-saved-remove="${Number(item.id)}" title="삭제">X</button>
     `;
     listEl.appendChild(li);
   });
@@ -820,12 +969,12 @@ async function toggleRentalSaved(rawPayload, listType) {
     return true;
   } catch (e) {
     if (e?.code === 'LOGIN_REQUIRED') {
-      alert('로그인 후 이용 가능합니다.\n확인을 누르면 로그인 페이지로 이동합니다.');
+      alert('로그인이 필요한 기능입니다.\n확인을 누르면 로그인 페이지로 이동합니다.');
       const next = encodeURIComponent(window.location.pathname + window.location.search);
       window.location.href = `/login?next=${next}`;
       return false;
     }
-    alert(e?.message || '저장 처리 중 오류가 발생했습니다.');
+    alert(e?.message || '요청 처리 중 오류가 발생했습니다.');
     return false;
   }
 }
@@ -848,9 +997,10 @@ async function isRentalLoggedIn(force = false) {
 }
 
 async function ensureRentalLoggedIn() {
+  if (window.__RENTAL_LOGGED_IN__ === true) return true;
   const ok = await isRentalLoggedIn(false);
   if (ok) return true;
-  alert('로그인 후 이용 가능합니다.\n확인을 누르면 로그인 페이지로 이동합니다.');
+  alert('로그인이 필요한 기능입니다.\n확인을 누르면 로그인 페이지로 이동합니다.');
   const next = encodeURIComponent(window.location.pathname + window.location.search);
   window.location.href = `/login?next=${next}`;
   return false;
@@ -984,3 +1134,4 @@ function initRentalSavedUi() {
     if (window.lucide) lucide.createIcons();
   });
 }
+

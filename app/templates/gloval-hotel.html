@@ -129,7 +129,7 @@
                     {% if hotel.hotel_id %}
                     <a
                         class="hotel-card-link"
-                        href="/gloval-hotel/detail?hotel_id={{ hotel.hotel_id }}&city={{ city or '' }}&country={{ country or '' }}&checkin={{ checkin or '' }}&checkout={{ checkout or '' }}&snapshot={{ hotel.detail_snapshot or '' }}"
+                        href="/gloval-hotel/detail?hotel_id={{ hotel.hotel_id }}&city={{ city or '' }}&city_en={{ city_en or '' }}&country={{ country or '' }}&checkin={{ checkin or '' }}&checkout={{ checkout or '' }}&snapshot={{ hotel.detail_snapshot or '' }}"
                         aria-label="{{ (hotel.name_ko or hotel.name or '호텔') }} 상세 보기"
                     >
                     {% endif %}
@@ -209,11 +209,11 @@
             {% if total_pages and total_pages > 1 %}
             <div style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:20px;">
                 {% if has_prev %}
-                <a href="/gloval-hotel?city={{ city or '' }}&country={{ country or '' }}&checkin={{ checkin or '' }}&checkout={{ checkout or '' }}&lat={{ lat or '' }}&lon={{ lon or '' }}&page={{ page-1 }}" style="padding:8px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;">이전</a>
+                <a href="/gloval-hotel?city={{ city or '' }}&city_en={{ city_en or '' }}&country={{ country or '' }}&checkin={{ checkin or '' }}&checkout={{ checkout or '' }}&lat={{ lat or '' }}&lon={{ lon or '' }}&page={{ page-1 }}" style="padding:8px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;">이전</a>
                 {% endif %}
                 <span style="font-weight:700;">{{ page }} / {{ total_pages }}</span>
                 {% if has_next %}
-                <a href="/gloval-hotel?city={{ city or '' }}&country={{ country or '' }}&checkin={{ checkin or '' }}&checkout={{ checkout or '' }}&lat={{ lat or '' }}&lon={{ lon or '' }}&page={{ page+1 }}" style="padding:8px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;">다음</a>
+                <a href="/gloval-hotel?city={{ city or '' }}&city_en={{ city_en or '' }}&country={{ country or '' }}&checkin={{ checkin or '' }}&checkout={{ checkout or '' }}&lat={{ lat or '' }}&lon={{ lon or '' }}&page={{ page+1 }}" style="padding:8px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;">다음</a>
                 {% endif %}
             </div>
             {% endif %}
@@ -263,6 +263,6 @@
         </div>
     </footer>
 
-    <script src="/static/gloval-hotel.js?v=20260303a"></script>
+    <script src="/static/gloval-hotel.js?v=20260304d"></script>
 </body>
 </html>

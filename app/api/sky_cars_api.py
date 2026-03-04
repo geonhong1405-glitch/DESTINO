@@ -1,6 +1,7 @@
 ﻿import datetime as _dt
 import os
 import re
+import time
 from typing import Any
 
 import requests
@@ -30,6 +31,59 @@ def _headers() -> dict[str, str]:
 
 def _has_creds() -> bool:
     return bool(_clean_env_token(SKY_RAPIDAPI_KEY) and _clean_env_token(SKY_RAPIDAPI_HOST))
+
+
+def _timeout_config() -> tuple[float, float]:
+    try:
+        connect = float(str(os.getenv("SKY_API_CONNECT_TIMEOUT", "5")).strip())
+    except Exception:
+        connect = 5.0
+    try:
+        read = float(str(os.getenv("SKY_API_READ_TIMEOUT", "20")).strip())
+    except Exception:
+        read = 20.0
+    return max(1.0, connect), max(3.0, read)
+
+
+def _retry_config() -> tuple[int, float]:
+    try:
+        retries = int(str(os.getenv("SKY_API_RETRIES", "2")).strip())
+    except Exception:
+        retries = 2
+    try:
+        backoff = float(str(os.getenv("SKY_API_RETRY_BACKOFF_MS", "500")).strip()) / 1000.0
+    except Exception:
+        backoff = 0.5
+    return max(0, retries), max(0.0, backoff)
+
+
+def _get_with_retries(url: str, headers: dict[str, str], params: dict) -> requests.Response:
+    connect_timeout, read_timeout = _timeout_config()
+    retries, backoff = _retry_config()
+    last_exc: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            return requests.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=(connect_timeout, read_timeout),
+            )
+        except requests.Timeout as e:
+            last_exc = e
+            if attempt >= retries:
+                raise
+            if backoff > 0:
+                time.sleep(backoff * (attempt + 1))
+        except Exception as e:
+            last_exc = e
+            if attempt >= retries:
+                raise
+            if backoff > 0:
+                time.sleep(backoff * (attempt + 1))
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("Sky request failed")
 
 
 def _parse_dt(value: str | None) -> _dt.datetime | None:
@@ -170,11 +224,10 @@ def sky_cars_autocomplete(query: str, limit: int = 10) -> dict:
     if not q:
         return {"status": True, "data": []}
     try:
-        resp = requests.get(
+        resp = _get_with_retries(
             f"https://{SKY_RAPIDAPI_HOST}/cars/auto-complete",
             headers=_headers(),
             params={"query": q},
-            timeout=15,
         )
         data = _safe_json(resp)
         if isinstance(data, dict) and isinstance(data.get("data"), list):
@@ -201,7 +254,7 @@ def resolve_sky_car_entity(
         except Exception:
             return None, None
 
-    for cand in _entity_query_candidates(q):
+    for cand in _entity_query_candidates(q)[:4]:
         iata = _extract_iata(cand) or (cand.upper() if len(cand) == 3 and cand.isalpha() else None)
         raw = sky_cars_autocomplete(cand, limit=15)
         items = raw.get("data") if isinstance(raw, dict) else None
@@ -260,7 +313,12 @@ def search_sky_car_rentals(
         return {"status": False, "message": "Missing SKY_RAPIDAPI_KEY"}
 
     pu = resolve_sky_car_entity(pickup_name, pickup_lat, pickup_lon)
-    do = resolve_sky_car_entity(dropoff_name or pickup_name, dropoff_lat, dropoff_lon) or pu
+    same_dropoff = (
+        str(dropoff_name or "").strip().lower() == str(pickup_name or "").strip().lower()
+        and dropoff_lat == pickup_lat
+        and dropoff_lon == pickup_lon
+    )
+    do = pu if same_dropoff else (resolve_sky_car_entity(dropoff_name or pickup_name, dropoff_lat, dropoff_lon) or pu)
     if not pu:
         return {"status": False, "message": "pickUpEntityId resolution failed"}
     if not do:
@@ -279,11 +337,10 @@ def search_sky_car_rentals(
         "driverAge": driver_age,
     }
     try:
-        resp = requests.get(
+        resp = _get_with_retries(
             f"https://{SKY_RAPIDAPI_HOST}/cars/search",
             headers=_headers(),
             params=params,
-            timeout=45,
         )
         data = _safe_json(resp)
     except Exception as e:
@@ -524,6 +581,3 @@ def parse_sky_car_search_results(raw: dict | None) -> list[dict]:
 
     out.sort(key=lambda x: x.get("price") or 10**12)
     return out[:24]
-
-
-

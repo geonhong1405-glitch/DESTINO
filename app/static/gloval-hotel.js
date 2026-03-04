@@ -12,6 +12,55 @@
         유럽: ['파리', '런던', '로마', '바르셀로나', '프라하', '인터라켄', '베네치아', '피렌체'],
         '중동/아프리카': ['두바이', '카이로', '케이프타운', '아부다비'],
     };
+    const cityAliasEn = {
+        '도쿄': 'Tokyo',
+        '오사카': 'Osaka',
+        '후쿠오카': 'Fukuoka',
+        '삿포로': 'Sapporo',
+        '오키나와': 'Okinawa',
+        '나고야': 'Nagoya',
+        '교토': 'Kyoto',
+        '고베': 'Kobe',
+        '방콕': 'Bangkok',
+        '다낭': 'Da Nang',
+        '나트랑': 'Nha Trang',
+        '세부': 'Cebu',
+        '발리': 'Bali',
+        '싱가포르': 'Singapore',
+        '푸껫': 'Phuket',
+        '코타키나발루': 'Kota Kinabalu',
+        '마닐라': 'Manila',
+        '홍콩': 'Hong Kong',
+        '마카오': 'Macau',
+        '상하이': 'Shanghai',
+        '베이징': 'Beijing',
+        '칭다오': 'Qingdao',
+        '광저우': 'Guangzhou',
+        '괌': 'Guam',
+        '사이판': 'Saipan',
+        '시드니': 'Sydney',
+        '오클랜드': 'Auckland',
+        '멜버른': 'Melbourne',
+        '골드코스트': 'Gold Coast',
+        '하와이': 'Honolulu',
+        '뉴욕': 'New York',
+        '로스앤젤레스': 'Los Angeles',
+        '라스베이거스': 'Las Vegas',
+        '샌프란시스코': 'San Francisco',
+        '밴쿠버': 'Vancouver',
+        '파리': 'Paris',
+        '런던': 'London',
+        '로마': 'Rome',
+        '바르셀로나': 'Barcelona',
+        '프라하': 'Prague',
+        '인터라켄': 'Interlaken',
+        '베네치아': 'Venice',
+        '피렌체': 'Florence',
+        '두바이': 'Dubai',
+        '카이로': 'Cairo',
+        '케이프타운': 'Cape Town',
+        '아부다비': 'Abu Dhabi',
+    };
 
     const regionTabs = document.getElementById('regionTabs');
     const cityGrid = document.getElementById('cityGrid');
@@ -133,6 +182,7 @@
             const dest = (document.getElementById('destInput')?.value || '').trim();
             let city = '';
             let country = '';
+            let cityEn = '';
             if (dest.includes(',')) {
                 const parts = dest.split(',');
                 city = parts[0].trim();
@@ -140,6 +190,7 @@
             } else {
                 city = dest;
             }
+            cityEn = cityAliasEn[city] || city;
 
             const checkin = document.getElementById('checkinDate')?.value;
             const checkout = document.getElementById('checkoutDate')?.value;
@@ -153,6 +204,7 @@
             }
             const params = new URLSearchParams();
             if (city) params.append('city', city);
+            if (cityEn) params.append('city_en', cityEn);
             if (country) params.append('country', country);
             if (checkin) params.append('checkin', checkin);
             if (checkout) params.append('checkout', checkout);

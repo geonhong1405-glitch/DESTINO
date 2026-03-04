@@ -269,7 +269,11 @@ async def create_join_request(post_id: int, request: Request):
 
 @router.get("/join-requests/inbox")
 def inbox_join_requests(request: Request):
-    user_id = _require_user_id(request)
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        return []
+    user_id = int(user_id)
     db = SessionLocal()
     try:
         inbox_rows = (
