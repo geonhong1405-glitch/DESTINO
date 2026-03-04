@@ -501,3 +501,46 @@
   });
 })();
 
+// package.js 하단 혹은 적절한 위치에 추가
+document.addEventListener('DOMContentLoaded', () => {
+    // 모든 패키지 카드를 찾습니다.
+    const cards = document.querySelectorAll('.package-card');
+
+    cards.forEach((card, index) => {
+        card.addEventListener('click', function(e) {
+            // 장바구니나 찜 버튼을 눌렀을 때는 상세페이지로 이동하지 않도록 방지
+            if (e.target.closest('button')) return;
+
+            // 기본 <a> 태그 이동을 막고 JS로 제어
+            e.preventDefault();
+
+            // 카드 내의 정보를 수집하여 객체로 만듦
+            const product = {
+                id: `pack_${index + 1}`,
+                name: this.querySelector('.package-name').innerText,
+                // "499,000원"에서 숫자만 추출
+                price: this.querySelector('.price-val').innerText.replace(/[^0-9]/g, ''),
+                location: this.querySelector('.package-loc').innerText,
+                // CSS 클래스(pImg1 등)에 설정된 배경 이미지 URL 추출
+                image: getComputedStyle(this.querySelector('.package-image')).backgroundImage.replace(/url\(['"]?(.*?)['"]?\)/i, '$1')
+            };
+
+            // 작성하신 함수 호출
+            goToDetail(product);
+        });
+    });
+});
+
+// 기존에 작성하신 함수 (그대로 유지)
+function goToDetail(product) {
+    const params = new URLSearchParams({
+        id: product.id,
+        title: product.name,
+        price: product.price,
+        img: product.image,
+        loc: product.location,
+        category: 'package'
+    });
+    // .html 확장자가 붙어있는지 확인하세요 (파일 구조에 따라 수정)
+  location.href = `/pack-detail?${params.toString()}`;
+}

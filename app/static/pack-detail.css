@@ -1,0 +1,174 @@
+
+/* ===== airport drawer 스타일 1:1 복사 ===== */
+.flight-saved-fab {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 1180;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 12px;
+    background: linear-gradient(135deg, #0ea5e9, #2563eb);
+    color: #fff;
+    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.28);
+}
+.flight-saved-fab:hover { filter: brightness(1.04); }
+.flight-saved-fab__icon { font-size: 16px; line-height: 1; }
+.flight-saved-fab__label { font-size: 12px; font-weight: 700; }
+.flight-saved-fab__count {
+    min-width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 0 5px;
+}
+
+.flight-saved-drawer { position: fixed; inset: 0; z-index: 1190; pointer-events: none; }
+.flight-saved-drawer.is-open { pointer-events: auto; }
+.flight-saved-drawer__backdrop {
+    position: absolute; inset: 0; background: rgba(15,23,42,.22); opacity: 0; transition: opacity .2s ease;
+}
+.flight-saved-drawer.is-open .flight-saved-drawer__backdrop { opacity: 1; }
+.flight-saved-drawer__panel {
+    position: absolute; right: 14px; bottom: 72px;
+    width: min(430px, calc(100vw - 28px)); max-height: min(62vh, 560px);
+    overflow: auto; transform: translateY(16px); opacity: 0;
+    transition: transform .22s ease, opacity .22s ease;
+    border: 1px solid rgba(226,232,240,.95); border-radius: 14px; background: rgba(255,255,255,.98);
+    box-shadow: 0 20px 40px rgba(15,23,42,.18); padding: 10px 12px;
+}
+.flight-saved-drawer.is-open .flight-saved-drawer__panel { transform: translateY(0); opacity: 1; }
+.flight-saved-drawer__grab { width: 44px; height: 4px; border-radius: 999px; background: #cbd5e1; margin: 0 auto 10px; }
+.flight-saved-drawer__header {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px;
+}
+.flight-saved-drawer__close {
+    border: 1px solid #dbeafe; background: #eff6ff; color: #1d4ed8; border-radius: 9px;
+    padding: 4px 8px; font-size: 11px; font-weight: 700;
+}
+.flight-saved-tabs {
+    display: inline-flex; align-items: center; gap: 6px; background: #f8fafc;
+    border: 1px solid #e2e8f0; border-radius: 10px; padding: 3px;
+}
+.flight-saved-tab {
+    height: 28px; padding: 0 10px; border-radius: 8px; font-size: 12px; font-weight: 700;
+    color: #475569; background: transparent; border: none;
+}
+.flight-saved-tab.is-active { background: #eff6ff; color: #1d4ed8; }
+.flight-saved-list { display: flex; flex-direction: column; gap: 8px; }
+.flight-saved-empty { font-size: 12px; color: #64748b; padding: 6px 2px 2px; }
+.flight-saved-item {
+    position: relative; list-style: none; border: 1px solid #e5e7eb; border-radius: 12px; background: #fff;
+    padding: 9px 34px 9px 10px;
+}
+.flight-saved-item__type {
+    display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 999px; background: #eff6ff;
+    color: #1d4ed8; font-size: 11px; font-weight: 700; margin-bottom: 4px;
+}
+.flight-saved-item__name { font-size: 13px; font-weight: 700; color: #111827; line-height: 1.35; }
+.flight-saved-item__meta { margin-top: 3px; font-size: 12px; color: #475569; line-height: 1.35; }
+.flight-saved-item__remove {
+    position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 999px;
+    border: 1px solid #e2e8f0; background: #fff; color: #64748b;
+}
+.flight-saved-item__remove:hover { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+
+/* Basic Setup */
+:root {
+    --blue-600: #00aaff;
+    --rose-600: #e11d48;
+    --rose-500: #f43f5e;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+}
+
+body { 
+    font-family: 'Noto Sans KR', sans-serif; 
+}
+
+/* Header */
+.header {
+    height: 70px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 999;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+.header-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+.logo {color: var(--blue-600); font-size: 24px; font-weight: 800;}
+.header-nav a {
+    margin-left: 15px;
+    font-size: 14px;
+    color: #666;
+}
+
+/* Sticky Card Configuration */
+.sticky-card { 
+    position: sticky; 
+    top: 100px; 
+}
+
+/* Modal Behavior */
+.modal-active { 
+    overflow: hidden; 
+}
+
+#reviewModal { 
+    display: none; 
+}
+
+#reviewModal.active { 
+    display: flex; 
+}
+
+/* Star Rating */
+.star-rating i.active { 
+    color: #fbbf24; 
+}
+
+/* Dropdown custom style */
+#sortDropdown { 
+    display: none; 
+}
+
+#sortDropdown.show { 
+    display: block; 
+}
+
+.sort-item.active { 
+    color: #2563eb; 
+    font-weight: 700; 
+}
+
+/* Transitions for Toast */
+#toast {
+    transition: opacity 0.3s ease-in-out;
+}

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DESTINO - v 상세</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../static/pack-detail.css">
+    <script>
+        // 서버 템플릿에서 로그인 여부에 따라 true/false로 세팅 (Jinja2/Flask 예시)
+        window.isLoggedIn = {{ 'true' if user_is_authenticated else 'false' }};
+        window.nickname = "{{ nickname | escape | default('본인') }}";
+    </script>
+    
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+
+    <!-- airport drawer 완전 동일 구조/클래스명 이식 -->
+    <button id="flightSavedFab" class="flight-saved-fab" type="button" aria-expanded="false" aria-controls="flightSavedDrawer" title="장바구니 열기">
+        <span class="flight-saved-fab__icon">🧺</span>
+        <span class="flight-saved-fab__label">장바구니</span>
+        <span id="flightSavedFabCount" class="flight-saved-fab__count" hidden>0</span>
+    </button>
+    <div id="flightSavedDrawer" class="flight-saved-drawer" aria-hidden="true">
+        <div class="flight-saved-drawer__backdrop" data-flight-saved-close></div>
+        <section class="flight-saved-drawer__panel">
+            <div class="flight-saved-drawer__grab"></div>
+            <div class="flight-saved-drawer__header">
+                <div class="flight-saved-tabs" role="tablist" aria-label="저장 항목 탭">
+                    <button type="button" class="flight-saved-tab is-active" data-flight-saved-tab="cart" aria-selected="true">장바구니</button>
+                    <button type="button" class="flight-saved-tab" data-flight-saved-tab="wishlist" aria-selected="false">위시리스트</button>
+                    <button type="button" class="flight-saved-tab" data-flight-saved-tab="alerts" aria-selected="false">알림</button>
+                </div>
+                <button type="button" class="flight-saved-drawer__close" data-flight-saved-close>닫기</button>
+            </div>
+            <ul id="flightSavedList" class="flight-saved-list"></ul>
+            <div id="flightSavedEmpty" class="flight-saved-empty">저장된 항목이 없습니다.</div>
+        </section>
+    </div>
+
+
+    <header class="header">
+            <div class="container header-inner">
+                <h1 class="logo"><a href="/">DESTINO</a></h1>
+                <nav class="header-nav">
+                    {% if nickname %}
+                    <a href="/mypage">
+                        <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                    </a>
+                    <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
+                    {% else %}
+                    <a href="/login">로그인</a>
+                    {% endif %}
+                    <a href="#">이용안내</a>
+                    <a href="#">고객센터</a>
+                    <a href="#">KOR</a>
+                </nav>
+            </div>
+        </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-6">
+        <nav class="flex items-center gap-2 text-[11px] text-gray-400 mb-6">
+            <a href="/"><span>홈</span></a> <i class="fa-solid fa-chevron-right text-[7px]"></i>
+            <a href="/package" class="category"><span>패키지</span></a><i class="fa-solid fa-chevron-right text-[7px]"></i>
+            <span class="text-gray-900 font-medium text-[12px]">프랑스/스위스/이탈리아</span>
+        </nav>
+
+        <div class="flex flex-col lg:flex-row gap-8">
+            <div class="flex-1">
+                <div class="relative rounded-3xl overflow-hidden shadow-sm mb-10">
+                    <img id="productImg" src="https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?auto=format&fit=crop&q=80&w=1200" 
+                        alt="상품 이미지" class="w-full h-[480px] object-cover">
+                    <div class="absolute top-6 left-6 flex gap-2">
+                        <span class="bg-gray-900/80 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg uppercase backdrop-blur-sm">Best</span>
+                        <span class="bg-blue-600/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg backdrop-blur-sm">즉시확정</span>
+                    </div>
+                </div>
+
+                <section class="space-y-10">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-6 py-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                        <div class="space-y-1">
+                            <p class="text-[11px] text-gray-400 font-bold uppercase">유효기간</p>
+                            <p class="text-sm font-semibold text-gray-700">지정일 사용</p>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-[11px] text-gray-400 font-bold uppercase">확정여부</p>
+                            <p class="text-sm font-semibold text-gray-700">즉시 확정</p>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-[11px] text-gray-400 font-bold uppercase">취소규정</p>
+                            <p class="text-sm font-semibold text-blue-600">무료 취소</p>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-[11px] text-gray-400 font-bold uppercase">티켓형태</p>
+                            <p class="text-sm font-semibold text-gray-700">모바일 바우처</p>
+                        </div>
+                    </div>
+
+                    <div class="prose max-w-none">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4 border-l-4 border-blue-600 pl-3">상품 소개</h3>
+                        <p id="productDesc" class="text-gray-600 leading-relaxed mb-6">
+                            파리의 상징, 에펠탑을 대기 없이 빠르게 올라가보세요. 패스트트랙 입장권으로 긴 줄을 건너뛰고 2층 전망대에서 파리의 탁 트인 전경을 감상할 수 있습니다. 60분 센강 유람선 자유 탑승권이 포함되어 있어 더욱 낭만적인 파리 여행을 완성해 드립니다.
+                        </p>
+                    </div>
+
+                    <div id="reviewSection" class="bg-white border border-gray-100 p-8 rounded-3xl mt-12 shadow-sm">
+                        <div class="flex justify-between items-start mb-8">
+                            <div>
+                                <h3 class="text-2xl font-bold text-gray-900">후기 <span id="reviewCount" class="text-blue-600 ml-1">2,408</span></h3>
+                                <p class="text-sm text-gray-400 mt-1">이 투어를 이용한 고객들의 생생한 리뷰입니다.</p>
+                            </div>
+                            <button onclick="openReviewModal()" class="bg-blue-50 text-blue-600 px-6 py-3 rounded-xl text-sm font-bold hover:bg-blue-100 transition-colors">
+                                <i class="fa-solid fa-pencil mr-1"></i> 리뷰 작성
+                            </button>
+                        </div>
+
+                        <div class="flex justify-end mb-6 relative">
+                            <div class="relative inline-block text-left">
+                                <button onclick="toggleSortDropdown()" id="sortBtn" class="flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-blue-600 border border-gray-200 px-4 py-2 rounded-lg bg-white transition-all">
+                                    <span id="currentSortText">최신순</span> <i class="fa-solid fa-chevron-down text-[10px] ml-1"></i>
+                                </button>
+                                
+                                <div id="sortDropdown" class="absolute right-0 mt-2 w-36 origin-top-right rounded-xl bg-white shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none z-10 overflow-hidden border border-gray-100">
+                                    <div class="py-1">
+                                        <button onclick="sortReviews('high')" class="sort-item block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50" id="sort-high">별점 높은순</button>
+                                        <button onclick="sortReviews('low')" class="sort-item block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50" id="sort-low">별점 낮은순</button>
+                                        <button onclick="sortReviews('recent')" class="sort-item block w-full text-left px-4 py-3 text-sm text-blue-600 font-bold hover:bg-gray-50" id="sort-recent">최신순</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="reviewList" class="space-y-6">
+                            <div class="p-6 bg-white border border-gray-50 rounded-2xl hover:border-blue-100 transition-all shadow-sm" data-rating="5" data-date="2024-05-22">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div class="flex items-center gap-3">
+                                        <div>
+                                            <p class="text-sm font-bold text-gray-800">정*서</p>
+                                            <div class="flex text-[10px] text-yellow-400 mt-0.5">
+                                                <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span class="text-[11px] text-gray-400">2024.05.22</span>
+                                </div>
+                                <p class="text-sm text-gray-600 leading-relaxed">패스트트랙은 정말 신의 한 수 였습니다. 대기줄 보고 깜짝 놀랐는데 저희는 바로 들어갔어요! 야경 최고입니다.</p>
+                            </div>
+
+                            <div class="p-6 bg-white border border-gray-50 rounded-2xl shadow-sm" data-rating="5" data-date="2024-05-20">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div class="flex items-center gap-3">
+                                        <div>
+                                            <p class="text-sm font-bold text-gray-800">강*훈</p>
+                                            <div class="flex text-[10px] text-yellow-400 mt-0.5">
+                                                <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star text-gray-200"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span class="text-[11px] text-gray-400">2024.05.20</span>
+                                </div>
+                                <p class="text-sm text-gray-600 leading-relaxed">유람선 티켓까지 포함이라 가성비 좋아요. 바우처 인식도 잘 되고 편리했습니다.</p>
+                            </div>
+
+                            <div class="p-6 bg-white border border-gray-50 rounded-2xl shadow-sm" data-rating="3" data-date="2024-05-18">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div class="flex items-center gap-3">
+                                        <div>
+                                            <p class="text-sm font-bold text-gray-800">박*민</p>
+                                            <div class="flex text-[10px] text-yellow-400 mt-0.5">
+                                                <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star text-gray-200"></i><i class="fa-solid fa-star text-gray-200"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span class="text-[11px] text-gray-400">2024.05.18</span>
+                                </div>
+                                <p class="text-sm text-gray-600 leading-relaxed">사람이 너무 많아서 사진 찍기가 힘들었지만 에펠탑 자체는 너무 예뻤습니다.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="lg:w-[420px]">
+                <div class="sticky-card bg-white border border-gray-200 rounded-3xl shadow-2xl shadow-gray-300/40 overflow-hidden">
+                    <div class="p-8">
+                        <div class="mb-8">
+                            <p class="text-[11px] font-bold text-blue-600 uppercase mb-2 tracking-wider">Most Popular</p>
+                            <h2 class="text-2xl font-black text-gray-900 leading-tight mb-4 tracking-tight">
+                                [단독/야경특전] 파리 에펠탑 패스트트랙 & 센강 크루즈 콤보 티켓
+                            </h2>
+                            <div class="flex items-center gap-3 text-xs text-gray-400 font-medium">
+                                <span class="flex items-center gap-1"><i class="fa-solid fa-star text-yellow-400"></i> <b class="text-gray-900">4.9</b></span>
+                                <span>|</span>
+                                <span class="flex items-center gap-1"><i class="fa-solid fa-location-dot"></i> 파리, 프랑스</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-baseline justify-between mb-8 pb-8 border-b border-gray-100">
+                            <div>
+                                <p class="text-[11px] font-bold text-gray-400 uppercase mb-1">티켓 가격</p>
+                                <div class="flex items-baseline gap-1">
+                                    <span id="productPrice" class="text-3xl font-black text-gray-900">65,000</span>
+                                    <span class="text-sm font-bold text-gray-500">원~</span>
+                                </div>
+                            </div>
+                            <div class="flex gap-3">
+                                <button id="wishBtn" onclick="toggleWish()" class="w-12 h-12 border border-gray-100 rounded-2xl flex items-center justify-center text-gray-400 transition-all hover:bg-red-50 hover:border-red-100">
+                                    <i class="fa-solid fa-heart text-lg"></i>
+                                </button>
+                                <button id="cartBtn" onclick="addToCart()" class="w-12 h-12 border border-gray-100 rounded-2xl flex items-center justify-center text-gray-400 transition-all hover:bg-blue-50 hover:border-blue-100">
+                                    <i class="fa-solid fa-cart-shopping text-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="space-y-6">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-3 uppercase tracking-wider">방문일 선택</label>
+                                <input type="date" id="bookingDate" onchange="updateTotalPrice()" class="w-full border border-gray-100 bg-gray-50 rounded-2xl px-5 py-4 text-sm font-semibold focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all cursor-pointer" value="2024-05-25">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 mb-3 uppercase tracking-wider">수량 선택</label>
+                                <div class="border border-gray-100 bg-gray-50/50 rounded-2xl p-6 space-y-6">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="text-[15px] font-bold text-gray-800">성인</p>
+                                            <p class="text-xs text-gray-400 font-medium mt-0.5">65,000원</p>
+                                        </div>
+                                        <div class="flex items-center gap-5 bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm">
+                                            <button onclick="changeQty('adult', -1)" class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-blue-600 font-bold transition-colors">-</button>
+                                            <span id="adultQty" class="text-[15px] font-black w-4 text-center">1</span>
+                                            <button onclick="changeQty('adult', 1)" class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-blue-600 font-bold transition-colors">+</button>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center justify-between pt-5 border-t border-gray-200/50">
+                                        <div>
+                                            <p class="text-[15px] font-bold text-gray-800">아동</p>
+                                            <p class="text-xs text-gray-400 font-medium mt-0.5">45,000원</p>
+                                        </div>
+                                        <div class="flex items-center gap-5 bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm">
+                                            <button onclick="changeQty('child', -1)" class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-blue-600 font-bold transition-colors">-</button>
+                                            <span id="childQty" class="text-[15px] font-black w-4 text-center">0</span>
+                                            <button onclick="changeQty('child', 1)" class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-blue-600 font-bold transition-colors">+</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-10 pt-8 border-t border-dashed border-gray-200 flex justify-between items-center mb-8">
+                            <span class="font-bold text-gray-500">결제 예정 금액</span>
+                            <span id="totalPriceDisplay" class="text-3xl font-black text-blue-600 tracking-tight">65,000원</span>
+                        </div>
+
+                        <button onclick="handleBooking()" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-black py-5 rounded-2xl transition-all shadow-xl shadow-blue-200 active:scale-[0.97]">
+                            지금 바로 예약하기
+                        </button>
+                        <p class="text-center text-[11px] text-gray-400 mt-4 font-medium italic">결제 후 바로 확정 바우처가 발송됩니다.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="reviewModal" class="fixed inset-0 z-[100] bg-gray-900/60 items-center justify-center px-4 backdrop-blur-sm" style="display:none;">
+        <div class="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl">
+            <div class="p-6 border-b border-gray-50 flex justify-between items-center">
+                <h3 class="text-lg font-bold">리뷰 남기기</h3>
+                <button onclick="closeReviewModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="p-8 space-y-6">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-3">투어는 어떠셨나요?</label>
+                    <div class="star-rating flex gap-3 text-3xl text-gray-100 justify-center py-2">
+                        <i class="fa-solid fa-star cursor-pointer transition-colors" onclick="setStar(1)"></i>
+                        <i class="fa-solid fa-star cursor-pointer transition-colors" onclick="setStar(2)"></i>
+                        <i class="fa-solid fa-star cursor-pointer transition-colors" onclick="setStar(3)"></i>
+                        <i class="fa-solid fa-star cursor-pointer transition-colors" onclick="setStar(4)"></i>
+                        <i class="fa-solid fa-star cursor-pointer transition-colors" onclick="setStar(5)"></i>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">상세 후기</label>
+                    <textarea id="reviewText" rows="4" class="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-gray-300" placeholder="투어의 좋았던 점이나 아쉬웠던 점을 적어주세요."></textarea>
+                </div>
+                <button onclick="submitReview()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl hover:bg-blue-700 transition-shadow">
+                    리뷰 등록하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-900/90 text-white px-8 py-4 rounded-2xl text-sm font-bold shadow-2xl opacity-0 transition-all pointer-events-none z-[200] backdrop-blur-md">
+        메시지가 여기에 표시됩니다.
+    </div>
+
+    <footer class="bg-white border-t border-gray-100 py-20 mt-20">
+        <div class="max-w-6xl mx-auto px-4 text-center">
+            <h2 class="text-2xl font-black italic text-gray-200 mb-6 tracking-tighter">DESTINO</h2>
+            <div class="flex justify-center gap-8 mb-8 text-xs font-bold text-gray-400">
+                <a href="#">이용약관</a>
+                <a href="#">개인정보처리방침</a>
+                <a href="#">취소 및 환불 규정</a>
+            </div>
+            <p class="text-xs text-gray-400 leading-relaxed">
+                (주)디스티노 투어 | 대표이사: 홍길동 | 사업자등록번호: 123-45-67890<br>
+                서울특별시 중구 태평로 1가 123 디스티노 빌딩 5층<br>
+                © 2024 DESTINO All Rights Reserved.
+            </p>
+        </div>
+    </footer>
+
+    <script src="../static/pack-detail.js"></script>
+    
+</body>
+</html>
