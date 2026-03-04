@@ -82,6 +82,7 @@ _TRANSLATE_CACHE: dict[str, str] = {}
 _TRANSLATE_CACHE_LOADED = False
 _TRANSLATE_CACHE_PATH = None
 PENDING_HOTEL_ORDERS: dict[str, dict] = {}
+PENDING_TOUR_ORDERS: dict[str, dict] = {}
 
 
 def _contains_korean(text: str) -> bool:
@@ -1333,6 +1334,8 @@ async def api_hotel_checkout(request: Request):
     city = str(hotel.get("city") or "").strip()
     order_name = f"{hotel_name} {city}".strip()
     toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
+    if not toss_client_key:
+        raise HTTPException(status_code=500, detail="토스 클라이언트 키가 설정되지 않았습니다.")
     base_url = str(request.base_url).rstrip("/")
 
     PENDING_HOTEL_ORDERS[order_id] = {
@@ -1348,11 +1351,11 @@ async def api_hotel_checkout(request: Request):
         "order_name": order_name,
         "amount": amount,
         "currency": "KRW",
-        "payment_mode": "toss" if toss_client_key else "mock",
+        "payment_mode": "toss",
         "toss_client_key": toss_client_key,
         "success_url": f"{base_url}/payment/hotel/success",
         "fail_url": f"{base_url}/payment/hotel/fail",
-        "message": "결제 준비가 완료되었습니다." if toss_client_key else "토스 클라이언트 키가 없어 모의 결제 모드로 동작합니다.",
+        "message": "결제 준비가 완료되었습니다.",
     }
 
 
@@ -1364,6 +1367,111 @@ async def api_toss_hotel_confirm(request: Request):
     amount = int(body.get("amount") or 0)
 
     pending = PENDING_HOTEL_ORDERS.get(order_id)
+    if not pending:
+        raise HTTPException(status_code=404, detail="주문 정보를 찾을 수 없습니다.")
+    if int(pending.get("amount") or 0) != amount:
+        raise HTTPException(status_code=400, detail="결제 금액 검증에 실패했습니다.")
+
+    secret_key = (os.getenv("TOSS_PAYMENTS_SECRET_KEY") or os.getenv("TOSS_SECRET_KEY") or "").strip()
+    if not secret_key:
+        pending["status"] = "confirmed_mock"
+        pending["payment_key"] = payment_key
+        return {
+            "status": "confirmed_mock",
+            "order_id": order_id,
+            "amount": amount,
+            "message": "토스 시크릿 키가 없어 모의 승인 처리되었습니다.",
+        }
+
+    auth = base64.b64encode(f"{secret_key}:".encode("utf-8")).decode("ascii")
+    try:
+        res = requests.post(
+            "https://api.tosspayments.com/v1/payments/confirm",
+            headers={
+                "Authorization": f"Basic {auth}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "paymentKey": payment_key,
+                "orderId": order_id,
+                "amount": amount,
+            },
+            timeout=15,
+        )
+        data = res.json() if res.content else {}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"토스 승인 요청 실패: {e}")
+
+    if not res.ok:
+        msg = (data or {}).get("message") if isinstance(data, dict) else None
+        raise HTTPException(status_code=400, detail=msg or f"토스 승인 실패 ({res.status_code})")
+
+    pending["status"] = "confirmed"
+    pending["payment_key"] = payment_key
+    pending["confirmed_at"] = datetime.datetime.now().isoformat()
+    pending["toss_response"] = data
+    return {"status": "confirmed", "order_id": order_id, "amount": amount, "payment": data}
+
+
+@app.post("/api/tour/checkout")
+async def api_tour_checkout(request: Request):
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="잘못된 요청입니다.")
+
+    tour = body.get("tour") if isinstance(body.get("tour"), dict) else {}
+    traveler = body.get("traveler") if isinstance(body.get("traveler"), dict) else {}
+
+    try:
+        amount = int(round(float(tour.get("price") or 0)))
+    except Exception:
+        amount = 0
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="결제 가능한 금액을 확인할 수 없습니다.")
+
+    order_id = f"TOUR-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{os.urandom(4).hex()}"
+    tour_name = str(tour.get("name") or "투어 예약").strip() or "투어 예약"
+    meta = str(tour.get("meta") or "").strip()
+    order_name = f"{tour_name} {meta}".strip()
+    toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
+    if not toss_client_key:
+        raise HTTPException(status_code=500, detail="토스 클라이언트 키가 설정되지 않았습니다.")
+    base_url = str(request.base_url).rstrip("/")
+
+    PENDING_TOUR_ORDERS[order_id] = {
+        "amount": amount,
+        "order_name": order_name,
+        "tour": tour,
+        "traveler": traveler,
+        "created_at": datetime.datetime.now().isoformat(),
+    }
+
+    return {
+        "order_id": order_id,
+        "order_name": order_name,
+        "amount": amount,
+        "currency": "KRW",
+        "payment_mode": "toss",
+        "toss_client_key": toss_client_key,
+        "success_url": f"{base_url}/payment/tour/success",
+        "fail_url": f"{base_url}/payment/tour/fail",
+        "message": "결제 준비가 완료되었습니다.",
+    }
+
+
+@app.post("/api/payments/toss/tour/confirm")
+async def api_toss_tour_confirm(request: Request):
+    body = await request.json()
+    payment_key = str(body.get("paymentKey") or "").strip()
+    order_id = str(body.get("orderId") or "").strip()
+    amount = int(body.get("amount") or 0)
+
+    pending = PENDING_TOUR_ORDERS.get(order_id)
     if not pending:
         raise HTTPException(status_code=404, detail="주문 정보를 찾을 수 없습니다.")
     if int(pending.get("amount") or 0) != amount:
@@ -1439,6 +1547,38 @@ def payment_hotel_fail_page(code: str | None = Query(None), message: str | None 
 <title>호텔 결제 실패</title>
 <style>body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a}} .box{{max-width:560px;margin:24px auto;background:#fff;border:1px solid #fecaca;border-radius:12px;padding:18px}} .muted{{color:#64748b;font-size:14px}}</style>
 </head><body><div class="box"><h2>결제가 완료되지 않았습니다.</h2><p class="muted">코드: {c or '-'}</p><p class="muted">메시지: {m or '-'}</p><a href="/gloval-hotel">호텔 페이지로 돌아가기</a></div></body></html>
+"""
+
+
+@app.get("/payment/tour/success", response_class=HTMLResponse)
+def payment_tour_success_page():
+    return """
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>투어 결제 확인 중</title>
+<style>body{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a} .box{max-width:560px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px} .muted{color:#64748b;font-size:14px}</style>
+</head><body><div class="box"><h2>결제 확인 중입니다...</h2><p id="msg" class="muted">잠시만 기다려 주세요.</p><a href="/tour">투어 페이지로 돌아가기</a></div>
+<script>
+const qs=new URLSearchParams(location.search);
+const body={paymentKey:qs.get('paymentKey'),orderId:qs.get('orderId'),amount:Number(qs.get('amount')||0)};
+fetch('/api/payments/toss/tour/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+ .then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))}))
+ .then(x=>{document.getElementById('msg').textContent=x.ok?'결제가 승인되었습니다.':'결제 승인 실패: '+(x.data?.detail||x.data?.message||'알 수 없는 오류');})
+ .catch(()=>{document.getElementById('msg').textContent='결제 승인 확인 중 오류가 발생했습니다.'});
+</script></body></html>
+"""
+
+
+@app.get("/payment/tour/fail", response_class=HTMLResponse)
+def payment_tour_fail_page(code: str | None = Query(None), message: str | None = Query(None)):
+    c = (code or "").strip()
+    m = (message or "").strip()
+    return f"""
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>투어 결제 실패</title>
+<style>body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a}} .box{{max-width:560px;margin:24px auto;background:#fff;border:1px solid #fecaca;border-radius:12px;padding:18px}} .muted{{color:#64748b;font-size:14px}}</style>
+</head><body><div class="box"><h2>결제가 완료되지 않았습니다.</h2><p class="muted">코드: {c or '-'}</p><p class="muted">메시지: {m or '-'}</p><a href="/tour">투어 페이지로 돌아가기</a></div></body></html>
 """
 @app.get("/logout")
 def logout(request: Request):
@@ -1597,7 +1737,12 @@ def home_page(request: Request):
 @app.get("/tdetail", response_class=HTMLResponse)
 def tdetail(request: Request):
     nickname = get_nickname_from_request(request)
-    return templates.TemplateResponse("tour-detail.html", {"request": request, "nickname": nickname})
+    session_token = request.cookies.get("session_token")
+    user_is_authenticated = bool(get_user_id_from_session(session_token)) if session_token else False
+    return templates.TemplateResponse(
+        "tour-detail.html",
+        {"request": request, "nickname": nickname, "user_is_authenticated": user_is_authenticated},
+    )
 
 @app.get("/planner", response_class=HTMLResponse)
 def planner(request: Request):
@@ -1624,8 +1769,18 @@ def tour_page(request: Request):
 @app.get("/tour-detail", response_class=HTMLResponse)
 def tour_detail(request: Request, tour_id: str = Query(None)):
     nickname = get_nickname_from_request(request)
+    session_token = request.cookies.get("session_token")
+    user_is_authenticated = bool(get_user_id_from_session(session_token)) if session_token else False
     # TODO: tour_id로 DB에서 투어 정보 조회 후 전달
-    return templates.TemplateResponse("tour-detail.html", {"request": request, "nickname": nickname, "tour_id": tour_id})
+    return templates.TemplateResponse(
+        "tour-detail.html",
+        {
+            "request": request,
+            "nickname": nickname,
+            "tour_id": tour_id,
+            "user_is_authenticated": user_is_authenticated,
+        },
+    )
 
 
 @app.get("/flight-detail", response_class=HTMLResponse)
