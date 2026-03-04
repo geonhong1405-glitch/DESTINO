@@ -1,6 +1,6 @@
 import os
 import datetime as _dt
-import time as _time
+import hashlib
 
 import requests
 from dotenv import load_dotenv
@@ -8,6 +8,11 @@ from dotenv import load_dotenv
 load_dotenv()
 BOOKING_RAPIDAPI_KEY = os.getenv("BOOKING_RAPIDAPI_KEY")
 BOOKING_RAPIDAPI_HOST = os.getenv("BOOKING_RAPIDAPI_HOST")
+
+_BOOKING_CACHE_TTL_SECONDS = 180
+_BOOKING_COOLDOWN_SECONDS = 45
+_BOOKING_SEARCH_CACHE: dict[str, dict] = {}
+_BOOKING_SEARCH_COOLDOWN: dict[str, float] = {}
 
 
 def _clean_env_token(value):
@@ -97,6 +102,49 @@ def _finalize_error(data, status_code):
     return data
 
 
+def _cache_key_from_params(url: str, params: dict) -> str:
+    ordered = "&".join(f"{k}={params.get(k)}" for k in sorted(params.keys()))
+    return hashlib.sha256(f"{url}?{ordered}".encode("utf-8")).hexdigest()
+
+
+def _cache_get(cache_key: str):
+    row = _BOOKING_SEARCH_CACHE.get(cache_key)
+    if not row:
+        return None
+    ts = row.get("ts")
+    if not isinstance(ts, (int, float)):
+        _BOOKING_SEARCH_CACHE.pop(cache_key, None)
+        return None
+    now = _dt.datetime.now().timestamp()
+    if now - ts > _BOOKING_CACHE_TTL_SECONDS:
+        _BOOKING_SEARCH_CACHE.pop(cache_key, None)
+        return None
+    payload = row.get("payload")
+    return payload if isinstance(payload, dict) else None
+
+
+def _cache_set(cache_key: str, payload: dict):
+    _BOOKING_SEARCH_CACHE[cache_key] = {
+        "ts": _dt.datetime.now().timestamp(),
+        "payload": payload,
+    }
+
+
+def _is_in_cooldown(cache_key: str) -> bool:
+    until = _BOOKING_SEARCH_COOLDOWN.get(cache_key)
+    if not isinstance(until, (int, float)):
+        return False
+    now = _dt.datetime.now().timestamp()
+    if now >= until:
+        _BOOKING_SEARCH_COOLDOWN.pop(cache_key, None)
+        return False
+    return True
+
+
+def _set_cooldown(cache_key: str):
+    _BOOKING_SEARCH_COOLDOWN[cache_key] = _dt.datetime.now().timestamp() + _BOOKING_COOLDOWN_SECONDS
+
+
 def search_car_rentals(
     pick_up_lat,
     pick_up_lon,
@@ -111,7 +159,7 @@ def search_car_rentals(
     rapidapi_host = _ascii_header_value(BOOKING_RAPIDAPI_HOST)
     rapidapi_key = _ascii_header_value(BOOKING_RAPIDAPI_KEY)
     if not rapidapi_host or not rapidapi_key:
-        return {"error": "렌터카 API 설정이 올바르지 않습니다. 관리자에게 문의해 주세요."}
+        return {"error": "Rental API credentials are not configured."}
 
     url = f"https://{rapidapi_host}/api/v1/cars/searchCarRentals"
     headers = {
@@ -132,51 +180,47 @@ def search_car_rentals(
         "location": _safe_country_location(location),
     }
 
-    attempts = []
-    attempts.append(dict(base_params))  # HH:MM + location
+    attempts = [dict(base_params)]
     if base_params.get("location"):
         alt = dict(base_params)
         alt.pop("location", None)
-        attempts.append(alt)  # HH:MM, no location
-
+        attempts.append(alt)
     sec_with_location = dict(base_params)
     sec_with_location["pick_up_time"] = _booking_time_part(pick_up_time, include_seconds=True)
     sec_with_location["drop_off_time"] = _booking_time_part(drop_off_time, include_seconds=True)
-    attempts.append(sec_with_location)  # HH:MM:SS + location
+    attempts.append(sec_with_location)
     if base_params.get("location"):
         sec_no_location = dict(sec_with_location)
         sec_no_location.pop("location", None)
-        attempts.append(sec_no_location)  # HH:MM:SS, no location
+        attempts.append(sec_no_location)
 
     last_data = None
     last_status = 0
-    for attempt_index, params in enumerate(attempts):
-        waits = [0, 1, 2] if attempt_index == 0 else [0, 1]
-        for wait_sec in waits:
-            if wait_sec:
-                _time.sleep(wait_sec)
-            try:
-                response = requests.get(url, headers=headers, params=params, timeout=20)
-                last_status = response.status_code
-                data = _safe_json(response)
-            except Exception as e:
-                last_data = {"error": f"렌터카 API 요청 실패: {e}"}
-                continue
+    for params in attempts:
+        cache_key = _cache_key_from_params(url, params)
+        cached = _cache_get(cache_key)
+        if cached:
+            return cached
+        if _is_in_cooldown(cache_key):
+            continue
+        try:
+            response = requests.get(url, headers=headers, params=params, timeout=(3, 7))
+            last_status = response.status_code
+            data = _safe_json(response)
+        except Exception as e:
+            last_data = {"error": f"Rental API request failed: {e}"}
+            continue
 
-            if not isinstance(data, dict):
-                data = {"message": str(data)}
+        if not isinstance(data, dict):
+            data = {"message": str(data)}
 
-            # return immediately when provider response is not a transient failure/HTTP error
-            if response.status_code < 400 and not _is_generic_provider_failure(data):
-                return data
+        if response.status_code < 400 and not _is_generic_provider_failure(data):
+            _cache_set(cache_key, data)
+            return data
 
-            last_data = data
+        if response.status_code == 429:
+            _set_cooldown(cache_key)
 
-            # transient failures: retry same variant
-            if response.status_code == 429 or _is_generic_provider_failure(data):
-                continue
-
-            # non-transient errors: move to next variant (e.g. remove location)
-            break
+        last_data = data
 
     return _finalize_error(last_data or {}, last_status)

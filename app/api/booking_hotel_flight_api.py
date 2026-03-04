@@ -1,4 +1,4 @@
-
+﻿
 import os
 import requests
 from dotenv import load_dotenv
@@ -33,11 +33,18 @@ def rapid_host() -> str:
     return os.getenv("BOOKING_RAPIDAPI_HOST") or BOOKING_RAPIDAPI_HOST
 
 
-def _get_with_retry(url: str, *, headers: dict, params: dict, timeout: int, max_attempts: int = 4) -> requests.Response:
+def _get_with_retry(
+    url: str,
+    *,
+    headers: dict,
+    params: dict,
+    timeout: int | tuple[int, int],
+    max_attempts: int = 2,
+) -> requests.Response:
     """
     Retry transient Booking API failures (especially 429) with short backoff.
     """
-    backoff_sec = [0.8, 1.4, 2.2]
+    backoff_sec = [0.5, 0.9]
     last_resp: Optional[requests.Response] = None
     last_exc: Optional[Exception] = None
     attempts = max(1, int(max_attempts))
@@ -78,7 +85,7 @@ def search_hotels(city, checkin_date, checkout_date, adults=2, currency_code="KR
         log_debug(f"searchDestination response: status={dest_resp.status_code}, text={dest_resp.text[:500]}")
         dest_json = dest_resp.json()
         dest_id = None
-        # 공식 응답 구조에 따라 dest_id 추출
+        # 怨듭떇 ?묐떟 援ъ“???곕씪 dest_id 異붿텧
         if dest_json and 'data' in dest_json and dest_json['data']:
             dest_id = dest_json['data'][0].get('dest_id')
         elif isinstance(dest_json, list) and len(dest_json) > 0 and 'dest_id' in dest_json[0]:
@@ -92,7 +99,7 @@ def search_hotels(city, checkin_date, checkout_date, adults=2, currency_code="KR
         log_debug(f"searchDestination exception: {e}")
         return {"error": str(e)}
 
-    # 2. dest_id로 호텔 검색
+    # 2. dest_id 기반 호텔 검색
     url = f"https://{BOOKING_RAPIDAPI_HOST}/api/v1/hotels/searchHotels"
     params = {
         "dest_id": dest_id,
@@ -129,14 +136,14 @@ def search_flights(origin, destination, departure_date, return_date=None, adults
     }
     if return_date:
         params["return_date"] = return_date
-    response = requests.get(url, headers=headers, params=params)
+    response = requests.get(url, headers=headers, params=params, timeout=(3, 8))
     return response.json()
 
 
 def search_destination(query: str):
     url = f"https://{rapid_host()}/api/v1/hotels/searchDestination"
     params = {"query": query}
-    response = _get_with_retry(url, headers=rapid_headers(), params=params, timeout=15)
+    response = _get_with_retry(url, headers=rapid_headers(), params=params, timeout=(3, 8), max_attempts=2)
     response.raise_for_status()
     return response.json()
 
@@ -164,7 +171,7 @@ def search_hotels_by_dest_id(
         "languagecode": languagecode,
         "page_number": page_number,
     }
-    response = _get_with_retry(url, headers=rapid_headers(), params=params, timeout=20)
+    response = _get_with_retry(url, headers=rapid_headers(), params=params, timeout=(4, 10), max_attempts=2)
     response.raise_for_status()
     return response.json()
 

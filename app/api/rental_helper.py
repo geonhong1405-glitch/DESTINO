@@ -32,6 +32,159 @@ def _coerce_number(value):
     return None
 
 
+def _preset_locations() -> list[dict]:
+    # Broad, key travel hubs used when Google Places key is unavailable.
+    return [
+        {"name": "Seoul", "sub": "South Korea", "lat": 37.5665, "lon": 126.9780, "category": "city", "country_code": "KR", "aliases": ["서울", "seoul"]},
+        {"name": "Incheon Intl Airport (ICN)", "sub": "Incheon, South Korea", "lat": 37.4602, "lon": 126.4407, "category": "airport", "country_code": "KR", "aliases": ["인천", "icn"]},
+        {"name": "Busan", "sub": "South Korea", "lat": 35.1796, "lon": 129.0756, "category": "city", "country_code": "KR", "aliases": ["부산", "busan"]},
+        {"name": "Gimhae Airport (PUS)", "sub": "Busan, South Korea", "lat": 35.1795, "lon": 128.9382, "category": "airport", "country_code": "KR", "aliases": ["김해", "pus"]},
+        {"name": "Tokyo", "sub": "Japan", "lat": 35.6762, "lon": 139.6503, "category": "city", "country_code": "JP", "aliases": ["도쿄", "tokyo"]},
+        {"name": "Narita Airport (NRT)", "sub": "Tokyo, Japan", "lat": 35.7719, "lon": 140.3929, "category": "airport", "country_code": "JP", "aliases": ["나리타", "nrt"]},
+        {"name": "Haneda Airport (HND)", "sub": "Tokyo, Japan", "lat": 35.5494, "lon": 139.7798, "category": "airport", "country_code": "JP", "aliases": ["하네다", "hnd"]},
+        {"name": "Osaka", "sub": "Japan", "lat": 34.6937, "lon": 135.5023, "category": "city", "country_code": "JP", "aliases": ["오사카", "osaka"]},
+        {"name": "Kansai Airport (KIX)", "sub": "Osaka, Japan", "lat": 34.4347, "lon": 135.2440, "category": "airport", "country_code": "JP", "aliases": ["간사이", "kix"]},
+        {"name": "Sapporo", "sub": "Japan", "lat": 43.0618, "lon": 141.3545, "category": "city", "country_code": "JP", "aliases": ["삿포로", "sapporo"]},
+        {"name": "New York", "sub": "United States", "lat": 40.7128, "lon": -74.0060, "category": "city", "country_code": "US", "aliases": ["뉴욕", "new york", "nyc"]},
+        {"name": "JFK Airport (JFK)", "sub": "New York, United States", "lat": 40.6413, "lon": -73.7781, "category": "airport", "country_code": "US", "aliases": ["jfk"]},
+        {"name": "Los Angeles", "sub": "United States", "lat": 34.0522, "lon": -118.2437, "category": "city", "country_code": "US", "aliases": ["la", "los angeles"]},
+        {"name": "LAX Airport (LAX)", "sub": "Los Angeles, United States", "lat": 33.9416, "lon": -118.4085, "category": "airport", "country_code": "US", "aliases": ["lax"]},
+        {"name": "London", "sub": "United Kingdom", "lat": 51.5072, "lon": -0.1276, "category": "city", "country_code": "GB", "aliases": ["런던", "london"]},
+        {"name": "Heathrow Airport (LHR)", "sub": "London, United Kingdom", "lat": 51.4700, "lon": -0.4543, "category": "airport", "country_code": "GB", "aliases": ["lhr", "heathrow"]},
+        {"name": "Paris", "sub": "France", "lat": 48.8566, "lon": 2.3522, "category": "city", "country_code": "FR", "aliases": ["파리", "paris"]},
+        {"name": "CDG Airport (CDG)", "sub": "Paris, France", "lat": 49.0097, "lon": 2.5479, "category": "airport", "country_code": "FR", "aliases": ["cdg"]},
+        {"name": "Rome", "sub": "Italy", "lat": 41.9028, "lon": 12.4964, "category": "city", "country_code": "IT", "aliases": ["로마", "rome"]},
+        {"name": "Fiumicino Airport (FCO)", "sub": "Rome, Italy", "lat": 41.8003, "lon": 12.2389, "category": "airport", "country_code": "IT", "aliases": ["fco"]},
+        {"name": "Dubai", "sub": "United Arab Emirates", "lat": 25.2048, "lon": 55.2708, "category": "city", "country_code": "AE", "aliases": ["두바이", "dubai"]},
+        {"name": "Dubai Airport (DXB)", "sub": "Dubai, United Arab Emirates", "lat": 25.2532, "lon": 55.3657, "category": "airport", "country_code": "AE", "aliases": ["dxb"]},
+        {"name": "Bangkok", "sub": "Thailand", "lat": 13.7563, "lon": 100.5018, "category": "city", "country_code": "TH", "aliases": ["방콕", "bangkok"]},
+        {"name": "Suvarnabhumi Airport (BKK)", "sub": "Bangkok, Thailand", "lat": 13.6900, "lon": 100.7501, "category": "airport", "country_code": "TH", "aliases": ["수완나품", "bkk"]},
+        {"name": "Singapore", "sub": "Singapore", "lat": 1.3521, "lon": 103.8198, "category": "city", "country_code": "SG", "aliases": ["싱가포르", "singapore"]},
+        {"name": "Changi Airport (SIN)", "sub": "Singapore", "lat": 1.3644, "lon": 103.9915, "category": "airport", "country_code": "SG", "aliases": ["sin", "changi"]},
+        {"name": "Hong Kong", "sub": "Hong Kong", "lat": 22.3193, "lon": 114.1694, "category": "city", "country_code": "HK", "aliases": ["홍콩", "hong kong", "hk"]},
+        {"name": "Hong Kong Intl Airport (HKG)", "sub": "Hong Kong", "lat": 22.3080, "lon": 113.9185, "category": "airport", "country_code": "HK", "aliases": ["hkg"]},
+        {"name": "Taipei", "sub": "Taiwan", "lat": 25.0330, "lon": 121.5654, "category": "city", "country_code": "TW", "aliases": ["타이베이", "taipei"]},
+        {"name": "Taoyuan Airport (TPE)", "sub": "Taipei, Taiwan", "lat": 25.0797, "lon": 121.2342, "category": "airport", "country_code": "TW", "aliases": ["tpe"]},
+        {"name": "Sydney", "sub": "Australia", "lat": -33.8688, "lon": 151.2093, "category": "city", "country_code": "AU", "aliases": ["시드니", "sydney"]},
+        {"name": "Sydney Airport (SYD)", "sub": "Sydney, Australia", "lat": -33.9399, "lon": 151.1753, "category": "airport", "country_code": "AU", "aliases": ["syd"]},
+    ]
+
+
+def _match_preset(query: str, category: str, limit: int, country_code: str | None) -> list[dict]:
+    q = (query or "").strip().lower()
+    cc = (country_code or "").strip().upper()
+    out: list[dict] = []
+
+    for item in _preset_locations():
+        if category in {"airport", "station", "city"} and item.get("category") != category:
+            continue
+        if cc and item.get("country_code") != cc:
+            continue
+
+        hay = " ".join(
+            [
+                str(item.get("name") or ""),
+                str(item.get("sub") or ""),
+                " ".join(item.get("aliases") or []),
+            ]
+        ).lower()
+        if q and q not in hay:
+            continue
+
+        out.append(
+            {
+                "name": item.get("name"),
+                "sub": item.get("sub"),
+                "lat": item.get("lat"),
+                "lon": item.get("lon"),
+                "category": item.get("category", "all"),
+                "country_code": item.get("country_code"),
+            }
+        )
+        if len(out) >= max(1, int(limit or 10)):
+            break
+
+    if out:
+        return out
+
+    # Relax country filter once to avoid empty UX.
+    if cc:
+        return _match_preset(query=query, category=category, limit=limit, country_code=None)
+    return []
+
+
+def _google_places_search(query: str, category: str, limit: int) -> list[dict]:
+    api_key = (os.getenv("GOOGLE_PLACES_API_KEY") or "").strip()
+    if not api_key:
+        return []
+
+    type_hint = None
+    if category == "airport":
+        type_hint = "airport"
+    elif category == "station":
+        type_hint = "train_station"
+
+    params = {
+        "query": query,
+        "language": "ko",
+        "key": api_key,
+    }
+    if type_hint:
+        params["type"] = type_hint
+
+    try:
+        resp = requests.get(
+            "https://maps.googleapis.com/maps/api/place/textsearch/json",
+            params=params,
+            timeout=10,
+        )
+        if resp.status_code >= 400:
+            return []
+        data = resp.json() if resp.content else {}
+    except Exception:
+        return []
+
+    out: list[dict] = []
+    rows = data.get("results") if isinstance(data, dict) else []
+    if not isinstance(rows, list):
+        rows = []
+
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        loc = ((row.get("geometry") or {}).get("location") or {})
+        lat = _parse_float(loc.get("lat"))
+        lon = _parse_float(loc.get("lng"))
+        if lat is None or lon is None:
+            continue
+
+        types = row.get("types") or []
+        item_cat = "all"
+        if "airport" in types:
+            item_cat = "airport"
+        elif any(t in types for t in ("train_station", "subway_station", "transit_station")):
+            item_cat = "station"
+        elif "locality" in types or "administrative_area_level_1" in types:
+            item_cat = "city"
+
+        if category in {"airport", "station", "city"} and item_cat != category:
+            continue
+
+        out.append(
+            {
+                "name": (row.get("name") or "").strip(),
+                "sub": (row.get("formatted_address") or row.get("vicinity") or "").strip(),
+                "lat": lat,
+                "lon": lon,
+                "category": item_cat,
+                "place_id": row.get("place_id"),
+            }
+        )
+        if len(out) >= max(1, int(limit or 10)):
+            break
+    return out
+
+
 def search_rental_locations(
     query: str | None,
     category: str | None = "all",
@@ -42,239 +195,29 @@ def search_rental_locations(
     if not q:
         return []
 
-    category = (category or "all").strip().lower()
-    country_code = (country_code or "").strip().upper()
+    cat = (category or "all").strip().lower()
+    if cat not in {"all", "airport", "station", "city"}:
+        cat = "all"
 
-    def _normalize_query_alias(text: str) -> str:
-        s = (text or "").strip().lower()
-        alias = {
-            "홋카이도": "삿포로",
-            "혹카이도": "삿포로",
-            "북해도": "삿포로",
-            "벳부": "벳푸",
-            "beppu": "벳푸",
-            "hokkaido": "삿포로",
-            "sapporo": "삿포로",
-            "new york": "뉴욕",
-            "newyork": "뉴욕",
-            "ho chi minh": "호치민",
-            "hochiminh": "호치민",
-            "hochiminhcity": "호치민",
-            "saigon": "호치민",
-        }
-        return alias.get(s, s)
+    # 1) Try Google Places for broad global coverage when key is configured.
+    google_rows = _google_places_search(q, cat, limit)
+    if google_rows:
+        return google_rows
 
-    q_norm = _normalize_query_alias(q)
-
-    def _preset_locations() -> list[dict]:
-        # Country is used only for filtering and removed before return.
-        return [
-            # Korea
-            {"name": "서울", "sub": "대한민국 서울", "lat": 37.5665, "lon": 126.9780, "category": "city", "country": "KR"},
-            {"name": "서울역", "sub": "대한민국 서울", "lat": 37.5547, "lon": 126.9706, "category": "station", "country": "KR"},
-            {"name": "강남역", "sub": "대한민국 서울", "lat": 37.4979, "lon": 127.0276, "category": "station", "country": "KR"},
-            {"name": "김포공항 (GMP)", "sub": "대한민국 서울", "lat": 37.5583, "lon": 126.7906, "category": "airport", "country": "KR"},
-            {"name": "인천국제공항 (ICN)", "sub": "대한민국 인천", "lat": 37.4602, "lon": 126.4407, "category": "airport", "country": "KR"},
-            {"name": "부산", "sub": "대한민국 부산", "lat": 35.1796, "lon": 129.0756, "category": "city", "country": "KR"},
-            {"name": "부산역", "sub": "대한민국 부산", "lat": 35.1151, "lon": 129.0414, "category": "station", "country": "KR"},
-            {"name": "김해국제공항 (PUS)", "sub": "대한민국 부산", "lat": 35.1795, "lon": 128.9382, "category": "airport", "country": "KR"},
-            {"name": "제주", "sub": "대한민국 제주", "lat": 33.4996, "lon": 126.5312, "category": "city", "country": "KR"},
-            {"name": "제주국제공항 (CJU)", "sub": "대한민국 제주", "lat": 33.5104, "lon": 126.4928, "category": "airport", "country": "KR"},
-            # Japan
-            {"name": "도쿄", "sub": "일본 도쿄", "lat": 35.6762, "lon": 139.6503, "category": "city", "country": "JP"},
-            {"name": "도쿄역", "sub": "일본 도쿄", "lat": 35.6812, "lon": 139.7671, "category": "station", "country": "JP"},
-            {"name": "하네다공항 (HND)", "sub": "일본 도쿄", "lat": 35.5494, "lon": 139.7798, "category": "airport", "country": "JP"},
-            {"name": "나리타공항 (NRT)", "sub": "일본 지바", "lat": 35.7719, "lon": 140.3929, "category": "airport", "country": "JP"},
-            {"name": "오사카", "sub": "일본 오사카", "lat": 34.6937, "lon": 135.5023, "category": "city", "country": "JP"},
-            {"name": "신오사카역", "sub": "일본 오사카", "lat": 34.7335, "lon": 135.5003, "category": "station", "country": "JP"},
-            {"name": "간사이국제공항 (KIX)", "sub": "일본 오사카", "lat": 34.4347, "lon": 135.2440, "category": "airport", "country": "JP"},
-            {"name": "삿포로", "sub": "일본 홋카이도", "lat": 43.0618, "lon": 141.3545, "category": "city", "country": "JP"},
-            {"name": "삿포로역", "sub": "일본 홋카이도", "lat": 43.0687, "lon": 141.3508, "category": "station", "country": "JP"},
-            {"name": "신치토세공항 (CTS)", "sub": "일본 홋카이도", "lat": 42.7752, "lon": 141.6923, "category": "airport", "country": "JP"},
-            {"name": "후쿠오카", "sub": "일본 후쿠오카", "lat": 33.5902, "lon": 130.4017, "category": "city", "country": "JP"},
-            {"name": "후쿠오카공항 (FUK)", "sub": "일본 후쿠오카", "lat": 33.5859, "lon": 130.4507, "category": "airport", "country": "JP"},
-            {"name": "나고야", "sub": "일본 아이치", "lat": 35.1815, "lon": 136.9066, "category": "city", "country": "JP"},
-            {"name": "나고야역", "sub": "일본 아이치", "lat": 35.1709, "lon": 136.8815, "category": "station", "country": "JP"},
-            {"name": "중부국제공항 (NGO)", "sub": "일본 아이치", "lat": 34.8584, "lon": 136.8054, "category": "airport", "country": "JP"},
-            {"name": "교토", "sub": "일본 교토", "lat": 35.0116, "lon": 135.7681, "category": "city", "country": "JP"},
-            {"name": "교토역", "sub": "일본 교토", "lat": 34.9855, "lon": 135.7586, "category": "station", "country": "JP"},
-            {"name": "벳푸", "sub": "일본 오이타 벳푸", "lat": 33.2795, "lon": 131.4970, "category": "city", "country": "JP"},
-            {"name": "벳푸역", "sub": "일본 오이타 벳푸", "lat": 33.2799, "lon": 131.5007, "category": "station", "country": "JP"},
-            {"name": "오이타공항 (OIT)", "sub": "일본 오이타", "lat": 33.4794, "lon": 131.7369, "category": "airport", "country": "JP"},
-            {"name": "나하", "sub": "일본 오키나와", "lat": 26.2124, "lon": 127.6809, "category": "city", "country": "JP"},
-            {"name": "나하공항 (OKA)", "sub": "일본 오키나와", "lat": 26.1958, "lon": 127.6460, "category": "airport", "country": "JP"},
-            # USA
-            {"name": "뉴욕", "sub": "미국 뉴욕", "lat": 40.7128, "lon": -74.0060, "category": "city", "country": "US"},
-            {"name": "JFK 공항 (JFK)", "sub": "미국 뉴욕", "lat": 40.6413, "lon": -73.7781, "category": "airport", "country": "US"},
-            {"name": "뉴어크 공항 (EWR)", "sub": "미국 뉴저지", "lat": 40.6895, "lon": -74.1745, "category": "airport", "country": "US"},
-            {"name": "LGA 공항 (LGA)", "sub": "미국 뉴욕", "lat": 40.7769, "lon": -73.8740, "category": "airport", "country": "US"},
-            # UK/France/Italy
-            {"name": "런던", "sub": "영국 런던", "lat": 51.5072, "lon": -0.1276, "category": "city", "country": "GB"},
-            {"name": "히드로공항 (LHR)", "sub": "영국 런던", "lat": 51.4700, "lon": -0.4543, "category": "airport", "country": "GB"},
-            {"name": "파리", "sub": "프랑스 파리", "lat": 48.8566, "lon": 2.3522, "category": "city", "country": "FR"},
-            {"name": "샤를드골공항 (CDG)", "sub": "프랑스 파리", "lat": 49.0097, "lon": 2.5479, "category": "airport", "country": "FR"},
-            {"name": "로마", "sub": "이탈리아 로마", "lat": 41.9028, "lon": 12.4964, "category": "city", "country": "IT"},
-            {"name": "피우미치노공항 (FCO)", "sub": "이탈리아 로마", "lat": 41.8003, "lon": 12.2389, "category": "airport", "country": "IT"},
-            # Southeast Asia / Asia
-            {"name": "방콕", "sub": "태국 방콕", "lat": 13.7563, "lon": 100.5018, "category": "city", "country": "TH"},
-            {"name": "수완나품공항 (BKK)", "sub": "태국 방콕", "lat": 13.6900, "lon": 100.7501, "category": "airport", "country": "TH"},
-            {"name": "하노이", "sub": "베트남 하노이", "lat": 21.0278, "lon": 105.8342, "category": "city", "country": "VN"},
-            {"name": "노이바이공항 (HAN)", "sub": "베트남 하노이", "lat": 21.2212, "lon": 105.8072, "category": "airport", "country": "VN"},
-            {"name": "호치민", "sub": "베트남 호치민", "lat": 10.8231, "lon": 106.6297, "category": "city", "country": "VN"},
-            {"name": "탄손녓공항 (SGN)", "sub": "베트남 호치민", "lat": 10.8188, "lon": 106.6519, "category": "airport", "country": "VN"},
-            {"name": "다낭", "sub": "베트남 다낭", "lat": 16.0544, "lon": 108.2022, "category": "city", "country": "VN"},
-            {"name": "다낭공항 (DAD)", "sub": "베트남 다낭", "lat": 16.0439, "lon": 108.1993, "category": "airport", "country": "VN"},
-            {"name": "싱가포르", "sub": "싱가포르", "lat": 1.3521, "lon": 103.8198, "category": "city", "country": "SG"},
-            {"name": "창이공항 (SIN)", "sub": "싱가포르", "lat": 1.3644, "lon": 103.9915, "category": "airport", "country": "SG"},
-            {"name": "타이베이", "sub": "대만 타이베이", "lat": 25.0330, "lon": 121.5654, "category": "city", "country": "TW"},
-            {"name": "타오위안공항 (TPE)", "sub": "대만 타오위안", "lat": 25.0797, "lon": 121.2342, "category": "airport", "country": "TW"},
-            # Australia
-            {"name": "시드니", "sub": "호주 시드니", "lat": -33.8688, "lon": 151.2093, "category": "city", "country": "AU"},
-            {"name": "시드니공항 (SYD)", "sub": "호주 시드니", "lat": -33.9399, "lon": 151.1753, "category": "airport", "country": "AU"},
-            {"name": "멜버른", "sub": "호주 멜버른", "lat": -37.8136, "lon": 144.9631, "category": "city", "country": "AU"},
-            {"name": "멜버른공항 (MEL)", "sub": "호주 멜버른", "lat": -37.6690, "lon": 144.8410, "category": "airport", "country": "AU"},
-            {"name": "브리즈번", "sub": "호주 브리즈번", "lat": -27.4698, "lon": 153.0251, "category": "city", "country": "AU"},
-            {"name": "브리즈번공항 (BNE)", "sub": "호주 브리즈번", "lat": -27.3842, "lon": 153.1175, "category": "airport", "country": "AU"},
-            # UAE
-            {"name": "두바이", "sub": "아랍에미리트 두바이", "lat": 25.2048, "lon": 55.2708, "category": "city", "country": "AE"},
-            {"name": "두바이공항 (DXB)", "sub": "아랍에미리트 두바이", "lat": 25.2532, "lon": 55.3657, "category": "airport", "country": "AE"},
-        ]
-
-    def _preset_match() -> list[dict]:
-        ql = q_norm.lower()
-        out = []
-        for item in _preset_locations():
-            if country_code and item.get("country") != country_code:
-                continue
-            if category in {"airport", "station", "city"} and item.get("category") != category:
-                continue
-            hay = f"{item.get('name', '')} {item.get('sub', '')}".lower()
-            if ql and ql in hay:
-                out.append({k: v for k, v in item.items() if k != "country"})
-            if len(out) >= max(1, limit):
-                break
-        return out
-
-    preset = _preset_match()
-    if preset:
-        return preset
-
-    country_hint_name = {
-        "KR": "대한민국",
-        "JP": "일본",
-        "US": "미국",
-        "GB": "영국",
-        "FR": "프랑스",
-        "IT": "이탈리아",
-        "AE": "아랍에미리트",
-        "TH": "태국",
-        "VN": "베트남",
-        "SG": "싱가포르",
-        "TW": "대만",
-        "AU": "호주",
-    }.get(country_code, "")
-
-    # fallback local candidates = preset pool (already broadened)
-    local_candidates = [{k: v for k, v in x.items() if k != "country"} | {"_country": x.get("country")} for x in _preset_locations()]
-
-    def _local_match() -> list[dict]:
-        ql = q_norm.lower()
-        out = []
-        for item in local_candidates:
-            if category in {"airport", "station", "city"} and item["category"] != category:
-                continue
-            hay = f"{item['name']} {item['sub']}".lower()
-            if country_code and item.get("_country") != country_code:
-                continue
-            if country_hint_name and country_hint_name.lower() not in hay and country_code and item.get("_country") != country_code:
-                continue
-            if ql in hay:
-                out.append({k: v for k, v in item.items() if k != "_country"})
-            if len(out) >= max(1, limit):
-                break
-        if out:
-            return out
-        # relax country filter
-        for item in local_candidates:
-            if category in {"airport", "station", "city"} and item["category"] != category:
-                continue
-            hay = f"{item['name']} {item['sub']}".lower()
-            if ql in hay:
-                out.append({k: v for k, v in item.items() if k != "_country"})
-            if len(out) >= max(1, limit):
-                break
-        return out
-
-    api_key = os.getenv("GOOGLE_PLACES_API_KEY")
-    if not api_key:
-        return _local_match()
-
-    type_hint = None
-    if category == "airport":
-        type_hint = "airport"
-    elif category == "station":
-        type_hint = "train_station"
-
-    url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
-    google_query = f"{q_norm} {country_hint_name}".strip() if country_hint_name else q_norm
-    params = {"query": google_query, "language": "ko", "key": api_key}
-    if type_hint:
-        params["type"] = type_hint
-
-    try:
-        resp = requests.get(url, params=params, timeout=12)
-        if resp.status_code >= 400:
-            return _local_match()
-        data = resp.json()
-    except Exception:
-        return _local_match()
-
-    out = []
-    for row in data.get("results", []) if isinstance(data, dict) else []:
-        if not isinstance(row, dict):
-            continue
-        name = (row.get("name") or "").strip()
-        if not name:
-            continue
-        loc = (((row.get("geometry") or {}).get("location")) or {})
-        lat = _parse_float(loc.get("lat"))
-        lon = _parse_float(loc.get("lng"))
-        if lat is None or lon is None:
-            continue
-        types = row.get("types") or []
-        item_cat = "all"
-        if "airport" in types:
-            item_cat = "airport"
-        elif any(t in types for t in ("train_station", "subway_station", "transit_station")):
-            item_cat = "station"
-        elif "locality" in types or "administrative_area_level_1" in types:
-            item_cat = "city"
-        if category in {"airport", "station", "city"} and item_cat != category:
-            continue
-        out.append(
-            {
-                "name": name,
-                "sub": (row.get("formatted_address") or row.get("vicinity") or "").strip(),
-                "lat": lat,
-                "lon": lon,
-                "category": item_cat,
-                "place_id": row.get("place_id"),
-            }
-        )
-        if len(out) >= max(1, limit):
-            break
-    return out or _local_match()
+    # 2) Local preset fallback.
+    return _match_preset(q, cat, limit, country_code)
 
 
 def parse_rental_search_results(raw: dict | None) -> list[dict]:
     if not isinstance(raw, dict):
         return []
-    results = []
-    seen = set()
+
+    results: list[dict] = []
+    seen: set[tuple] = set()
 
     def _num(v):
         n = _coerce_number(v)
-        return int(n) if n is not None else None
+        return int(round(n)) if n is not None else None
 
     def _first_number(node, prefer_price=True):
         if isinstance(node, (int, float)):
@@ -289,7 +232,6 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
                     return None
             return None
         if isinstance(node, dict):
-            # Prefer obvious price-like keys first.
             if prefer_price:
                 for k, v in node.items():
                     lk = str(k).lower()
@@ -310,6 +252,19 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
 
     def _walk(node):
         if isinstance(node, dict):
+            # Skip provider/status metadata nodes that are not actual vehicles.
+            lower_keys = {str(k).lower() for k in node.keys()}
+            vehicle_key_hints = {
+                "car_name", "vehicle_name", "vehicle", "vehicleName", "carModel", "model",
+                "seats", "seat_count", "passengers", "transmission", "gearbox",
+                "luggage", "baggage", "fuel_policy", "fuelPolicy",
+            }
+            provider_meta_keys = {"provider_name", "logo", "reviews", "optimised_for_mobile", "in_progress", "errored"}
+            if (lower_keys & provider_meta_keys) and not (lower_keys & vehicle_key_hints):
+                for v in node.values():
+                    _walk(v)
+                return
+
             name = None
             for k in (
                 "car_name",
@@ -343,13 +298,10 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
                         or obj.get("payable")
                     )
                 currency = currency or obj.get("currency") or obj.get("currency_code")
+
             if price is None:
                 n = _first_number(node)
                 price = int(round(n)) if n is not None else None
-            if currency is None:
-                query = node.get("query")
-                if isinstance(query, dict):
-                    currency = query.get("ccy") or query.get("currency")
 
             image = None
             for k in (
@@ -393,12 +345,12 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
                     seat_count = _num(node.get(k))
                     if seat_count is not None:
                         seat_count = int(seat_count)
-                        specs.append(f"{seat_count}\uC778\uC2B9")
+                        specs.append(f"{seat_count}인승")
                         break
 
             bags = _num(node.get("bags") or node.get("luggage") or node.get("baggage"))
             if bags is not None:
-                specs.append(f"\uAC00\uBC29 {bags}")
+                specs.append(f"가방 {bags}")
 
             transmission = None
             for k in ("transmission", "gearbox", "transmissionType", "trans"):
@@ -418,9 +370,6 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
             if fuel_policy:
                 specs.append(fuel_policy)
 
-            if node.get("air_conditioning") is True or node.get("airConditioning") is True:
-                specs.append("\uC5D0\uC5B4\uCEE8")
-
             vendor_rating = _coerce_number(node.get("supplier_rating") or node.get("providerRating") or node.get("rating"))
 
             hay = " ".join([name or "", supplier or ""]).lower()
@@ -436,11 +385,11 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
             if looks_like_car:
                 if not name and supplier and price is not None:
                     name = f"{supplier} 렌터카"
-                # Skip supplier-only skeleton nodes with no car name and no price.
                 if not name and price is None:
                     for v in node.values():
                         _walk(v)
                     return
+
                 key = (name or "", supplier or "", price or 0)
                 if key not in seen:
                     seen.add(key)
@@ -458,6 +407,7 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
                             "rating": float(vendor_rating) if vendor_rating is not None else None,
                         }
                     )
+
             for v in node.values():
                 _walk(v)
         elif isinstance(node, list):
@@ -467,7 +417,6 @@ def parse_rental_search_results(raw: dict | None) -> list[dict]:
     _walk(raw)
     results.sort(key=lambda x: x.get("price") or 10**12)
     return results[:24]
-
 
 
 def calc_rental_days(pickup_at: str | None, dropoff_at: str | None) -> int | None:

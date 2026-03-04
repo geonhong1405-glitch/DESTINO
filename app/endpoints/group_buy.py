@@ -63,7 +63,7 @@ def _require_user_id(request: Request) -> int:
     session_token = request.cookies.get("session_token")
     user_id = get_user_id_from_session(session_token) if session_token else None
     if not user_id:
-        raise HTTPException(status_code=401, detail="濡쒓렇?몄씠 ?꾩슂?⑸땲??")
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
     return int(user_id)
 
 
@@ -79,7 +79,7 @@ def _serialize_post(row: GroupBuyPost, me: int | None = None, owner_nickname: st
         "city": row.city or "",
         "start_date": row.start_date,
         "end_date": row.end_date,
-        "departure": row.departure or "?몄쿇",
+        "departure": row.departure or "인천",
         "budget": row.budget or "",
         "description": clean_desc,
         "linked_items": linked_items,
@@ -129,14 +129,14 @@ async def create_post(request: Request):
     user_id = _require_user_id(request)
     payload = await request.json()
     if not isinstance(payload, dict):
-        raise HTTPException(status_code=400, detail="?섎せ???붿껌?낅땲??")
+        raise HTTPException(status_code=400, detail="잘못된 요청입니다.")
 
     title = str(payload.get("title") or "").strip()
     country = str(payload.get("country") or "").strip()
     start_date = str(payload.get("start_date") or "").strip()
     linked_items = _normalize_linked_items(payload.get("linked_items"))
     if not title or not country or not start_date:
-        raise HTTPException(status_code=400, detail="title/country/start_date???꾩닔?낅땲??")
+        raise HTTPException(status_code=400, detail="title/country/start_date는 필수입니다.")
 
     try:
         max_people = int(payload.get("max_people") or 4)
@@ -152,7 +152,7 @@ async def create_post(request: Request):
         city=str(payload.get("city") or "").strip()[:100],
         start_date=start_date[:20],
         end_date=str(payload.get("end_date") or "").strip()[:20] or None,
-        departure=str(payload.get("departure") or "?몄쿇").strip()[:100],
+        departure=str(payload.get("departure") or "인천").strip()[:100],
         budget=str(payload.get("budget") or "").strip()[:80],
         description=_pack_desc_with_linked_items(str(payload.get("description") or "").strip(), linked_items),
         status="open",
@@ -200,10 +200,10 @@ def delete_post(post_id: int, request: Request):
             .first()
         )
         if not post:
-            raise HTTPException(status_code=404, detail="寃뚯떆湲??李얠쓣 ???놁뒿?덈떎.")
+            raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
 
         db.query(GroupBuyJoinRequest).filter(GroupBuyJoinRequest.post_id == int(post_id)).delete()
-        # ??젣??怨듬룞援щℓ 湲??李몄“?섎뜕 ?꾩떆由ъ뒪???λ컮援щ땲 ??ぉ???④퍡 ?뺣━
+        # 삭제된 공동구매 글을 참조하던 위시리스트/장바구니 항목도 함께 정리
         post_id_text = str(int(post_id))
         db.query(UserSavedItem).filter(
             UserSavedItem.item_type.in_(["groupbuy", "travel-group"]),
@@ -231,15 +231,15 @@ async def create_join_request(post_id: int, request: Request):
     try:
         post = db.query(GroupBuyPost).filter(GroupBuyPost.id == int(post_id)).first()
         if not post:
-            raise HTTPException(status_code=404, detail="寃뚯떆湲??李얠쓣 ???놁뒿?덈떎.")
+            raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
         if int(post.owner_user_id) == int(requester_id):
-            raise HTTPException(status_code=400, detail="蹂몄씤 湲?먮뒗 李몄뿬 ?붿껌?????놁뒿?덈떎.")
+            raise HTTPException(status_code=400, detail="본인 게시글에는 참여 요청할 수 없습니다.")
         if int(post.current_people or 1) >= int(post.max_people or 4):
             post.status = "closed"
             db.commit()
             raise HTTPException(status_code=400, detail="마감된 게시글입니다.")
         if (post.status or "open") != "open":
-            raise HTTPException(status_code=400, detail="留덇컧??寃뚯떆湲?낅땲??")
+            raise HTTPException(status_code=400, detail="마감된 게시글입니다.")
 
         exists = (
             db.query(GroupBuyJoinRequest)
@@ -269,7 +269,11 @@ async def create_join_request(post_id: int, request: Request):
 
 @router.get("/join-requests/inbox")
 def inbox_join_requests(request: Request):
-    user_id = _require_user_id(request)
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        return []
+    user_id = int(user_id)
     db = SessionLocal()
     try:
         inbox_rows = (
@@ -347,7 +351,7 @@ async def decide_join_request(request_id: int, request: Request):
     payload = await request.json()
     action = str((payload or {}).get("action") or "").strip().lower()
     if action not in {"accept", "reject"}:
-        raise HTTPException(status_code=400, detail="action? accept/reject留?媛?ν빀?덈떎.")
+        raise HTTPException(status_code=400, detail="action은 accept/reject만 가능합니다.")
 
     db = SessionLocal()
     try:
@@ -360,7 +364,7 @@ async def decide_join_request(request_id: int, request: Request):
             .first()
         )
         if not row:
-            raise HTTPException(status_code=404, detail="?붿껌??李얠쓣 ???놁뒿?덈떎.")
+            raise HTTPException(status_code=404, detail="요청을 찾을 수 없습니다.")
         if row.status != "pending":
             return {"ok": True, "updated": False}
 

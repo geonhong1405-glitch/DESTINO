@@ -1,4 +1,9 @@
-﻿from app.api.booking_hotel_flight_api import search_hotels as booking_search_hotels, search_flights as booking_search_flights
+﻿from app.api.booking_hotel_flight_api import (
+    search_destination as booking_search_destination,
+    search_hotels as booking_search_hotels,
+    search_hotels_by_dest_id as booking_search_hotels_by_dest_id,
+    search_flights as booking_search_flights,
+)
 from app.session import get_user_id_from_session, create_session, delete_session, clear_all_sessions, SESSION_EXPIRE_MINUTES
 from app.db.db import Base, engine, SessionLocal
 from fastapi import FastAPI, Query, Request, Depends, Form, status, HTTPException
@@ -30,6 +35,7 @@ import base64
 import hashlib
 import hmac
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import quote, unquote
 
 _PWD_PREFIX = "pbkdf2_sha256"
@@ -83,6 +89,14 @@ _TRANSLATE_CACHE_LOADED = False
 _TRANSLATE_CACHE_PATH = None
 PENDING_HOTEL_ORDERS: dict[str, dict] = {}
 PENDING_TOUR_ORDERS: dict[str, dict] = {}
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        raw = os.getenv(name, str(default))
+        return int(str(raw).strip() or str(default))
+    except Exception:
+        return int(default)
 
 
 def _contains_korean(text: str) -> bool:
@@ -294,6 +308,419 @@ def _translate_to_korean(text: str) -> str | None:
     return None
 
 
+def _is_descriptive_hotel_title_for_translate(text: str | None) -> bool:
+    text = _as_text(text)
+    if not isinstance(text, str) or not text.strip():
+        return False
+    t = text.lower()
+    brand_keywords = ["hotel", "inn", "hostel", "residence", "ryokan", "resort"]
+    if any(k in t for k in brand_keywords):
+        return False
+    desc_hits = sum(
+        1
+        for k in ["modern", "cozy", "private", "whole", "near", "style", "renovated", "house", "apartment", "villa"]
+        if k in t
+    )
+    return desc_hits >= 2
+
+
+def _translate_hotel_names_for_page(hotels: list[dict]) -> None:
+    enabled = str(os.getenv("HOTEL_ENABLE_NAME_TRANSLATION", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
+    if not enabled or not hotels:
+        return
+
+    limit = max(1, min(_env_int("HOTEL_TRANSLATE_VISIBLE_LIMIT", 16), 24))
+    max_workers = max(1, min(_env_int("HOTEL_TRANSLATE_WORKERS", 4), 8))
+
+    targets: list[tuple[int, str]] = []
+    for idx, h in enumerate(hotels[:limit]):
+        if not isinstance(h, dict):
+            continue
+        if _as_text(h.get("name_ko")):
+            continue
+        name_en = _as_text(h.get("name_en")) or _as_text(h.get("name"))
+        if not name_en or _contains_korean(name_en):
+            continue
+        if _is_descriptive_hotel_title_for_translate(name_en):
+            continue
+        targets.append((idx, name_en))
+
+    if not targets:
+        return
+
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        fut_map = {ex.submit(_translate_to_korean, name_en): idx for idx, name_en in targets}
+        for fut in as_completed(fut_map):
+            idx = fut_map[fut]
+            try:
+                translated = fut.result()
+            except Exception:
+                translated = None
+            if translated and isinstance(hotels[idx], dict):
+                hotels[idx]["name_ko"] = translated
+
+
+def _hotel_destination_query_candidates(city: str | None, country: str | None, city_en: str | None = None) -> list[str]:
+    city_text = (city or "").strip()
+    city_en_text = (city_en or "").strip()
+    country_text = (country or "").strip()
+    if not city_text and not city_en_text:
+        return []
+
+    region_like_country = {
+        "\ub3d9\ub0a8\uc544", "\ubbf8\uc8fc", "\uc720\ub7fd", "\uc77c\ubcf8", "\ub0a8\ud0dc\ud3c9\uc591", "\uc911\ub3d9/\uc544\ud504\ub9ac\uce74", "\ud64d\ucf69/\ub9c8\uce74\uc624/\uc911\uad6d",
+        "southeast asia", "sea", "europe", "us", "america", "oceania",
+    }
+    country_is_region = ("/" in country_text) or (country_text.lower() in {x.lower() for x in region_like_country})
+
+    city_alias_en = {
+        "\ub098\ud2b8\ub791": "Nha Trang",
+        "\ub2e4\ub0ad": "Da Nang",
+        "\uc138\ubd80": "Cebu",
+        "\ubc1c\ub9ac": "Bali",
+        "\ucf54\ud0c0\ud0a4\ub098\ubc1c\ub8e8": "Kota Kinabalu",
+        "\ub9c8\ub2d0\ub77c": "Manila",
+        "\ud558\ub178\uc774": "Hanoi",
+        "\ud638\uce58\ubbfc": "Ho Chi Minh City",
+        "\ud478\ucf13": "Phuket",
+        "\uc2f1\uac00\ud3ec\ub974": "Singapore",
+        "\uad0c": "Guam",
+        "\uc0ac\uc774\ud310": "Saipan",
+        "\ud558\uc640\uc774": "Honolulu",
+        "\ub85c\uc2a4\uc564\uc824\ub808\uc2a4": "Los Angeles",
+        "\ub274\uc695": "New York",
+        "\ub3c4\ucfc4": "Tokyo",
+        "\uc624\uc0ac\uce74": "Osaka",
+        "\ud6c4\ucfe0\uc624\uce74": "Fukuoka",
+        "\uc0ff\ud3ec\ub85c": "Sapporo",
+        "\uc624\ud0a4\ub098\uc640": "Okinawa",
+        "\ub098\uace0\uc57c": "Nagoya",
+        "\uad50\ud1a0": "Kyoto",
+        "\uace0\ubca0": "Kobe",
+        "\ubc29\ucf55": "Bangkok",
+        "\ud64d\ucf69": "Hong Kong",
+        "\ub9c8\uce74\uc624": "Macau",
+        "\uc0c1\ud558\uc774": "Shanghai",
+        "\ubca0\uc774\uc9d5": "Beijing",
+        "\uce6d\ub2e4\uc624": "Qingdao",
+        "\uad11\uc800\uc6b0": "Guangzhou",
+        "\ud30c\ub9ac": "Paris",
+        "\ub7f0\ub358": "London",
+        "\ub85c\ub9c8": "Rome",
+        "\ubc14\ub974\uc140\ub85c\ub098": "Barcelona",
+        "\ud504\ub77c\ud558": "Prague",
+        "\uc778\ud130\ub77c\ucf04": "Interlaken",
+        "\ubca0\ub124\uce58\uc544": "Venice",
+        "\ud53c\ub80c\uccb4": "Florence",
+        "\uc2dc\ub4dc\ub2c8": "Sydney",
+        "\uc624\ud074\ub79c\ub4dc": "Auckland",
+        "\uba5c\ubc84\ub978": "Melbourne",
+        "\uace8\ub4dc\ucf54\uc2a4\ud2b8": "Gold Coast",
+        "\ub450\ubc14\uc774": "Dubai",
+        "\uce74\uc774\ub85c": "Cairo",
+        "\ucf00\uc774\ud504\ud0c0\uc6b4": "Cape Town",
+        "\uc544\ubd80\ub2e4\ube44": "Abu Dhabi",
+    }
+
+    out: list[str] = []
+
+    def _add(q: str | None) -> None:
+        s = (q or "").strip()
+        if s and s not in out:
+            out.append(s)
+
+    if country_text and not country_is_region and city_en_text:
+        _add(f"{city_en_text}, {country_text}")
+        _add(f"{city_en_text} {country_text}")
+    if country_text and not country_is_region:
+        _add(f"{city_text}, {country_text}")
+        _add(f"{city_text} {country_text}")
+    _add(city_en_text)
+    _add(city_text)
+    _add(city_alias_en.get(city_text))
+    if country_text and not country_is_region and city_alias_en.get(city_text):
+        _add(f"{city_alias_en.get(city_text)}, {country_text}")
+
+    return out
+
+
+def _hotel_expected_country_code(city: str | None, city_en: str | None = None) -> str | None:
+    city_text = (city or "").strip()
+    mapping = {
+        "\ub3c4\ucfc4": "JP",
+        "\uc624\uc0ac\uce74": "JP",
+        "\ud6c4\ucfe0\uc624\uce74": "JP",
+        "\uc0ff\ud3ec\ub85c": "JP",
+        "\uc624\ud0a4\ub098\uc640": "JP",
+        "\ub098\uace0\uc57c": "JP",
+        "\uad50\ud1a0": "JP",
+        "\uace0\ubca0": "JP",
+        "\ubc29\ucf55": "TH",
+        "\ub2e4\ub0ad": "VN",
+        "\ub098\ud2b8\ub791": "VN",
+        "\uc138\ubd80": "PH",
+        "\ubc1c\ub9ac": "ID",
+        "\uc2f1\uac00\ud3ec\ub974": "SG",
+        "\ud478\ucf13": "TH",
+        "\ucf54\ud0c0\ud0a4\ub098\ubc1c\ub8e8": "MY",
+        "\ub9c8\ub2d0\ub77c": "PH",
+        "\ud558\ub178\uc774": "VN",
+        "\ud638\uce58\ubbfc": "VN",
+        "\ud64d\ucf69": "HK",
+        "\ub9c8\uce74\uc624": "MO",
+        "\uc0c1\ud558\uc774": "CN",
+        "\ubca0\uc774\uc9d5": "CN",
+        "\uad11\uc800\uc6b0": "CN",
+        "\uce6d\ub2e4\uc624": "CN",
+        "\uad0c": "GU",
+        "\uc0ac\uc774\ud310": "MP",
+        "\uc2dc\ub4dc\ub2c8": "AU",
+        "\uc624\ud074\ub79c\ub4dc": "NZ",
+        "\uba5c\ubc84\ub978": "AU",
+        "\uace8\ub4dc\ucf54\uc2a4\ud2b8": "AU",
+        "\ud558\uc640\uc774": "US",
+        "\ub274\uc695": "US",
+        "\ub85c\uc2a4\uc564\uc824\ub808\uc2a4": "US",
+        "\ub77c\uc2a4\ubca0\uc774\uac70\uc2a4": "US",
+        "\uc0cc\ud504\ub780\uc2dc\uc2a4\ucf54": "US",
+        "\ud30c\ub9ac": "FR",
+        "\ub7f0\ub358": "GB",
+        "\ub85c\ub9c8": "IT",
+        "\ubc14\ub974\uc140\ub85c\ub098": "ES",
+        "\ud504\ub77c\ud558": "CZ",
+        "\uc778\ud130\ub77c\ucf04": "CH",
+        "\ubca0\ub124\uce58\uc544": "IT",
+        "\ud53c\ub80c\uccb4": "IT",
+        "\ub450\ubc14\uc774": "AE",
+        "\uce74\uc774\ub85c": "EG",
+        "\ucf00\uc774\ud504\ud0c0\uc6b4": "ZA",
+        "\uc544\ubd80\ub2e4\ube44": "AE",
+    }
+    if city_text in mapping:
+        return mapping.get(city_text)
+
+    city_en_map = {
+        "dubai": "AE",
+        "abu dhabi": "AE",
+        "tokyo": "JP",
+        "osaka": "JP",
+        "fukuoka": "JP",
+        "sapporo": "JP",
+        "okinawa": "JP",
+        "nagoya": "JP",
+        "kyoto": "JP",
+        "kobe": "JP",
+        "bangkok": "TH",
+        "da nang": "VN",
+        "nha trang": "VN",
+        "cebu": "PH",
+        "bali": "ID",
+        "singapore": "SG",
+        "phuket": "TH",
+        "kota kinabalu": "MY",
+        "manila": "PH",
+        "hanoi": "VN",
+        "ho chi minh city": "VN",
+        "hong kong": "HK",
+        "macau": "MO",
+        "shanghai": "CN",
+        "beijing": "CN",
+        "guangzhou": "CN",
+        "qingdao": "CN",
+        "guam": "GU",
+        "saipan": "MP",
+        "sydney": "AU",
+        "auckland": "NZ",
+        "melbourne": "AU",
+        "gold coast": "AU",
+        "honolulu": "US",
+        "new york": "US",
+        "los angeles": "US",
+        "las vegas": "US",
+        "san francisco": "US",
+        "paris": "FR",
+        "london": "GB",
+        "rome": "IT",
+        "barcelona": "ES",
+        "prague": "CZ",
+        "interlaken": "CH",
+        "venice": "IT",
+        "florence": "IT",
+        "cairo": "EG",
+        "cape town": "ZA",
+    }
+    city_en_key = str(city_en or "").strip().lower()
+    return city_en_map.get(city_en_key)
+
+
+def _hotel_country_code_hint(country: str | None) -> str | None:
+    c = (country or "").strip().lower()
+    if not c:
+        return None
+    mapping = {
+        "uae": "AE",
+        "united arab emirates": "AE",
+        "dubai": "AE",
+        "\uc544\ub78d\uc5d0\ubbf8\ub9ac\ud2b8": "AE",
+        "\uc544\ub78d\uc5d0\ubbf8\ub9ac\ud2b8\uc5f0\ud569": "AE",
+        "japan": "JP",
+        "\uc77c\ubcf8": "JP",
+        "korea": "KR",
+        "south korea": "KR",
+        "\ub300\ud55c\ubbfc\uad6d": "KR",
+        "\ud55c\uad6d": "KR",
+        "hong kong": "HK",
+        "\ud64d\ucf69": "HK",
+        "macau": "MO",
+        "\ub9c8\uce74\uc624": "MO",
+        "china": "CN",
+        "\uc911\uad6d": "CN",
+        "thailand": "TH",
+        "\ud0dc\uad6d": "TH",
+        "vietnam": "VN",
+        "\ubca0\ud2b8\ub0a8": "VN",
+        "singapore": "SG",
+        "\uc2f1\uac00\ud3ec\ub974": "SG",
+        "indonesia": "ID",
+        "\uc778\ub3c4\ub124\uc2dc\uc544": "ID",
+        "philippines": "PH",
+        "\ud544\ub9ac\ud540": "PH",
+        "france": "FR",
+        "\ud504\ub791\uc2a4": "FR",
+        "uk": "GB",
+        "united kingdom": "GB",
+        "\uc601\uad6d": "GB",
+        "italy": "IT",
+        "\uc774\ud0c8\ub9ac\uc544": "IT",
+        "spain": "ES",
+        "\uc2a4\ud398\uc778": "ES",
+        "usa": "US",
+        "united states": "US",
+        "\ubbf8\uad6d": "US",
+        "australia": "AU",
+        "\ud638\uc8fc": "AU",
+        "new zealand": "NZ",
+        "\ub274\uc9c8\ub79c\ub4dc": "NZ",
+    }
+    return mapping.get(c)
+
+
+def _hotel_city_match_tokens(city: str | None) -> set[str]:
+    city_text = (city or "").strip()
+    if not city_text:
+        return set()
+    tokens: set[str] = set()
+    low = city_text.lower()
+    tokens.add(low)
+    tokens.add(re.sub(r"\s+", " ", low))
+    alias_map = {
+        "\ub450\ubc14\uc774": "dubai",
+        "\ub3c4\ucfc4": "tokyo",
+        "\uc624\uc0ac\uce74": "osaka",
+        "\ud6c4\ucfe0\uc624\uce74": "fukuoka",
+        "\uc0ff\ud3ec\ub85c": "sapporo",
+        "\ubc29\ucf55": "bangkok",
+        "\ud638\uce58\ubbfc": "ho chi minh city",
+        "\ub2e4\ub0ad": "da nang",
+        "\ub098\ud2b8\ub791": "nha trang",
+        "\uc138\ubd80": "cebu",
+        "\ud64d\ucf69": "hong kong",
+        "\ub9c8\uce74\uc624": "macau",
+        "\uc0c1\ud558\uc774": "shanghai",
+        "\ubca0\uc774\uc9d5": "beijing",
+        "\uc2f1\uac00\ud3ec\ub974": "singapore",
+        "\ud478\ucf13": "phuket",
+        "\ud30c\ub9ac": "paris",
+        "\ub7f0\ub358": "london",
+    }
+    alias = alias_map.get(city_text)
+    if alias:
+        tokens.add(alias.lower())
+    return {t for t in tokens if t and len(t) >= 2}
+
+
+def _pick_best_booking_destination(dest_rows: list[dict], city: str | None, country: str | None = None) -> dict | None:
+    if not isinstance(dest_rows, list) or not dest_rows:
+        return None
+    city_tokens = _hotel_city_match_tokens(city)
+    expected_cc = (_hotel_expected_country_code(city, city_en=city) or _hotel_country_code_hint(country) or "").upper()
+
+    def _row_text(row: dict) -> str:
+        return " ".join(
+            str(row.get(k) or "")
+            for k in ("city_name", "name", "label", "dest_name", "region", "country", "search_string")
+        ).lower()
+
+    def _row_cc(row: dict) -> str:
+        return str(
+            row.get("countrycode")
+            or row.get("country_code")
+            or row.get("cc1")
+            or row.get("countryCode")
+            or ""
+        ).upper()
+
+    best = None
+    best_score = -10**9
+    for row in dest_rows:
+        if not isinstance(row, dict):
+            continue
+        score = 0
+        txt = _row_text(row)
+        cc = _row_cc(row)
+        matched_city = any(token in txt for token in city_tokens)
+        if matched_city:
+            score += 14
+        if expected_cc and cc == expected_cc:
+            score += 18
+        elif expected_cc and cc and cc != expected_cc:
+            score -= 10
+        st = str(row.get("search_type") or "").upper()
+        if st == "CITY":
+            score += 7
+        elif st in {"DISTRICT", "LANDMARK"}:
+            score += 2
+        elif st == "HOTEL":
+            score -= 8
+        if not matched_city and expected_cc and cc != expected_cc:
+            score -= 4
+        if score > best_score:
+            best = row
+            best_score = score
+    return best if isinstance(best, dict) else (dest_rows[0] if isinstance(dest_rows[0], dict) else None)
+
+
+def _is_plausible_booking_destination(row: dict, city: str | None, country: str | None, city_en: str | None = None) -> bool:
+    if not isinstance(row, dict):
+        return False
+    expected_cc = (_hotel_expected_country_code(city, city_en=city_en) or _hotel_country_code_hint(country) or "").upper()
+    row_cc = str(
+        row.get("countrycode")
+        or row.get("country_code")
+        or row.get("cc1")
+        or row.get("countryCode")
+        or ""
+    ).upper()
+    if expected_cc and row_cc and row_cc != expected_cc:
+        return False
+
+    st = str(row.get("search_type") or "").upper()
+    text = " ".join(
+        str(row.get(k) or "")
+        for k in ("city_name", "name", "label", "dest_name", "region", "country", "search_string")
+    ).lower()
+    city_tokens = _hotel_city_match_tokens(city) | _hotel_city_match_tokens(city_en)
+    token_match = any(tok in text for tok in city_tokens) if city_tokens else False
+
+    # Block unrelated single-hotel hits (common false positive when destination search is noisy).
+    if st == "HOTEL" and not token_match:
+        return False
+    # If expected country is known but row has no country code, at least require city token match.
+    if expected_cc and not row_cc and not token_match:
+        return False
+    return True
+
+
 app = FastAPI()
 
 
@@ -405,11 +832,11 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
     offers: list[dict] = []
     seen = set()
     room_name_pat = re.compile(
-        r"(room|suite|studio|double|twin|single|deluxe|family|queen|king|standard|superior|금연실|흡연실|더블룸|트윈룸|싱글룸|패밀리룸|스위트|디럭스)",
+        r"(room|suite|studio|double|twin|single|deluxe|family|queen|king|standard|superior|금연|흡연|블루룸|트윈룸|싱글룸|패밀리룸|스위트|디럭스)",
         re.IGNORECASE,
     )
     amenity_like_pat = re.compile(
-        r"(엘리베이터|타월|모닝콜|공기청정기|콘센트|개별적으로 작동하는 에어컨|평면\s*tv|헤어드라이어|샴푸|비데|슬리퍼|전기\s*주전자)$",
+        r"(private|모닝콜|공기청정기|콘센트|에어컨|평면\s*tv|헤어드라이어|소파|비데|무료\s*주차)",
         re.IGNORECASE,
     )
 
@@ -538,7 +965,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
         photos = _collect_photos(node)
         room_size = None
         for txt in dedup_features + _collect_texts(node):
-            m = re.search(r"(\d+(?:\.\d+)?)\s*(?:m²|㎡|m2)", txt, flags=re.IGNORECASE)
+            m = re.search(r"(\d+(?:\.\d+)?)\s*(?:m짼|??m2)", txt, flags=re.IGNORECASE)
             if m:
                 room_size = m.group(1)
                 break
@@ -546,7 +973,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
         # Only accept nodes that look room/offer-like.
         is_roomish = False
         hay = " ".join([name or ""] + dedup_features + _collect_texts(node)[:10]).lower()
-        if any(x in hay for x in ["room", "객실", "금연", "smoking", "침대", "bed", "twin", "double", "suite"]):
+        if any(x in hay for x in ["room", "媛앹떎", "湲덉뿰", "smoking", "移⑤?", "bed", "twin", "double", "suite"]):
             is_roomish = True
         if name and (cur is not None or sold is not None):
             is_roomish = True
@@ -576,7 +1003,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
         seen.add(key)
         offers.append(
             {
-                "name": name or "객실 옵션",
+                "name": name or "媛앹떎 ?듭뀡",
                 "price": int(cur) if cur is not None else None,
                 "price_original": int(orig) if orig is not None else None,
                 "currency": ccy or (fallback_hotel or {}).get("currency") or "KRW",
@@ -618,7 +1045,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
         features = []
         rf = fallback_hotel.get("room_facts") or {}
         if rf.get("area_sqm"):
-            features.append(f"객실/숙소 크기 {rf['area_sqm']}m²")
+            features.append(f"媛앹떎/?숈냼 ?ш린 {rf['area_sqm']}m짼")
         if rf.get("beds"):
             features.append(f"침대 {rf['beds']}개")
         if rf.get("bedrooms"):
@@ -633,7 +1060,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
 
         offers.append(
             {
-                "name": (fallback_hotel.get("property_type") or "객실 옵션"),
+                "name": (fallback_hotel.get("property_type") or "媛앹떎 ?듭뀡"),
                 "price": fallback_hotel.get("price"),
                 "price_original": fallback_hotel.get("price_original"),
                 "currency": fallback_hotel.get("currency") or "KRW",
@@ -690,16 +1117,15 @@ def _clean_hotel_title(text: str | None) -> str | None:
         tokens.pop(0)
     text = " ".join(tokens).strip()
 
-    for sep in (" - ", " | ", " · ", "·"):
+    for sep in (" - ", " | ", " 쨌 ", "쨌"):
         if sep in text:
             text = text.split(sep, 1)[0].strip()
     # Trim obvious room/bed descriptors that occasionally leak into property titles.
-    text = re.sub(r"(침대\s*\d+개.*)$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"(침대\s*\d+\s*개.*)$", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"(\b\d+\s*beds?\b.*)$", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"(\b(room|private house|whole house|apartment)\b.*)$", "", text, flags=re.IGNORECASE).strip()
     # Trim trailing distance/transport descriptors
-    text = re.sub(r"(도보|지하철|역|근처).*$", "", text).strip()
-    text = re.sub(r"(徒歩|駅|近く).*$", "", text).strip()
+    text = re.sub(r"(도보|지하철|역\s*근처).*$", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"(walk|minutes?|mins?|station|metro).*$", "", text, flags=re.IGNORECASE).strip()
     if len(text) > 60:
         text = text[:60].rstrip()
@@ -779,6 +1205,10 @@ def parse_amadeus_hotels(amadeus_result: dict) -> list[dict]:
 def parse_booking_hotels(booking_result: dict) -> list[dict]:
     hotels = []
     if booking_result and booking_result.get("error"):
+        err_text = f"{booking_result.get('error', '')} {booking_result.get('details', '')}".lower()
+        if any(k in err_text for k in ("중복 발생", "duplicate", "position", "invalid json", "unexpected token")):
+            # Treat malformed upstream payload errors as transient and allow caller fallback path.
+            return hotels
         details = booking_result.get("details", "")
         msg = f"Booking API error: {booking_result.get('error')}"
         if details:
@@ -818,8 +1248,8 @@ def parse_booking_hotels(booking_result: dict) -> list[dict]:
             r"Only\s+(\d+)\s+left",
             r"남은\s*(?:객실|옵션)?\s*(\d+)\s*개",
             r"옵션\s*(\d+)\s*개",
-            r"残り\s*(\d+)\s*(?:室|件)?",
-            r"剩余\s*(\d+)\s*(?:间|个)?",
+            r"残り\s*(\d+)\s*(?:室|件)",
+            r"剩余\s*(\d+)\s*(?:间|个)",
         ]
         for pat in patterns:
             match = re.search(pat, label, flags=re.IGNORECASE)
@@ -835,7 +1265,7 @@ def parse_booking_hotels(booking_result: dict) -> list[dict]:
         if not label:
             return None
         first_line = label.splitlines()[0].strip() if label.splitlines() else label.strip()
-        first_line = first_line.rstrip(".。")
+        first_line = first_line.rstrip(".")
         return _clean_hotel_title(first_line)
 
     def _split_label_lines(label: str) -> list[str]:
@@ -903,7 +1333,7 @@ def parse_booking_hotels(booking_result: dict) -> list[dict]:
         highlights: list[str] = []
         skip_patterns = [
             r"^booking\.com",
-            r"krw",
+            r"\bkrw\b",
             r"기존 요금",
             r"현재 요금",
             r"original price",
@@ -912,7 +1342,11 @@ def parse_booking_hotels(booking_result: dict) -> list[dict]:
         ]
         for line in lines[1:]:
             lowered = line.lower()
-            if any(re.search(p, lowered, flags=re.IGNORECASE) for p in skip_patterns):
+            try:
+                is_skip = any(re.search(p, lowered, flags=re.IGNORECASE) for p in skip_patterns)
+            except re.error:
+                is_skip = False
+            if is_skip:
                 continue
             highlights.append(line)
             if len(highlights) >= 6:
@@ -930,7 +1364,7 @@ def parse_booking_hotels(booking_result: dict) -> list[dict]:
         if not label:
             return facts
         compact = label.replace(",", " ")
-        area_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:m²|㎡|m2)", compact, flags=re.IGNORECASE)
+        area_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:m²|m2|sqm)", compact, flags=re.IGNORECASE)
         if area_match:
             facts["area_sqm"] = area_match.group(1)
         patterns = {
@@ -953,10 +1387,10 @@ def parse_booking_hotels(booking_result: dict) -> list[dict]:
         checks = [
             ("무료 취소", [r"무료 취소", r"free cancellation"]),
             ("조식 포함 가능", [r"조식", r"breakfast"]),
-            ("선결제 필요 없음", [r"선결제 필요 없음", r"no prepayment"]),
-            ("환불 불가 조건 포함", [r"환불 불가", r"non[- ]refundable"]),
+            ("사전 결제 불필요", [r"결제 불필요", r"no prepayment"]),
+            ("환불 불가 조건", [r"환불 불가", r"non[- ]refundable"]),
             ("무료 Wi-Fi", [r"무료 wi-?fi", r"free wi-?fi"]),
-            ("사우나/스파 옵션", [r"사우나", r"spa"]),
+            ("사우나/스파 옵션", [r"사우나", r"\bspa\b"]),
         ]
         found = []
         for label_ko, pats in checks:
@@ -1019,7 +1453,7 @@ def parse_booking_hotels(booking_result: dict) -> list[dict]:
         mapping = [
             ("호텔", [" hotel", "호텔"]),
             ("아파트", ["apartment", "아파트"]),
-            ("빌라/하우스", ["villa", "house", "1軒家", "민박"]),
+            ("빌라/하우스", ["villa", "house", "민박"]),
             ("게스트하우스", ["guesthouse", "guest house"]),
             ("료칸", ["ryokan", "료칸"]),
         ]
@@ -1033,12 +1467,18 @@ def parse_booking_hotels(booking_result: dict) -> list[dict]:
             return None
         if dist:
             if "m" in dist or "km" in dist:
-                return f"{label} 약 {dist}"
-            return f"{label} 약 {dist}m"
+                return f"{label} · {dist}"
+            return f"{label} · {dist}m"
         return label
 
     for h in rows:
         if not isinstance(h, dict):
+            continue
+        # Upstream occasionally returns provider error payloads mixed into rows.
+        row_err_text = (
+            f"{h.get('error', '')} {h.get('message', '')} {h.get('name', '')} {h.get('title', '')}"
+        ).lower()
+        if any(k in row_err_text for k in ("예약 api 오류", "중복 발생", "duplicate", "position", "invalid json", "unexpected token")):
             continue
         prop = h.get("property", {}) if isinstance(h.get("property"), dict) else {}
         label_text = h.get("accessibilityLabel") if isinstance(h.get("accessibilityLabel"), str) else ""
@@ -1051,10 +1491,6 @@ def parse_booking_hotels(booking_result: dict) -> list[dict]:
         )
         if not name_en and label_name:
             name_en = label_name
-        if not name_ko and name_en and not _is_descriptive_listing_title(name_en):
-            translated = _translate_to_korean(name_en)
-            if translated:
-                name_ko = translated
         hotel_name = name_ko or name_en or "Unnamed hotel"
         address = h.get("address") or prop.get("wishlistName") or ""
 
@@ -1213,6 +1649,34 @@ def dedupe_hotels(hotels: list[dict]) -> list[dict]:
     return out
 
 
+def _is_booking_error_row(h: dict) -> bool:
+    if not isinstance(h, dict):
+        return True
+    if str(h.get("source") or "").strip().lower() != "booking":
+        return False
+    name = str(h.get("name") or "").strip().lower()
+    if not name:
+        return True
+    return (
+        name.startswith("booking api error")
+        or name.startswith("예약 api 오류")
+        or "중복 발생" in name
+        or "duplicate" in name
+        or "position" in name
+        or "destination not found" in name
+        or "destination id not found" in name
+    )
+
+
+def _has_real_booking_hotels(rows: list[dict]) -> bool:
+    if not isinstance(rows, list):
+        return False
+    for h in rows:
+        if isinstance(h, dict) and not _is_booking_error_row(h):
+            return True
+    return False
+
+
 # DB table bootstrap
 Base.metadata.create_all(bind=engine)
 
@@ -1282,7 +1746,7 @@ def api_update_profile(request: Request, payload: dict, db: Session = Depends(ge
     if phone and phone != user.phone:
         exists = db.query(User).filter(User.phone == phone).first()
         if exists:
-            return {"ok": False, "error_code": "PHONE_EXISTS", "error": "이미 사용 중인 전화번호입니다."}
+            return {"ok": False, "error_code": "PHONE_EXISTS", "error": "이미 사용 중인 휴대폰 번호입니다."}
 
     user.nickname = nickname
     user.email = email
@@ -1683,7 +2147,7 @@ def payment_pack_fail_page(code: str | None = Query(None), message: str | None =
 
 @app.get("/check-username")
 def check_username(username: str = Query(...), db: Session = Depends(get_db)):
-    # 아이디 중복 허용 정책: 중복 체크 결과를 노출하지 않음
+    # 아이디 중복 확인은 항상 사용 가능하도록 중복 여부를 노출하지 않음
     return {"exists": False}
 
 
@@ -1856,7 +2320,7 @@ def tour_page(request: Request):
     nickname = get_nickname_from_request(request)
     return templates.TemplateResponse("tour.html", {"request": request, "nickname": nickname})
 
-# 신규 투어 상세 페이지 라우트 추가
+# 신규 투어 상세 페이지 라우트
 @app.get("/tour-detail", response_class=HTMLResponse)
 def tour_detail(request: Request, tour_id: str = Query(None)):
     nickname = get_nickname_from_request(request)
@@ -1994,7 +2458,7 @@ def signin_post(
         .all()
     )
     if not users:
-        return templates.TemplateResponse("signin.html", {"request": request, "error": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해주세요."})
+        return templates.TemplateResponse("signin.html", {"request": request, "error": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해 주세요."})
 
     matched_user = None
     needs_upgrade = False
@@ -2006,7 +2470,7 @@ def signin_post(
             break
 
     if not matched_user:
-        return templates.TemplateResponse("signin.html", {"request": request, "error": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해주세요."})
+        return templates.TemplateResponse("signin.html", {"request": request, "error": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해 주세요."})
 
     if needs_upgrade:
         matched_user.password = _hash_password(password)
@@ -2029,6 +2493,7 @@ def signin_post(
 def gloval_hotel(
     request: Request,
     city: str = Query(None),
+    city_en: str | None = Query(None),
     country: str = Query(None),
     checkin: str = Query(None),
     checkout: str = Query(None),
@@ -2042,17 +2507,81 @@ def gloval_hotel(
     nights = _calc_nights(checkin, checkout)
     hotels = []
 
-    if city and checkin and checkout:
+    if (city or city_en) and checkin and checkout:
         try:
-            booking_pages = 3
-            for page_number in range(1, booking_pages + 1):
-                booking_result = booking_search_hotels(city, checkin, checkout, adults=2, page_number=page_number)
-                if booking_result and booking_result.get("error"):
-                    hotels.extend(parse_booking_hotels(booking_result))
-                    break
-                hotels.extend(parse_booking_hotels(booking_result))
+            booking_pages = max(1, min(_env_int("HOTEL_BOOKING_PAGES", 1), 2))
+            dest_rows = []
+            for search_query in _hotel_destination_query_candidates(city, country, city_en):
+                try:
+                    destination = booking_search_destination(query=search_query)
+                    rows = destination.get("data", []) if isinstance(destination, dict) else []
+                    if rows:
+                        city_match = city if (city and _hotel_expected_country_code(city, city_en=city_en)) else (city_en or city)
+                        first_try = _pick_best_booking_destination(rows, city_match, country) or {}
+                        if _is_plausible_booking_destination(first_try, city, country, city_en=city_en):
+                            dest_rows = rows
+                            break
+                except Exception:
+                    continue
+
+            if dest_rows:
+                city_match = city if (city and _hotel_expected_country_code(city)) else city_en
+                first = _pick_best_booking_destination(dest_rows, city_match, country) or {}
+                dest_id = str(first.get("dest_id") or "").strip()
+                search_type = str(first.get("search_type") or "CITY").strip() or "CITY"
+                if dest_id:
+                    for page_number in range(1, booking_pages + 1):
+                        booking_result = booking_search_hotels_by_dest_id(
+                            dest_id=dest_id,
+                            search_type=search_type,
+                            checkin_date=checkin,
+                            checkout_date=checkout,
+                            adults=2,
+                            room_qty=1,
+                            currency_code="KRW",
+                            languagecode="ko",
+                            page_number=page_number,
+                        )
+                        parsed = parse_booking_hotels(booking_result)
+                        hotels.extend(parsed)
+                        if len(parsed) < 8:
+                            break
+                else:
+                    hotels.append({"name": "Booking destination id not found", "address": "", "price": None, "source": "Booking"})
+            else:
+                hotels.append({"name": "Booking destination not found", "address": "", "price": None, "source": "Booking"})
         except Exception as e:
-            hotels.append({"name": f"Booking API error: {e}", "address": "", "price": None, "source": "Booking"})
+            try:
+                _log_translate_issue(f"hotel_search_primary_exception={e}")
+            except Exception:
+                pass
+
+        # Backup path: if destination-id flow failed or only error cards came back,
+        # retry once with legacy city-based search to keep user-facing results alive.
+        if not _has_real_booking_hotels(hotels):
+            try:
+                backup_query = (city_en or city or "").strip()
+                backup_raw = booking_search_hotels(backup_query, checkin, checkout, adults=2, page_number=1)
+                backup_parsed = parse_booking_hotels(backup_raw)
+                backup_real = [h for h in backup_parsed if isinstance(h, dict) and not _is_booking_error_row(h)]
+                if backup_real:
+                    hotels = backup_real
+                else:
+                    hotels = []
+            except Exception as e:
+                try:
+                    _log_translate_issue(f"hotel_search_backup_exception={e}")
+                except Exception:
+                    pass
+                hotels = []
+
+        if not hotels:
+            hotels.append({
+                "name": "검색 가능한 숙소를 찾지 못했습니다. 날짜/도시를 다시 확인해 주세요.",
+                "address": "",
+                "price": None,
+                "source": "Booking",
+            })
 
     unique_hotels = dedupe_hotels(hotels)
     for h in unique_hotels:
@@ -2069,6 +2598,13 @@ def gloval_hotel(
     start_idx = (page - 1) * page_size
     end_idx = start_idx + page_size
     paged_hotels = unique_hotels[start_idx:end_idx]
+    try:
+        _translate_hotel_names_for_page(paged_hotels)
+    except Exception as e:
+        try:
+            _log_translate_issue(f"translate_page_exception={e}")
+        except Exception:
+            pass
     for h in paged_hotels:
         if not isinstance(h, dict):
             continue
@@ -2083,7 +2619,7 @@ def gloval_hotel(
     try:
         with open(os.path.join(BASE_DIR, "hotel_debug.log"), "a", encoding="utf-8") as f:
             f.write(
-                f"\n[{datetime.datetime.now()}] params: city={city}, country={country}, checkin={checkin}, checkout={checkout}, lat={lat}, lon={lon}\n"
+                f"\n[{datetime.datetime.now()}] params: city={city}, city_en={city_en}, country={country}, checkin={checkin}, checkout={checkout}, lat={lat}, lon={lon}\n"
             )
             f.write("hotels: ")
             f.write(json.dumps(unique_hotels, ensure_ascii=False))
@@ -2102,6 +2638,7 @@ def gloval_hotel(
             "has_prev": page > 1,
             "has_next": page < total_pages,
             "city": city,
+            "city_en": city_en,
             "country": country,
             "checkin": checkin,
             "checkout": checkout,
@@ -2128,6 +2665,7 @@ def gloval_hotel_detail(
     error_message = None
     google_place = None
     snapshot_hotel = None
+    snapshot_matched = False
 
     if snapshot:
         try:
@@ -2139,13 +2677,17 @@ def gloval_hotel_detail(
 
     if not (hotel_id and city and checkin and checkout):
         error_message = "상세 정보를 표시하려면 호텔/도시/날짜 정보가 필요합니다."
+    elif snapshot_hotel and str(snapshot_hotel.get("hotel_id") or "") == str(hotel_id):
+        # Fast path: list page already passed a hotel snapshot.
+        selected_hotel = snapshot_hotel
+        snapshot_matched = True
     else:
         try:
             for page_number in range(1, 4):
                 booking_result = booking_search_hotels(city, checkin, checkout, adults=2, page_number=page_number)
                 parsed = parse_booking_hotels(booking_result)
                 if booking_result and booking_result.get("error"):
-                    error_message = parsed[0]["name"] if parsed else "호텔 상세 조회 중 오류가 발생했습니다."
+                    error_message = "호텔 상세 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
                     break
                 for hotel in parsed:
                     if str(hotel.get("hotel_id")) == str(hotel_id):
@@ -2161,8 +2703,48 @@ def gloval_hotel_detail(
             not hotel_id or str(snapshot_hotel.get("hotel_id")) == str(hotel_id)
         ):
             selected_hotel = snapshot_hotel
+            snapshot_matched = True
         else:
             error_message = "선택한 호텔 정보를 찾지 못했습니다. 검색 결과를 새로고침한 뒤 다시 시도해 주세요."
+
+    # Snapshot detail should render immediately; skip heavy external enrich calls.
+    if selected_hotel and snapshot_matched and (
+        str(os.getenv("HOTEL_DETAIL_FAST_MODE", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
+    ):
+        try:
+            selected_hotel["room_offers"] = _extract_room_offers_from_booking_detail(
+                None,
+                fallback_hotel=selected_hotel,
+            )
+        except Exception as e:
+            try:
+                _log_translate_issue(f"detail_fast_room_offer_exception={e}")
+            except Exception:
+                pass
+            selected_hotel["room_offers"] = []
+        selected_hotel["nights"] = nights
+        selected_hotel["price_per_night"] = _price_per_night(selected_hotel.get("price"), nights)
+        selected_hotel["price_original_per_night"] = _price_per_night(selected_hotel.get("price_original"), nights)
+        for ro in selected_hotel.get("room_offers") or []:
+            if not isinstance(ro, dict):
+                continue
+            ro["price_per_night"] = _price_per_night(ro.get("price"), nights)
+            ro["price_original_per_night"] = _price_per_night(ro.get("price_original"), nights)
+        return templates.TemplateResponse(
+            "gloval-hotel-detail.html",
+            {
+                "request": request,
+                "nickname": nickname,
+                "hotel": selected_hotel,
+                "error_message": error_message,
+                "city": city,
+                "country": country,
+                "checkin": checkin,
+                "checkout": checkout,
+                "nights": nights,
+                "google_place": None,
+            },
+        )
 
     if selected_hotel:
         try:
@@ -2331,7 +2913,7 @@ def gloval_hotel_detail(
                                 {
                                     "name": name,
                                     "distance": distance_label,
-                                    "label": f"{name} · {distance_label}" if distance_label else name,
+                                    "label": f"{name} 쨌 {distance_label}" if distance_label else name,
                                     "source": "google",
                                     "type": poi_type,
                                 }
@@ -2396,7 +2978,7 @@ def create_user(
     if db.query(User).filter(User.email == email).first():
         return templates.TemplateResponse("join.html", {"request": request, "error": "이미 사용 중인 이메일입니다."})
     if db.query(User).filter(User.phone == phone).first():
-        return templates.TemplateResponse("join.html", {"request": request, "error": "이미 사용 중인 전화번호입니다."})
+        return templates.TemplateResponse("join.html", {"request": request, "error": "이미 사용 중인 휴대폰 번호입니다."})
     if db.query(User).filter(User.nickname == nickname).first():
         return templates.TemplateResponse("join.html", {"request": request, "error": "이미 사용 중인 닉네임입니다."})
     if password != password_confirm:

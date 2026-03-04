@@ -29,7 +29,7 @@ def get_amadeus_token() -> str:
             "client_id": amadeus_client_id,
             "client_secret": amadeus_client_secret,
         },
-        timeout=15,
+        timeout=(3, 8),
     )
     response.raise_for_status()
     token = response.json().get("access_token")
@@ -53,12 +53,12 @@ def resolve_location_to_iata(keyword: str, token: Optional[str] = None) -> Optio
     params = {"subType": "CITY,AIRPORT", "keyword": cleaned, "page[limit]": 1}
 
     try:
-        response = requests.get(url, headers=headers, params=params, timeout=15)
+        response = requests.get(url, headers=headers, params=params, timeout=(3, 8))
         response.raise_for_status()
     except HTTPError:
         try:
             params.pop("subType", None)
-            response = requests.get(url, headers=headers, params=params, timeout=15)
+            response = requests.get(url, headers=headers, params=params, timeout=(3, 8))
             response.raise_for_status()
         except HTTPError:
             return None
@@ -108,7 +108,7 @@ def search_flight_offers_raw(
             f"{amadeus_base_url}/v2/shopping/flight-offers",
             headers={"Authorization": f"Bearer {token}"},
             params=params,
-            timeout=20,
+            timeout=(4, 12),
         )
         logger.info(f"[amadeus_api] 응답 status: {response.status_code}")
         try:
@@ -154,7 +154,7 @@ def reprice_flight_offers(
                     "X-HTTP-Method-Override": "GET",
                 },
                 json=body,
-                timeout=20,
+                timeout=(4, 12),
             )
             response.raise_for_status()
             payload = response.json() if response.content else {}

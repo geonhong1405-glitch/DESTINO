@@ -328,7 +328,7 @@ def _format_evidence(matches: list[dict[str, Any]]):
         txt = (md.get("text") or md.get("content") or "").strip()
         url = str(md.get("source_url") or md.get("source") or "")
         if txt:
-            lines.append(f"{i}. {txt}\n??: {url}")
+            lines.append(f"{i}. {txt}\n출처: {url}")
         if url:
             citations.append({"n": str(i), "url": url})
     return "\n\n".join(lines), citations
@@ -346,7 +346,7 @@ def rag_search(req: RagSearchRequest):
         records = _matches_to_records(res)
         return RagSearchResponse(query=req.query, matches=[RagChunk(**r) for r in records])
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"RAG ?? ??: {e}")
+        raise HTTPException(status_code=500, detail=f"RAG 검색 오류: {e}")
 
 
 @router.post("/rag/answer", response_model=RagAnswerResponse)
@@ -401,7 +401,7 @@ def rag_answer(req: RagAnswerRequest):
             matches=[RagChunk(**r) for r in records],
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"RAG ?? ?? ??: {e}")
+        raise HTTPException(status_code=500, detail=f"RAG 답변 생성 오류: {e}")
 
 
 @router.post("/rag/ask")
