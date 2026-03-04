@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="../static/tour-detail.css">
     <script>
         // 서버 템플릿에서 로그인 여부에 따라 true/false로 세팅 (Jinja2/Flask 예시)
-        window.isLoggedIn = {{ true if user_is_authenticated else false }};
+        window.isLoggedIn = {{ (user_is_authenticated | default(false)) | tojson }};
     </script>
     
 </head>
