@@ -937,43 +937,58 @@ ul {list-style: none;}
 }
 
 /* Home Saved Drawer (wishlist/cart) */
+
 .home-saved-fab {
+    width: 88px;
+    height: 88px;
     position: fixed;
-    right: 20px;
-    bottom: 20px;
+    right: 30px;
+    bottom: 30px;
     z-index: 1200;
     display: inline-flex;
     align-items: center;
     gap: 8px;
     border: 0;
     border-radius: 999px;
-    background: linear-gradient(135deg, #0ea5e9, #2563eb);
-    color: #fff;
-    padding: 10px 12px;
-    font-weight: 700;
+    background: #fff url("../static/image/shopping_cart_1.png") no-repeat center / 160% auto;
     cursor: pointer;
-    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.28);
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s;
+}
+
+.home-saved-fab-label {font-size: 0;}
+
+.home-saved-fab:hover {
+    background: url("../static/image/shopping_cart_2.png") no-repeat center -6px / 160% auto;
+}
+
+/* 드로어가 열렸을 때 버튼에 is-open 클래스가 붙는다고 가정 */
+.home-saved-fab.is-open {
+    background: #fff url("../static/image/shopping_cart_2.png") no-repeat center -6px / 160% auto;
 }
 
 .home-saved-fab-count {
-    min-width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
     border-radius: 999px;
-    background: rgba(255,255,255,0.2);
-    border: 1px solid rgba(255,255,255,0.25);
+    background-color: var(--blue-600);
     color: #fff;
-    display: inline-flex;
+    display: inline-block;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     padding: 0 5px;
+    position: absolute;
+    top: 0px; right: 0px;
+    line-height: 24px;
+    text-align: center;
 }
 
 .home-saved-drawer {
     position: fixed;
-    right: 20px;
-    bottom: 78px;
+    right: 48px;
+    bottom: 60px;
     z-index: 1199;
     width: min(420px, calc(100vw - 24px));
     max-height: min(60vh, 560px);
@@ -1056,19 +1071,19 @@ ul {list-style: none;}
 
 .home-saved-item {
     display: grid;
-    grid-template-columns: 54px 1fr auto;
+    grid-template-columns: 84px 1fr auto;
     gap: 10px;
     align-items: start;
     border: 1px solid #eef2f7;
-    border-radius: 14px;
+    border-radius: 12px;
     padding: 10px;
     background: #fff;
 }
 
 .home-saved-thumb {
-    width: 54px;
-    height: 54px;
-    border-radius: 12px;
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
     background: linear-gradient(135deg, #dbeafe, #e5e7eb);
     overflow: hidden;
     display: flex;
