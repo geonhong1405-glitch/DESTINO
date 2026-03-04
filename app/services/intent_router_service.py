@@ -117,7 +117,7 @@ def detect_intent(message: str, prev_state: dict[str, Any], *, contains_fn: Call
         ],
     )
     waiting_flight_followup = (
-        prev_state.get("last_intent") == "flight"
+        (prev_state.get("last_intent") == "flight" or str(prev_state.get("pending_intent") or "") == "flight")
         and (
             not prev_state.get("origin")
             or not prev_state.get("destination")
