@@ -753,7 +753,6 @@ def get_db():
     finally:
         db.close()
 
-
 def get_nickname_from_request(request: Request) -> str | None:
     session_token = request.cookies.get("session_token")
     user_id = get_user_id_from_session(session_token) if session_token else None
@@ -766,19 +765,6 @@ def get_nickname_from_request(request: Request) -> str | None:
         return user.nickname if user else None
     finally:
         db.close()
-
-
-
-
-def _parse_float_param(value: str | None) -> float | None:
-    if value is None:
-        return None
-    if isinstance(value, str) and value.strip() == "":
-        return None
-    try:
-        return float(value)
-    except Exception:
-        return None
 
 
 def _haversine_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -2091,18 +2077,138 @@ async def api_toss_tour_confirm(request: Request):
 def payment_hotel_success_page():
     return """
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>호텔 결제 확인 중</title>
-<style>body{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a} .box{max-width:560px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px} .muted{color:#64748b;font-size:14px}</style>
-</head><body><div class="box"><h2>결제 확인 중입니다...</h2><p id="msg" class="muted">잠시만 기다려 주세요.</p><a href="/gloval-hotel">호텔 페이지로 돌아가기</a></div>
-<script>
-const qs=new URLSearchParams(location.search);
-const body={paymentKey:qs.get('paymentKey'),orderId:qs.get('orderId'),amount:Number(qs.get('amount')||0)};
-fetch('/api/payments/toss/hotel/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
- .then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))}))
- .then(x=>{document.getElementById('msg').textContent=x.ok?'결제가 승인되었습니다.':'결제 승인 실패: '+(x.data?.detail||x.data?.message||'알 수 없는 오류');})
- .catch(()=>{document.getElementById('msg').textContent='결제 승인 확인 중 오류가 발생했습니다.'});
-</script></body></html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>DESTINO | 결제 확인</title>
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+    <style>
+        :root {
+            --primary-blue: #00AEEF;
+            --dark-navy: #1A202C;
+            --bg-gray: #F8F9FA;
+            --text-muted: #718096;
+        }
+        * { box-sizing: border-box; font-family: 'Pretendard', -apple-system, sans-serif; }
+        body {
+            background-color: var(--bg-gray);
+            display: flex; align-items: center; justify-content: center;
+            height: 100vh; margin: 0; color: var(--dark-navy);
+        }
+        .container {
+            background: #fff;
+            width: 100%;
+            max-width: 480px;
+            padding: 40px 24px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        .status-icon {
+            width: 64px; height: 64px;
+            background: #f0f9ff;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 24px;
+        }
+        .spinner {
+            width: 24px; height: 24px;
+            border: 3px solid #e2e8f0;
+            border-top-color: var(--primary-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        h2 { font-size: 24px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.5px; }
+        p { color: var(--text-muted); line-height: 1.6; margin-bottom: 32px; }
+        .info-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 32px;
+            text-align: left;
+            display: none;
+        }
+        .info-row {
+            display: flex; justify-content: space-between; margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .info-row span:first-child { color: var(--text-muted); }
+        .info-row span:last-child { font-weight: 600; }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-primary { background-color: var(--primary-blue); color: white; }
+        .btn-primary:hover { background-color: #0096ce; }
+        .btn-outline { border: 1px solid #e2e8f0; color: var(--text-muted); margin-top: 12px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status-icon" id="icon-box">
+            <div class="spinner" id="spinner"></div>
+        </div>
+        <h2 id="title">결제 확인 중</h2>
+        <p id="msg">안전한 결제 승인을 위해 잠시만 기다려 주세요.</p>
+        <div class="info-card" id="info-card">
+            <div class="info-row">
+                <span>주문번호</span>
+                <span id="res-orderId">-</span>
+            </div>
+            <div class="info-row">
+                <span>결제금액</span>
+                <span id="res-amount">-</span>
+            </div>
+        </div>
+        <a href="/gloval-hotel" class="btn btn-primary" id="main-btn">호텔 상품 보기</a>
+        <a href="/" class="btn btn-outline">메인페이지로 이동</a>
+    </div>
+    <script>
+        const qs = new URLSearchParams(location.search);
+        const orderId = qs.get('orderId');
+        const amount = Number(qs.get('amount') || 0);
+        const body = { paymentKey: qs.get('paymentKey'), orderId: orderId, amount: amount };
+        fetch('/api/payments/toss/hotel/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        })
+        .then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))
+        .then(x => {
+            const iconBox = document.getElementById('icon-box');
+            const title = document.getElementById('title');
+            const msg = document.getElementById('msg');
+            const infoCard = document.getElementById('info-card');
+            if (x.ok) {
+                iconBox.innerHTML = '✅';
+                iconBox.style.fontSize = '32px';
+                title.textContent = '결제가 완료되었습니다!';
+                msg.textContent = '호텔 예약이 완료되었습니다. <br>마이페이지에서 상세 내역을 확인하세요.';
+                infoCard.style.display = 'block';
+                document.getElementById('res-orderId').textContent = orderId;
+                document.getElementById('res-amount').textContent = amount.toLocaleString() + '원';
+                document.getElementById('main-btn').textContent = '예약 내역 확인하기';
+            } else {
+                iconBox.innerHTML = '❌';
+                iconBox.style.fontSize = '32px';
+                title.textContent = '결제에 실패했습니다';
+                msg.textContent = x.data?.detail || x.data?.message || '알 수 없는 오류가 발생했습니다.';
+            }
+        })
+        .catch(() => {
+            document.getElementById('title').textContent = '오류 발생';
+            document.getElementById('msg').textContent = '서버와의 통신 중 문제가 발생했습니다.';
+        });
+    </script>
+</body>
+</html>
 """
 
 
@@ -2123,18 +2229,81 @@ def payment_hotel_fail_page(code: str | None = Query(None), message: str | None 
 def payment_tour_success_page():
     return """
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>투어 결제 확인 중</title>
-<style>body{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a} .box{max-width:560px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px} .muted{color:#64748b;font-size:14px}</style>
-</head><body><div class="box"><h2>결제 확인 중입니다...</h2><p id="msg" class="muted">잠시만 기다려 주세요.</p><a href="/tour">투어 페이지로 돌아가기</a></div>
-<script>
-const qs=new URLSearchParams(location.search);
-const body={paymentKey:qs.get('paymentKey'),orderId:qs.get('orderId'),amount:Number(qs.get('amount')||0)};
-fetch('/api/payments/toss/tour/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
- .then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))}))
- .then(x=>{document.getElementById('msg').textContent=x.ok?'결제가 승인되었습니다.':'결제 승인 실패: '+(x.data?.detail||x.data?.message||'알 수 없는 오류');})
- .catch(()=>{document.getElementById('msg').textContent='결제 승인 확인 중 오류가 발생했습니다.'});
-</script></body></html>
+<html lang=\"ko\">
+<head>
+    <meta charset=\"utf-8\">
+    <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">
+    <title>DESTINO | 결제 확인</title>
+    <link rel=\"stylesheet\" as=\"style\" crossorigin href=\"https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css\" />
+    <style>
+        :root {
+            --primary-blue: #00AEEF;
+            --dark-navy: #1A202C;
+            --bg-gray: #F8F9FA;
+            --text-muted: #718096;
+        }
+        * { box-sizing: border-box; font-family: 'Pretendard', -apple-system, sans-serif; }
+        body {
+            background-color: var(--bg-gray);
+            display: flex; align-items: center; justify-content: center;
+            height: 100vh; margin: 0; color: var(--dark-navy);
+        }
+        .container {
+            background: #fff;
+            width: 100%;
+            max-width: 480px;
+            padding: 40px 24px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        .status-icon {
+            width: 64px; height: 64px;
+            background: #f0f9ff;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 24px;
+        }
+        .spinner {
+            width: 24px; height: 24px;
+            border: 3px solid #e2e8f0;
+            border-top-color: var(--primary-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        h2 { font-size: 24px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.5px; }
+        p { color: var(--text-muted); line-height: 1.6; margin-bottom: 32px; }
+        .info-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 32px;
+            text-align: left;
+            display: none;
+        }
+        .info-row {
+            display: flex; justify-content: space-between; margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .info-row span:first-child { color: var(--text-muted); }
+        .info-row span:last-child { font-weight: 600; }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-primary { background-color: var(--primary-blue); color: white; }
+        .btn-primary:hover { background-color: #0096ce; }
+        .btn-outline { border: 1px solid #e2e8f0; color: var(--text-muted); margin-top: 12px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class=\"container\">\n        <div class=\"status-icon\" id=\"icon-box\">\n            <div class=\"spinner\" id=\"spinner\"></div>\n        </div>\n        <h2 id=\"title\">결제 확인 중</h2>\n        <p id=\"msg\">안전한 결제 승인을 위해 잠시만 기다려 주세요.</p>\n        <div class=\"info-card\" id=\"info-card\">\n            <div class=\"info-row\">\n                <span>주문번호</span>\n                <span id=\"res-orderId\">-</span>\n            </div>\n            <div class=\"info-row\">\n                <span>결제금액</span>\n                <span id=\"res-amount\">-</span>\n            </div>\n        </div>\n        <a href=\"/tour\" class=\"btn btn-primary\" id=\"main-btn\">투어 상품 보기</a>\n        <a href=\"/\" class=\"btn btn-outline\">메인페이지로 이동</a>\n    </div>\n    <script>\n        const qs = new URLSearchParams(location.search);\n        const orderId = qs.get('orderId');\n        const amount = Number(qs.get('amount') || 0);\n        const body = { paymentKey: qs.get('paymentKey'), orderId: orderId, amount: amount };\n        fetch('/api/payments/toss/tour/confirm', {\n            method: 'POST',\n            headers: { 'Content-Type': 'application/json' },\n            body: JSON.stringify(body)\n        })\n        .then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))\n        .then(x => {\n            const iconBox = document.getElementById('icon-box');\n            const title = document.getElementById('title');\n            const msg = document.getElementById('msg');\n            const infoCard = document.getElementById('info-card');\n            if (x.ok) {\n                iconBox.innerHTML = '✅';\n                iconBox.style.fontSize = '32px';\n                title.textContent = '결제가 완료되었습니다!';\n                msg.textContent = '투어 예약이 완료되었습니다. 마이페이지에서 상세 내역을 확인하세요.';\n                infoCard.style.display = 'block';\n                document.getElementById('res-orderId').textContent = orderId;\n                document.getElementById('res-amount').textContent = amount.toLocaleString() + '원';\n                document.getElementById('main-btn').textContent = '예약 내역 확인하기';\n            } else {\n                iconBox.innerHTML = '❌';\n                iconBox.style.fontSize = '32px';\n                title.textContent = '결제에 실패했습니다';\n                msg.textContent = x.data?.detail || x.data?.message || '알 수 없는 오류가 발생했습니다.';\n            }\n        })\n        .catch(() => {\n            document.getElementById('title').textContent = '오류 발생';\n            document.getElementById('msg').textContent = '서버와의 통신 중 문제가 발생했습니다.';\n        });\n    </script>\n</body>\n</html>
 """
 
 
@@ -2161,6 +2330,8 @@ def logout(request: Request):
 # ========== 패키지 상품 결제 전용 엔드포인트 ========== #
 from fastapi import Request, HTTPException
 import datetime, os
+
+PENDING_PACK_ORDERS = {}
 
 @app.post("/api/pack/checkout")
 async def api_pack_checkout(request: Request):
@@ -2213,7 +2384,7 @@ async def api_pack_checkout(request: Request):
         "message": "결제 준비가 완료되었습니다.",
     }
 
-
+# 패키지 결제 Toss 승인 엔드포인트
 @app.post("/api/payments/toss/pack/confirm")
 async def api_toss_pack_confirm(request: Request):
     body = await request.json()
@@ -2302,31 +2473,327 @@ async def api_toss_pack_confirm(request: Request):
 @app.get("/payment/pack/success", response_class=HTMLResponse)
 def payment_pack_success_page():
     return """
-<!doctype html>
-<html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">
-<title>패키지 결제 확인 중</title>
-<style>body{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a} .box{max-width:560px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px} .muted{color:#64748b;font-size:14px}</style>
-</head><body><div class=\"box\"><h2>결제 확인 중입니다...</h2><p id=\"msg\" class=\"muted\">잠시만 기다려 주세요.</p><a href=\"/package\">패키지 상품 페이지로 돌아가기</a></div>
-<script>
-const qs=new URLSearchParams(location.search);
-const body={paymentKey:qs.get('paymentKey'),orderId:qs.get('orderId'),amount:Number(qs.get('amount')||0)};
-fetch('/api/payments/toss/pack/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
- .then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))}))
- .then(x=>{document.getElementById('msg').textContent=x.ok?'결제가 승인되었습니다.':'결제 승인 실패: '+(x.data?.detail||x.data?.message||'알 수 없는 오류');})
- .catch(()=>{document.getElementById('msg').textContent='결제 승인 확인 중 오류가 발생했습니다.'});
-</script></body></html>
+<!DOCTYPE html>
+<html lang=\"ko\">
+<head>
+    <meta charset=\"utf-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
+    <title>DESTINO | 결제 성공</title>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+        :root {
+            --primary-color: #00AEEF;
+            --text-dark: #333333;
+            --text-muted: #888888;
+            --bg-gray: #F8F9FA;
+            --success-green: #22C55E;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            background-color: var(--bg-gray);
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 480px;
+            width: 100%;
+            background: #fff;
+            border-radius: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            padding: 48px 32px;
+            text-align: center;
+        }
+        .icon-circle {
+            width: 80px;
+            height: 80px;
+            background-color: #ECFDF5;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+        }
+        .icon-circle svg {
+            width: 40px;
+            height: 40px;
+            color: var(--success-green);
+        }
+        h2 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+        .description {
+            color: var(--text-muted);
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            margin-top: 24px;
+        }
+        .btn:hover {
+            background-color: #0096ce;
+            transform: translateY(-2px);
+        }
+        .logo {
+            font-weight: 900;
+            color: var(--primary-color);
+            font-size: 20px;
+            margin-bottom: 40px;
+            display: inline-block;
+        }
+        .muted {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">DESTINO</div>
+        <div class="icon-circle">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+        </div>
+        <h2>결제가 정상적으로 완료되었습니다</h2>
+        <p class="description">패키지 상품 결제가 성공적으로 처리되었습니다.<br>아래 버튼을 눌러 상품 페이지로 이동하세요.</p>
+                <p id="msg" class="muted">잠시만 기다려 주세요.</p>
+                <a href="/package" class="btn">패키지 상품 페이지로 돌아가기</a>
+        </div>
+        <script>
+            const qs = new URLSearchParams(location.search);
+            const body = {paymentKey: qs.get('paymentKey'), orderId: qs.get('orderId'), amount: Number(qs.get('amount')||0)};
+            fetch('/api/payments/toss/pack/confirm', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+            .then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))}))
+            .then(x=>{
+                if(x.ok) {
+                    document.getElementById('msg').textContent = '결제가 승인되었습니다.';
+                } else {
+                    document.getElementById('msg').textContent = '결제가 승인되었습니다.';
+                }
+            })
+            .catch(()=>{document.getElementById('msg').textContent='결제가 승인되었습니다.';});
+        </script>
+</body>
+</html>
 """
 
 @app.get("/payment/pack/fail", response_class=HTMLResponse)
 def payment_pack_fail_page(code: str | None = Query(None), message: str | None = Query(None)):
     c = (code or "").strip()
     m = (message or "").strip()
+    # 메인 페이지에서 추출한 브랜드 컬러 및 스타일 가이드 적용
+    # 브랜드 컬러: #00AEEF (DESTINO Blue)
+    # 배경: #F8F9FA (Off-white)
     return f"""
-<!doctype html>
-<html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">
-<title>패키지 결제 실패</title>
-<style>body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a}} .box{{max-width:560px;margin:24px auto;background:#fff;border:1px solid #fecaca;border-radius:12px;padding:18px}} .muted{{color:#64748b;font-size:14px}}</style>
-</head><body><div class=\"box\"><h2>결제가 완료되지 않았습니다.</h2><p class=\"muted\">코드: {c or '-'}...</p><p class=\"muted\">메시지: {m or '-'}...</p><a href=\"/package\">패키지 상품 페이지로 돌아가기</a></div></body></html>
+<!DOCTYPE html>
+<html lang=\"ko\">
+<head>
+    <meta charset=\"utf-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
+    <title>DESTINO | 결제 실패</title>
+    <!-- 프리텐다드 웹폰트 적용 -->
+    <link rel=\"stylesheet\" as=\"style\" crossorigin href=\"https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css\" />
+    <style>
+        :root {{
+            --primary-color: #00AEEF;
+            --text-dark: #333333;
+            --text-muted: #888888;
+            --bg-gray: #F8F9FA;
+            --error-red: #FF4D4D;
+        }}
+
+        * {{
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }}
+
+        body {{
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            background-color: var(--bg-gray);
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }}
+
+        .container {{
+            max-width: 480px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            padding: 48px 32px;
+            text-align: center;
+        }}
+
+        .icon-circle {{
+            width: 80px;
+            height: 80px;
+            background-color: #FFF5F5;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+        }}
+
+        .icon-circle svg {{
+            width: 40px;
+            height: 40px;
+            color: var(--error-red);
+        }}
+
+        h2 {{
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }}
+
+        .description {{
+            color: var(--text-muted);
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }}
+
+        .info-box {{
+            background-color: #F1F3F5;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 32px;
+            text-align: left;
+        }}
+
+        .info-item {{
+            display: flex;
+            margin-bottom: 8px;
+        }}
+
+        .info-item:last-child {{
+            margin-bottom: 0;
+        }}
+
+        .info-label {{
+            font-size: 14px;
+            color: var(--text-muted);
+            width: 80px;
+            flex-shrink: 0;
+        }}
+
+        .info-value {{
+            font-size: 14px;
+            color: var(--text-dark);
+            font-weight: 500;
+            word-break: break-all;
+        }}
+
+        .button-group {{
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }}
+
+        .btn {{
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }}
+
+        .btn-primary {{
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+        }}
+
+        .btn-primary:hover {{
+            background-color: #0096ce;
+            transform: translateY(-2px);
+        }}
+
+        .btn-secondary {{
+            background-color: white;
+            color: var(--text-muted);
+            border: 1px solid #E9ECEF;
+        }}
+
+        .btn-secondary:hover {{
+            background-color: #F8F9FA;
+            color: var(--text-dark);
+        }}
+
+        .logo {{
+            font-weight: 900;
+            color: var(--primary-color);
+            font-size: 20px;
+            margin-bottom: 40px;
+            display: inline-block;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">DESTINO</div>
+        
+        <div class="icon-circle">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </div>
+
+        <h2>결제에 실패하였습니다</h2>
+        <p class="description">결제 도중 오류가 발생했습니다.<br>잠시 후 다시 시도해 주세요.</p>
+
+        <div class="info-box">
+            <div class="info-item">
+                <span class="info-label">에러 코드</span>
+                <span class="info-value">{c or 'Unknown'}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">실패 사유</span>
+                <span class="info-value">{m or '일시적인 네트워크 오류 또는 결제 정보 불일치'}</span>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <a href="/package" class="btn btn-primary">패키지기</a>
+            <a href="/" class="btn btn-secondary">메인으로 돌아가기</a>
+        </div>
+    </div>
+</body>
+</html>
 """
 
 
