@@ -830,6 +830,22 @@ def _coerce_number(value):
     return None
 
 
+def _fit_toss_order_name(text: str, *, max_bytes: int = 100) -> str:
+    s = re.sub(r"\s+", " ", str(text or "")).strip() or "주문"
+    if len(s.encode("utf-8")) <= max_bytes:
+        return s
+    out_chars = []
+    used = 0
+    for ch in s:
+        b = len(ch.encode("utf-8"))
+        if used + b > max_bytes:
+            break
+        out_chars.append(ch)
+        used += b
+    trimmed = "".join(out_chars).strip()
+    return trimmed or "주문"
+
+
 def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = None) -> list[dict]:
     offers: list[dict] = []
     seen = set()
@@ -1821,7 +1837,7 @@ async def api_hotel_checkout(request: Request):
     order_id = f"HTL-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{os.urandom(4).hex()}"
     hotel_name = str(hotel.get("name") or "호텔 예약").strip() or "호텔 예약"
     city = str(hotel.get("city") or "").strip()
-    order_name = f"{hotel_name} {city}".strip()
+    order_name = _fit_toss_order_name(f"{hotel_name} {city}".strip())
     toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
     if not toss_client_key:
         raise HTTPException(status_code=500, detail="토스 클라이언트 키가 설정되지 않았습니다.")
@@ -1958,7 +1974,7 @@ async def api_tour_checkout(request: Request):
     order_id = f"TOUR-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{os.urandom(4).hex()}"
     tour_name = str(tour.get("name") or "투어 예약").strip() or "투어 예약"
     meta = str(tour.get("meta") or "").strip()
-    order_name = f"{tour_name} {meta}".strip()
+    order_name = _fit_toss_order_name(f"{tour_name} {meta}".strip())
     toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
     if not toss_client_key:
         raise HTTPException(status_code=500, detail="토스 클라이언트 키가 설정되지 않았습니다.")
@@ -2170,7 +2186,7 @@ async def api_pack_checkout(request: Request):
     order_id = f"PACK-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{os.urandom(4).hex()}"
     pack_name = str(pack.get("name") or "패키지 예약").strip() or "패키지 예약"
     meta = str(pack.get("meta") or "").strip()
-    order_name = f"{pack_name} {meta}".strip()
+    order_name = _fit_toss_order_name(f"{pack_name} {meta}".strip())
     toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
     if not toss_client_key:
         raise HTTPException(status_code=500, detail="토스 클라이언트 키가 설정되지 않았습니다.")
@@ -2880,6 +2896,11 @@ def gloval_hotel_detail(
     if selected_hotel and snapshot_matched and (
         str(os.getenv("HOTEL_DETAIL_FAST_MODE", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
     ):
+        # Ensure basic stay-time fields are present for chat-origin snapshots.
+        selected_hotel.setdefault("checkin_from", "15:00")
+        selected_hotel.setdefault("checkin_until", "23:59")
+        selected_hotel.setdefault("checkout_from", "00:00")
+        selected_hotel.setdefault("checkout_until", "11:00")
         try:
             selected_hotel["room_offers"] = _extract_room_offers_from_booking_detail(
                 None,
@@ -2899,6 +2920,33 @@ def gloval_hotel_detail(
                 continue
             ro["price_per_night"] = _price_per_night(ro.get("price"), nights)
             ro["price_original_per_night"] = _price_per_night(ro.get("price_original"), nights)
+
+        # Lightweight Google enrichment for map/address/photo even in fast mode.
+        try:
+            g = find_hotel_google_place(
+                name=selected_hotel.get("name_en") or selected_hotel.get("name") or city,
+                address=f"{selected_hotel.get('address') or city or ''} {country or ''}".strip(),
+                lat=_parse_float_param(selected_hotel.get("latitude")),
+                lon=_parse_float_param(selected_hotel.get("longitude")),
+                language="ko",
+            )
+            if isinstance(g, dict) and g.get("status") == "ok":
+                google_place = g
+                cand = g.get("candidate") or {}
+                details = g.get("details") or {}
+                if not selected_hotel.get("google_address"):
+                    selected_hotel["google_address"] = details.get("formatted_address") or cand.get("address")
+                if not selected_hotel.get("latitude"):
+                    selected_hotel["latitude"] = cand.get("lat")
+                if not selected_hotel.get("longitude"):
+                    selected_hotel["longitude"] = cand.get("lon")
+                photos = g.get("photo_urls") or []
+                if isinstance(photos, list) and photos:
+                    selected_hotel["photo_gallery"] = (selected_hotel.get("photo_gallery") or []) + photos[:6]
+                    if not selected_hotel.get("image"):
+                        selected_hotel["image"] = photos[0]
+        except Exception:
+            pass
         return templates.TemplateResponse(
             "gloval-hotel-detail.html",
             {
@@ -2911,7 +2959,7 @@ def gloval_hotel_detail(
                 "checkin": checkin,
                 "checkout": checkout,
                 "nights": nights,
-                "google_place": None,
+                "google_place": google_place,
             },
         )
 

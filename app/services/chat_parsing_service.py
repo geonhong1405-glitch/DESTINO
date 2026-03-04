@@ -1,4 +1,4 @@
-import re
+﻿import re
 from datetime import datetime, timedelta
 from typing import Any, Callable, Optional
 
@@ -26,12 +26,12 @@ def parse_flight_slots(
 
     today = datetime.now().strftime("%Y-%m-%d")
     prompt = (
-        f"오늘 날짜는 {today}. 아래 JSON만 출력:\n"
+        f"?ㅻ뒛 ?좎쭨??{today}. ?꾨옒 JSON留?異쒕젰:\n"
         '{"origin":null,"destination":null,"departure_date":null,"return_date":null,"adults":1,"children":0,"infants":0,"sort_by":null,"trip_type":null,"limit":null}\n'
-        "정렬: 가격=price_asc, 빠른=fastest, 빠르고 저렴=fastest_cheap, 가장 이른 출발=earliest_departure.\n"
-        f"입력:{message}\n문맥:{context}"
+        "?뺣젹: 媛寃?price_asc, 鍮좊Ⅸ=fastest, 鍮좊Ⅴ怨????fastest_cheap, 媛???대Ⅸ 異쒕컻=earliest_departure.\n"
+        f"?낅젰:{message}\n臾몃㎘:{context}"
     )
-    parsed = llm_json_fn("항공 검색 JSON만 출력", prompt)
+    parsed = llm_json_fn("??났 寃??JSON留?異쒕젰", prompt)
     if not isinstance(parsed, dict):
         parsed = {}
 
@@ -77,8 +77,8 @@ def parse_flight_slots(
         parsed["destination"] = None
 
     msg_l = (message or "").lower()
-    has_round_signal = contains_fn(message, ["왕복", "갔다가", "돌아오는", "복귀"]) or "round trip" in msg_l or "roundtrip" in msg_l
-    has_oneway_signal = contains_fn(message, ["편도"]) or "oneway" in msg_l or "one-way" in msg_l
+    has_round_signal = contains_fn(message, ["?뺣났", "媛붾떎媛", "?뚯븘?ㅻ뒗", "蹂듦?"]) or "round trip" in msg_l or "roundtrip" in msg_l
+    has_oneway_signal = contains_fn(message, ["?몃룄"]) or "oneway" in msg_l or "one-way" in msg_l
     parsed["trip_type"] = "round" if has_round_signal else ("oneway" if has_oneway_signal else parsed.get("trip_type"))
 
     # deterministic absolute month/day range first
@@ -127,9 +127,9 @@ def parse_flight_slots(
 
     # passenger count heuristics
     msg = message or ""
-    m_adult = re.search(r"(?:성인|어른)\s*(\d+)\s*(?:명|인)?", msg)
-    m_child = re.search(r"(?:소아|아동|아이|어린이)\s*(\d+)\s*(?:명|인)?", msg)
-    m_infant = re.search(r"(?:유아)\s*(\d+)\s*(?:명|인)?", msg)
+    m_adult = re.search(r"(?:?깆씤|?대Ⅸ)\s*(\d+)\s*(?:紐????", msg)
+    m_child = re.search(r"(?:?뚯븘|?꾨룞|?꾩씠|?대┛??\s*(\d+)\s*(?:紐????", msg)
+    m_infant = re.search(r"(?:?좎븘)\s*(\d+)\s*(?:紐????", msg)
     if m_adult:
         parsed["adults"] = max(1, _coerce_nonneg_int(m_adult.group(1), parsed.get("adults", 1)))
     if m_child:
@@ -139,7 +139,7 @@ def parse_flight_slots(
 
     if contains_fn(message, ["가격", "저렴", "가성비"]):
         parsed["sort_by"] = "price_asc"
-    if contains_fn(message, ["출발시간이 가장 빠른", "가장 이른 출발", "제일 빨리 출발"]):
+    if contains_fn(message, ["출발시간이 가장 빠른", "가장 빠른 출발", "제일 빨리 출발"]):
         parsed["sort_by"] = "earliest_departure"
     if contains_fn(message, ["가장 빨리", "최단", "빠르게"]):
         parsed["sort_by"] = "fastest_cheap" if parsed.get("sort_by") == "price_asc" else "fastest"
@@ -152,6 +152,8 @@ def _extract_relative_range_dates(message: str) -> tuple[Optional[str], Optional
     compact = re.sub(r"\s+", "", t)
     if not compact:
         return None, None
+
+    # e.g. "내일에서 내일모레", "내일~모레", "오늘부터글피까지"
     has_range_connector = any(k in compact for k in ["에서", "부터", "~", "-", "to", "까지"])
     if not has_range_connector:
         return None, None
@@ -197,12 +199,12 @@ def parse_hotel_slots(
 ) -> dict[str, Any]:
     today = datetime.now().strftime("%Y-%m-%d")
     prompt = (
-        f"오늘 날짜는 {today}. JSON만 출력:\n"
+        f"?ㅻ뒛 ?좎쭨??{today}. JSON留?異쒕젰:\n"
         '{"query":null,"checkin_date":null,"checkout_date":null,"adults":2,"top_k":5,"bucket":"value_top"}\n'
-        "후기=review_top, 위치=location_top, 가성비=value_top.\n"
-        f"입력:{message}\n문맥:{context}"
+        "?꾧린=review_top, ?꾩튂=location_top, 媛?깅퉬=value_top.\n"
+        f"?낅젰:{message}\n臾몃㎘:{context}"
     )
-    parsed = llm_json_fn("호텔 추천 JSON만 출력", prompt)
+    parsed = llm_json_fn("?명뀛 異붿쿇 JSON留?異쒕젰", prompt)
     if not isinstance(parsed, dict):
         parsed = {}
 
@@ -216,7 +218,7 @@ def parse_hotel_slots(
 
     if not parsed.get("query"):
         msg = (message or "").strip()
-        m_city = re.search(r"(.{1,30}?)(?:\s*(?:호텔|숙소|숙박))", msg)
+        m_city = re.search(r"(.{1,30}?)(?:\s*(?:?명뀛|?숈냼|?숇컯))", msg)
         if m_city:
             candidate = m_city.group(1).strip(" ,.?")
             if candidate and len(candidate) >= 2:

@@ -1,4 +1,5 @@
 from typing import Any
+import re
 
 from app.services import rentalcar_service
 from app.services import product_reco_service
@@ -8,6 +9,7 @@ def _handle_knowledge_intent(req: Any, prev_state: dict, context: str, SESSION_S
     html, delta = _answer_knowledge(req.message, context, prev_state)
     state = dict(prev_state)
     state.update(delta or {})
+    state.pop("pending_intent", None)
     state["last_intent"] = "knowledge"
     SESSION_STATE[sid] = state
     return {"response": html}
@@ -18,6 +20,7 @@ def _handle_hotel_intent(req: Any, prev_state: dict, context: str, SESSION_STATE
     html, delta = hotel_service.answer_hotel_from_parsed(parsed_hotel, prev_state)
     state = dict(prev_state)
     state.update(delta or {})
+    state.pop("pending_intent", None)
     state["last_intent"] = "hotel"
     SESSION_STATE[sid] = state
     return {"response": html}
@@ -26,6 +29,42 @@ def _handle_hotel_intent(req: Any, prev_state: dict, context: str, SESSION_STATE
 def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STATE: dict, sid: str, NeedMoreInfoError: type, _parse_flight_slots, _has_date_signal, _merge_state, _missing_questions, flight_search_service, chat_renderers):
     parsed = _parse_flight_slots(req.message, context)
     state = _merge_state(prev_state, parsed)
+    msg_l = (req.message or "").lower()
+    msg_raw = (req.message or "")
+    msg_compact = re.sub(r"\s+", "", msg_raw)
+    has_round_signal_in_turn = any(k in msg_l for k in ["왕복", "복귀", "돌아", "round trip", "roundtrip"])
+    has_stay_nights_signal_in_turn = bool(
+        re.search(r"\d+\s*박\s*\d+\s*일", msg_raw)
+        or re.search(r"\d+\s*일\s*(?:동안|간)", msg_raw)
+    )
+    has_two_iso_dates = bool(re.search(r"20\d{2}-\d{1,2}-\d{1,2}.*20\d{2}-\d{1,2}-\d{1,2}", msg_compact))
+    has_two_mmdd_dates = bool(re.search(r"\d{1,2}[/-]\d{1,2}.*\d{1,2}[/-]\d{1,2}", msg_compact))
+    has_two_kr_md_dates = bool(re.search(r"\d{1,2}\s*월\s*\d{1,2}\s*일.*\d{1,2}\s*월\s*\d{1,2}\s*일", msg_raw))
+    has_range_connector = any(k in msg_compact for k in ["~", "-", "부터", "까지", "to"])
+    has_relative_range = bool(
+        has_range_connector
+        and (
+            ("내일" in msg_compact and "모레" in msg_compact)
+            or ("오늘" in msg_compact and "내일" in msg_compact)
+            or ("글피" in msg_compact and ("내일" in msg_compact or "모레" in msg_compact))
+        )
+    )
+    has_explicit_return_date_in_turn = bool(
+        has_two_iso_dates
+        or has_two_mmdd_dates
+        or has_two_kr_md_dates
+        or has_relative_range
+        or has_stay_nights_signal_in_turn
+    )
+    has_explicit_return_in_turn = has_explicit_return_date_in_turn
+    has_origin_cue_in_turn = bool(
+        any(k in msg_l for k in ["출발", "from", "depart", "departure"])
+        or re.search(r"[가-힣a-zA-Z]{2,}\s*에서", (req.message or ""))
+    )
+    origin_same_as_prev = bool(parsed.get("origin")) and str(parsed.get("origin")) == str(prev_state.get("origin") or "")
+    destination_present = bool(parsed.get("destination"))
+    origin_likely_carried_from_prev = bool(destination_present and origin_same_as_prev and not has_origin_cue_in_turn)
+    mentioned_destination_without_origin = bool(parsed.get("destination")) and not bool(parsed.get("origin"))
     origin_changed = bool(parsed.get("origin")) and str(parsed.get("origin")) != str(prev_state.get("origin") or "")
     destination_changed = bool(parsed.get("destination")) and str(parsed.get("destination")) != str(prev_state.get("destination") or "")
     route_changed = origin_changed or destination_changed
@@ -41,10 +80,23 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
         state.pop("departure_date", None)
         state.pop("return_date", None)
 
+    # If user provided destination but omitted origin in this turn, do not silently reuse old origin.
+    # Ask origin first to prevent unintended defaults (e.g., previous ICN).
+    if mentioned_destination_without_origin or origin_likely_carried_from_prev:
+        state.pop("origin", None)
+
+    if has_round_signal_in_turn:
+        state["trip_type"] = "round"
+
+    # If user did not explicitly provide return-date semantics in this turn,
+    # clear stale carried return date so we can ask for it.
+    if not has_explicit_return_date_in_turn:
+        state.pop("return_date", None)
+
     # Shared travel dates can come from non-flight intents (hotel/rentalcar).
     if (not route_changed_without_date) and (not state.get("departure_date")) and prev_state.get("travel_checkin"):
         state["departure_date"] = prev_state.get("travel_checkin")
-    if (not route_changed_without_date) and (not state.get("return_date")) and prev_state.get("travel_checkout"):
+    if has_explicit_return_in_turn and (not route_changed_without_date) and (not state.get("return_date")) and prev_state.get("travel_checkout"):
         state["return_date"] = prev_state.get("travel_checkout")
     if state.get("departure_date"):
         state["travel_checkin"] = state.get("departure_date")
@@ -52,6 +104,8 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
         state["travel_checkout"] = state.get("return_date")
     missing = _missing_questions(state)
     if missing:
+        # Keep flight slot-filling context for short/date-only follow-up turns.
+        state["pending_intent"] = "flight"
         SESSION_STATE[sid] = state
         raise NeedMoreInfoError(missing[0])
 
@@ -81,6 +135,7 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
             "<code>AMADEUS_BASE_URL=https://api.amadeus.com</code>"
             " \uc9c1\ud56d \ud68c \uc9c1\ud56d\uc9c1\ud56d \uc9c1\ud56d\ud68c.</p>"
         )}
+    state.pop("pending_intent", None)
     state["last_intent"] = "flight"
     SESSION_STATE[sid] = state
     return {"response": chat_renderers.flight_html_intro(state, rows) + chat_renderers.flight_html_table(rows, raw.get("meta_query", {}))}
@@ -97,6 +152,7 @@ def _handle_rentalcar_intent(req: Any, prev_state: dict, SESSION_STATE: dict, si
             state["travel_checkin"] = rental_state.get("pickup_date")
         if rental_state.get("dropoff_date"):
             state["travel_checkout"] = rental_state.get("dropoff_date")
+    state.pop("pending_intent", None)
     state["last_intent"] = "rentalcar"
     SESSION_STATE[sid] = state
     return {"response": html}
@@ -108,6 +164,7 @@ def _handle_product_intent(req: Any, prev_state: dict, SESSION_STATE: dict, sid:
     items = product_reco_service.recommend_products(req.message, prev_state, limit=8)
     html = chat_renderers.product_html_list(items, title="\ucd94\ucc9c \uc0c1\ud488")
     state = dict(prev_state)
+    state.pop("pending_intent", None)
     state["last_intent"] = "product"
     state["last_product_names"] = [str(x.get("name") or "") for x in items]
     first_type = str((items[0] or {}).get("type") or "") if items else ""
@@ -125,6 +182,7 @@ def _handle_itinerary_intent(req: Any, prev_state: dict, context: str, SESSION_S
     )
     content = _strip_markdown_decorations((r.choices[0].message.content or "").strip())
     state = dict(prev_state)
+    state.pop("pending_intent", None)
     state["last_intent"] = "itinerary"
     SESSION_STATE[sid] = state
     return {"response": content if content.startswith("<div") else f"<div>{content}</div>"}
@@ -241,6 +299,7 @@ def handle_chat_request(
         )
         active_travel_followup = bool(
             prev_state.get("hotel_context")
+            or prev_state.get("pending_intent") in {"flight", "hotel", "rentalcar", "itinerary", "product"}
             or prev_state.get("last_intent") in {"flight", "hotel", "rentalcar", "itinerary", "product"}
         )
         domain = _classify_travel_domain_with_llm(req.message, context)
@@ -306,6 +365,29 @@ def handle_chat_request(
         llm_intent = _resolve_intent_with_llm(req.message, context, prev_state)
         rule_intent = _detect_intent(req.message, prev_state)
         intent = llm_intent or rule_intent
+
+        # Flight follow-up guard: when we are waiting for missing flight slots,
+        # keep routing short/date-only replies to flight.
+        if (
+            str(prev_state.get("pending_intent") or "") == "flight"
+            and not prev_state.get("hotel_context")
+            and str(prev_state.get("last_intent") or "") != "hotel"
+            and not _contains(
+                (req.message or "").lower(),
+                [
+                    "hotel", "rental", "rent car", "car rental", "itinerary", "plan",
+                    "package", "groupbuy", "group buy", "ticket",
+                    "\uD638\uD154", "\uC219\uC18C", "\uB80C\uD130\uCE74", "\uB80C\uD2B8\uCE74",
+                    "\uC77C\uC815", "\uCF54\uC2A4", "\uD328\uD0A4\uC9C0", "\uACF5\uB3D9\uAD6C\uB9E4",
+                    "\uD2F0\uCF13",
+                ],
+            )
+            and (
+                _has_date_signal(req.message)
+                or len((req.message or "").strip()) <= 24
+            )
+        ):
+            intent = "flight"
 
         # Hotel follow-up guard: date-only replies after hotel prompts should stay in hotel flow,
         # not jump to itinerary.
