@@ -74,7 +74,7 @@ def flight_html_table(rows: list[dict[str, Any]], meta: dict[str, Any]) -> str:
     html += "<tr><th>?????</th><th>? ??</th><th>?? ??</th><th>??</th><th>? ????</th><th>??</th></tr>"
     for row in rows:
         stops = int(row.get("stops") or 0)
-        route_badge = "??" if stops == 0 else f"?? {stops}?"
+        route_badge = "직항" if stops == 0 else f"경유 {stops}회"
         html += (
             "<tr>"
             f"<td>{row.get('primary_airline','-')}</td>"
