@@ -728,8 +728,9 @@ app = FastAPI()
 
 @app.on_event("startup")
 def _clear_sessions_on_startup():
-    # Optional: only clear sessions on startup when explicitly requested.
-    if str(os.getenv("CLEAR_SESSIONS_ON_STARTUP", "0")).strip() in {"1", "true", "TRUE", "yes", "on"}:
+    # Default behavior: clear sessions on startup so server restart requires re-login.
+    # Set CLEAR_SESSIONS_ON_STARTUP=0 to keep sessions across restarts.
+    if str(os.getenv("CLEAR_SESSIONS_ON_STARTUP", "1")).strip() in {"1", "true", "TRUE", "yes", "on"}:
         clear_all_sessions()
 
 
@@ -1097,6 +1098,18 @@ def _as_text(value) -> str | None:
             if isinstance(v, str) and v.strip():
                 return v
     return None
+
+
+def _parse_float_param(value) -> float | None:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip()
+        if not text:
+            return None
+        return float(text)
+    except Exception:
+        return None
 
 
 def _clean_hotel_title(text: str | None) -> str | None:
