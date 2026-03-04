@@ -483,6 +483,8 @@ function setHomeSavedDrawer(open) {
     drawer.classList.toggle('is-open', !!open);
     drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
     fab.setAttribute('aria-expanded', open ? 'true' : 'false');
+    // is-open 클래스 토글 (장바구니 버튼 이미지 변경)
+    fab.classList.toggle('is-open', !!open);
 }
 
 function renderHomeSavedDrawer() {
