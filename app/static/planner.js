@@ -103,6 +103,19 @@
         uk: "https://images.unsplash.com/photo-1486299267070-83823f5448dd?auto=format&fit=crop&w=400&q=80",
         default: "https://images.unsplash.com/photo-1488085061387-422e29b40080?auto=format&fit=crop&w=400&q=80",
     };
+    const FLIGHT_AIRLINE_EN = {
+        KE: "KOREAN AIR",
+        OZ: "ASIANA AIR",
+        TW: "TWAY AIR",
+        "7C": "JEJU AIR",
+        BX: "AIR BUSAN",
+        LJ: "JINAIR",
+        RS: "AIR SEOUL",
+        ZE: "EASTAR JET",
+        AC: "AIR CANADA",
+        JL: "JAPAN AIRLINES",
+        NH: "ANA",
+    };
     const RENTAL_FALLBACK_IMAGES = {
         suv: [
             "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=800&q=80",
@@ -249,6 +262,48 @@
         return {
             price: parts[0] || "",
             lines: parts.slice(1, 3),
+        };
+    }
+
+    function parseSavedFlightMeta(item) {
+        const payload = (item && typeof item.payload === "object") ? item.payload : {};
+        const rawMeta = String(item?.meta || payload?.meta || "").trim();
+        const parts = rawMeta ? rawMeta.split("|").map((x) => x.trim()).filter(Boolean) : [];
+
+        const looksLikePrice = (text) => /\d/.test(String(text || "")) && /(krw|usd|eur|jpy|원|₩|\$|€|¥)/i.test(String(text || ""));
+        const price = normalizeSavedPrice(looksLikePrice(parts[0]) ? parts[0] : (String(payload?.price || "").trim() || ""));
+        const segs = parseFlightSegmentEntries(payload?.segmentDetails || "");
+        const legSummaries = summarizeLegs(segs);
+        const outLeg = legSummaries[0] || null;
+        const inLeg = legSummaries[1] || null;
+        const dep = normalizeSavedDateTime(String(payload?.outboundDep || outLeg?.depAt || payload?.dep || "").trim());
+        const arr = normalizeSavedDateTime(String(payload?.outboundArr || outLeg?.arrAt || payload?.arr || "").trim());
+        const route = String(payload?.outboundRoute || outLeg?.routeText || payload?.routeInfo || "").trim();
+        const retDep = normalizeSavedDateTime(String(payload?.returnDep || inLeg?.depAt || "").trim());
+        const retArr = normalizeSavedDateTime(String(payload?.returnArr || inLeg?.arrAt || "").trim());
+        const retRoute = String(payload?.returnRoute || inLeg?.routeText || "").trim();
+        const isRound = Boolean(payload?.isRoundTrip || inLeg || (retDep && retArr));
+        const name = String(item?.name || payload?.name || "-").trim();
+        const airlineCode = String(payload?.airline_code || "").trim().toUpperCase();
+        const depCode = String(payload?.dep_code || "").trim().toUpperCase();
+        const arrCode = String(payload?.arr_code || "").trim().toUpperCase();
+        const airlineName = String(payload?.airline_name || FLIGHT_AIRLINE_EN[airlineCode] || airlineCode || "").trim();
+        const routeTitle = (depCode && arrCode) ? `${depCode} -> ${arrCode}` : "";
+        const displayTitle = airlineName && routeTitle ? `${airlineName} ${routeTitle}` : (routeTitle || name);
+
+        return {
+            name,
+            displayTitle,
+            price,
+            dep,
+            arr,
+            route,
+            retDep,
+            retArr,
+            retRoute,
+            isRound,
+            airlineCode,
+            airlineName,
         };
     }
 
@@ -446,8 +501,37 @@
             li.className = "ai-cart-item";
             const imageUrl = savedImageUrl(item);
             const meta = savedMetaParts(item);
-            const kind = `${savedTypeLabel(item.item_type || item.type)} · ${item.source || "saved-item"}`;
+            const itemTypeRaw = String(item?.item_type || item?.type || item?.payload?.item_type || "").toLowerCase();
+            const isFlightItem = itemTypeRaw === "flight" || itemTypeRaw === "항공편";
+            const kind = `${savedTypeLabel(item.item_type || item.type || item?.payload?.item_type)} · ${item.source || "saved-item"}`;
             const lines = (meta.lines || []).map((line) => `<div class="ai-cart-item__line">${escapeHtml(line)}</div>`).join("");
+            if (isFlightItem) {
+                const f = parseSavedFlightMeta(item);
+                const depLine = f.dep ? `출발 ${f.dep}` : "";
+                const arrLine = f.arr ? `도착 ${f.arr}` : "";
+                const retDepLine = f.retDep ? `오는편 출발 ${f.retDep}` : "";
+                const retArrLine = f.retArr ? `오는편 도착 ${f.retArr}` : "";
+                const displaySource = "airport-search";
+                const displayType = "항공";
+                li.className = "ai-cart-item ai-cart-item--flight";
+                li.innerHTML = `
+                    <div class="ai-cart-item__thumb ai-cart-item__thumb--flight">
+                        ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(f.displayTitle || f.name || "")}" loading="lazy" onerror="this.remove()">` : ""}
+                    </div>
+                    <div class="ai-cart-item__content ai-cart-item__content--flight">
+                        <div class="ai-cart-item__type">${escapeHtml(`${displayType} · ${displaySource}`)}</div>
+                        <div class="ai-cart-item__name">${escapeHtml(f.displayTitle || f.name || "-")}</div>
+                        ${f.price ? `<div class="ai-cart-item__line ai-cart-item__price">${escapeHtml(f.price)}</div>` : ""}
+                        ${depLine ? `<div class="ai-cart-item__line">${escapeHtml(depLine)}</div>` : ""}
+                        ${arrLine ? `<div class="ai-cart-item__line">${escapeHtml(arrLine)}</div>` : ""}
+                        ${f.isRound && retDepLine ? `<div class="ai-cart-item__line">${escapeHtml(retDepLine)}</div>` : ""}
+                        ${f.isRound && retArrLine ? `<div class="ai-cart-item__line">${escapeHtml(retArrLine)}</div>` : ""}
+                    </div>
+                    <button type="button" class="ai-cart-item__remove ai-cart-item__remove--flight" data-cart-remove="${item.id}" title="삭제">×</button>
+                `;
+                cartList.appendChild(li);
+                return;
+            }
             li.innerHTML = `
                 <div class="ai-cart-item__thumb">
                     ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.name || "")}" loading="lazy" onerror="this.remove()">` : ""}
@@ -495,7 +579,7 @@
     async function addSavedItem(listType, item) {
         const savePayload = {
             list_type: listType,
-            item_type: item.type || item.item_type || "item",
+            item_type: item.item_type || item.type || "item",
             name: item.name || "-",
             meta: item.meta || "",
             source: "planner-chat",
@@ -622,20 +706,57 @@
             const segmentDetails = (detailDiv?.textContent || "")
                 .replace(/\s+/g, " ")
                 .trim();
+            const segs = parseFlightSegmentEntries(segmentDetails);
+            const legSummaries = summarizeLegs(segs);
+            const outLeg = legSummaries[0] || null;
+            const inLeg = legSummaries[1] || null;
+            const outboundDep = outLeg?.depAt || dep || "";
+            const outboundArr = outLeg?.arrAt || arr || "";
+            const outboundRoute = outLeg?.routeText || routeInfo || "";
+            const returnDep = inLeg?.depAt || "";
+            const returnArr = inLeg?.arrAt || "";
+            const returnRoute = inLeg?.routeText || "";
+            const inferredRoundTrip = Boolean(isRoundTrip || inLeg);
+            const depArrCodes = extractRouteCodesFromSegments(segmentDetails);
+            const depCode = String(outLeg?.depCode || depArrCodes.dep || "").toUpperCase();
+            const arrCode = String(outLeg?.arrCode || depArrCodes.arr || "").toUpperCase();
+            const airlineCode = String(airline || "").trim().toUpperCase();
+            const airlineName = FLIGHT_AIRLINE_EN[airlineCode] || airlineCode || "FLIGHT";
+            const routeTitle = (depCode && arrCode) ? `${depCode} -> ${arrCode}` : String(outboundRoute || "").replace(/→/g, "->");
             const card = {
                 type: "항공편",
-                name: `${airline} ${dep} 출발`,
-                meta: [arr ? `도착 ${arr}` : "", routeInfo || "", duration ? `소요 ${duration}` : "", price || ""]
+                item_type: "flight",
+                name: `${airlineName} ${routeTitle}`.trim(),
+                meta: [
+                    normalizeSavedPrice(price || ""),
+                    outboundDep ? `출발 ${normalizeSavedDateTime(outboundDep)}` : "",
+                    outboundArr ? `도착 ${normalizeSavedDateTime(outboundArr)}` : "",
+                    outboundRoute || "",
+                    inferredRoundTrip && returnDep ? `오는편 출발 ${normalizeSavedDateTime(returnDep)}` : "",
+                    inferredRoundTrip && returnArr ? `오는편 도착 ${normalizeSavedDateTime(returnArr)}` : "",
+                    inferredRoundTrip && returnRoute ? returnRoute : "",
+                    duration ? `소요 ${duration}` : "",
+                ]
                     .filter(Boolean)
                     .join(" | "),
                 airline,
-                dep,
-                arr,
+                airline_code: airlineCode,
+                airline_name: airlineName,
+                dep_code: depCode,
+                arr_code: arrCode,
+                dep: outboundDep || dep,
+                arr: outboundArr || arr,
                 routeInfo,
                 duration,
-                price,
+                price: normalizeSavedPrice(price || ""),
                 segmentDetails,
-                isRoundTrip,
+                isRoundTrip: inferredRoundTrip,
+                outboundDep,
+                outboundArr,
+                outboundRoute,
+                returnDep,
+                returnArr,
+                returnRoute,
             };
             const dedupeKey = [
                 card.airline,
@@ -679,6 +800,27 @@
         const m = txt.match(/(\d{2}-\d{2})\s+(\d{2}:\d{2})/);
         if (m) return { date: m[1], time: m[2] };
         return { date: "", time: txt || "-" };
+    }
+
+    function normalizeSavedDateTime(value) {
+        const txt = String(value || "").trim();
+        if (!txt) return "";
+        const iso = txt.match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2})(?::\d{2})?/);
+        if (iso) return `${iso[1]} ${iso[2]}:00`;
+        const mdhm = txt.match(/^(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/);
+        if (mdhm) {
+            const y = new Date().getFullYear();
+            return `${y}-${mdhm[1]}-${mdhm[2]} ${mdhm[3]}:${mdhm[4]}:00`;
+        }
+        return txt;
+    }
+
+    function normalizeSavedPrice(value) {
+        const txt = String(value || "").trim();
+        if (!txt) return "";
+        const mKrw = txt.match(/([\d,]+)\s*KRW/i);
+        if (mKrw) return `₩${mKrw[1]}`;
+        return txt;
     }
 
     function formatKoreanMeridiemTime(hhmm) {
@@ -844,6 +986,8 @@
             checkin: ["체크인", "checkin"],
             checkout: ["체크아웃", "checkout"],
             maps: ["지도", "maps", "map"],
+            hotelId: ["호텔id", "hotel_id", "hotelid", "id"],
+            snapshot: ["스냅샷", "snapshot", "detail_snapshot"],
         };
 
         const pickField = (fields, canonical) => {
@@ -911,6 +1055,8 @@
                 checkin: pickField(fields, "checkin"),
                 checkout: pickField(fields, "checkout"),
                 maps: pickField(fields, "maps"),
+                hotel_id: pickField(fields, "hotelId"),
+                snapshot: pickField(fields, "snapshot"),
                 distanceBasis,
             });
         }
@@ -1341,6 +1487,7 @@
             payBtn?.addEventListener("click", () => {
                 const t = String(cardData?.type || "").toLowerCase();
                 const isFlight = t === "항공편" || t === "flight";
+                const isHotel = t === "호텔" || t === "hotel" || t === "숙소" || t === "stay" || t === "accommodation";
                 const isTicket = t === "티켓" || t === "ticket" || t === "activity";
                 if (isFlight) {
                     const priceRaw = String(cardData?.price || "");
@@ -1361,6 +1508,44 @@
                         round: inferredRoundTrip ? "1" : "0",
                     });
                     window.location.href = `/flight-detail?${qs.toString()}`;
+                    return;
+                }
+                if (isHotel) {
+                    let hotelId = String(cardData?.hotel_id || cardData?.hotelId || "").trim();
+                    const checkin = String(cardData?.checkin || "").trim();
+                    const checkout = String(cardData?.checkout || "").trim();
+                    const city = String(cardData?.address || cardData?.name || "").trim();
+                    if (!hotelId) {
+                        const base = `${String(cardData?.name || "hotel")}|${city}|${checkin}|${checkout}`;
+                        hotelId = `chat_${encodeURIComponent(base).replace(/%/g, "").slice(0, 48)}`;
+                    }
+                    const priceNum = Number(String(cardData?.price || "").replace(/[^\d.]/g, ""));
+                    const ratingNum = Number(String(cardData?.rating || "").replace(/[^\d.]/g, ""));
+                    const snapshotObj = {
+                        hotel_id: hotelId,
+                        name: String(cardData?.name || "Hotel"),
+                        name_ko: String(cardData?.name || "Hotel"),
+                        address: city,
+                        city,
+                        checkin,
+                        checkout,
+                        image: String(cardData?.photo || ""),
+                        review_score: Number.isFinite(ratingNum) ? ratingNum : null,
+                        review_word: "",
+                        price: Number.isFinite(priceNum) && priceNum > 0 ? priceNum : null,
+                        price_original: null,
+                        currency: "KRW",
+                        source: "chat-hotel-card",
+                    };
+                    const snapshot = encodeURIComponent(JSON.stringify(snapshotObj));
+                    const detailQs = new URLSearchParams({
+                        hotel_id: hotelId,
+                        city,
+                        checkin,
+                        checkout,
+                        snapshot,
+                    });
+                    window.location.href = `/gloval-hotel/detail?${detailQs.toString()}`;
                     return;
                 }
                 if (isTicket) {

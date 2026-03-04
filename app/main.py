@@ -26,6 +26,7 @@ from app.api.amadeus_api import (
     search_hotels as amadeus_search_hotels,
     resolve_location_to_iata as amadeus_resolve_location_to_iata,
 )
+from app.services.booking_history_service import save_booking, get_user_bookings
 
 import os
 import json
@@ -89,6 +90,7 @@ _TRANSLATE_CACHE_LOADED = False
 _TRANSLATE_CACHE_PATH = None
 PENDING_HOTEL_ORDERS: dict[str, dict] = {}
 PENDING_TOUR_ORDERS: dict[str, dict] = {}
+PENDING_PACK_ORDERS: dict[str, dict] = {}
 
 
 def _env_int(name: str, default: int) -> int:
@@ -814,6 +816,22 @@ def _coerce_number(value):
     return None
 
 
+def _fit_toss_order_name(text: str, *, max_bytes: int = 100) -> str:
+    s = re.sub(r"\s+", " ", str(text or "")).strip() or "주문"
+    if len(s.encode("utf-8")) <= max_bytes:
+        return s
+    out_chars = []
+    used = 0
+    for ch in s:
+        b = len(ch.encode("utf-8"))
+        if used + b > max_bytes:
+            break
+        out_chars.append(ch)
+        used += b
+    trimmed = "".join(out_chars).strip()
+    return trimmed or "주문"
+
+
 def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = None) -> list[dict]:
     offers: list[dict] = []
     seen = set()
@@ -951,7 +969,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
         photos = _collect_photos(node)
         room_size = None
         for txt in dedup_features + _collect_texts(node):
-            m = re.search(r"(\d+(?:\.\d+)?)\s*(?:m짼|??m2)", txt, flags=re.IGNORECASE)
+            m = re.search(r"(\d+(?:\.\d+)?)\s*(?:㎡|m2|m²)", txt, flags=re.IGNORECASE)
             if m:
                 room_size = m.group(1)
                 break
@@ -959,7 +977,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
         # Only accept nodes that look room/offer-like.
         is_roomish = False
         hay = " ".join([name or ""] + dedup_features + _collect_texts(node)[:10]).lower()
-        if any(x in hay for x in ["room", "媛앹떎", "湲덉뿰", "smoking", "移⑤?", "bed", "twin", "double", "suite"]):
+        if any(x in hay for x in ["room", "객실", "금연", "smoking", "침대", "bed", "twin", "double", "suite"]):
             is_roomish = True
         if name and (cur is not None or sold is not None):
             is_roomish = True
@@ -989,7 +1007,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
         seen.add(key)
         offers.append(
             {
-                "name": name or "媛앹떎 ?듭뀡",
+                "name": name or "객실 옵션",
                 "price": int(cur) if cur is not None else None,
                 "price_original": int(orig) if orig is not None else None,
                 "currency": ccy or (fallback_hotel or {}).get("currency") or "KRW",
@@ -1031,7 +1049,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
         features = []
         rf = fallback_hotel.get("room_facts") or {}
         if rf.get("area_sqm"):
-            features.append(f"媛앹떎/?숈냼 ?ш린 {rf['area_sqm']}m짼")
+            features.append(f"객실/숙소 크기 {rf['area_sqm']}㎡")
         if rf.get("beds"):
             features.append(f"침대 {rf['beds']}개")
         if rf.get("bedrooms"):
@@ -1046,7 +1064,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
 
         offers.append(
             {
-                "name": (fallback_hotel.get("property_type") or "媛앹떎 ?듭뀡"),
+                "name": (fallback_hotel.get("property_type") or "객실 옵션"),
                 "price": fallback_hotel.get("price"),
                 "price_original": fallback_hotel.get("price_original"),
                 "currency": fallback_hotel.get("currency") or "KRW",
@@ -1772,6 +1790,15 @@ def api_me(request: Request, db: Session = Depends(get_db)):
     }
 
 
+@app.get("/api/bookings")
+def api_bookings(request: Request, limit: int = Query(100, ge=1, le=200)):
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+    return {"bookings": get_user_bookings(int(user_id), limit=limit)}
+
+
 @app.post("/api/hotel/checkout")
 async def api_hotel_checkout(request: Request):
     session_token = request.cookies.get("session_token")
@@ -1796,13 +1823,14 @@ async def api_hotel_checkout(request: Request):
     order_id = f"HTL-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{os.urandom(4).hex()}"
     hotel_name = str(hotel.get("name") or "호텔 예약").strip() or "호텔 예약"
     city = str(hotel.get("city") or "").strip()
-    order_name = f"{hotel_name} {city}".strip()
+    order_name = _fit_toss_order_name(f"{hotel_name} {city}".strip())
     toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
     if not toss_client_key:
         raise HTTPException(status_code=500, detail="토스 클라이언트 키가 설정되지 않았습니다.")
     base_url = str(request.base_url).rstrip("/")
 
     PENDING_HOTEL_ORDERS[order_id] = {
+        "user_id": str(user_id),
         "amount": amount,
         "order_name": order_name,
         "hotel": hotel,
@@ -1840,6 +1868,22 @@ async def api_toss_hotel_confirm(request: Request):
     if not secret_key:
         pending["status"] = "confirmed_mock"
         pending["payment_key"] = payment_key
+        pending["confirmed_at"] = datetime.datetime.now().isoformat()
+        save_booking(
+            user_id=int(pending.get("user_id") or 0),
+            item_type="hotel",
+            order_id=order_id,
+            order_name=str(pending.get("order_name") or "호텔 예약"),
+            amount=amount,
+            currency="KRW",
+            status="confirmed_mock",
+            status_label="예약 확정(모의 결제)",
+            route=str(((pending.get("hotel") or {}).get("city") or "")).strip(),
+            payment_key=payment_key,
+            payload=pending,
+            created_at_iso=str(pending.get("created_at") or ""),
+            confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+        )
         return {
             "status": "confirmed_mock",
             "order_id": order_id,
@@ -1874,6 +1918,21 @@ async def api_toss_hotel_confirm(request: Request):
     pending["payment_key"] = payment_key
     pending["confirmed_at"] = datetime.datetime.now().isoformat()
     pending["toss_response"] = data
+    save_booking(
+        user_id=int(pending.get("user_id") or 0),
+        item_type="hotel",
+        order_id=order_id,
+        order_name=str(pending.get("order_name") or "호텔 예약"),
+        amount=amount,
+        currency="KRW",
+        status="confirmed",
+        status_label="예약 확정",
+        route=str(((pending.get("hotel") or {}).get("city") or "")).strip(),
+        payment_key=payment_key,
+        payload=pending,
+        created_at_iso=str(pending.get("created_at") or ""),
+        confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+    )
     return {"status": "confirmed", "order_id": order_id, "amount": amount, "payment": data}
 
 
@@ -1901,13 +1960,14 @@ async def api_tour_checkout(request: Request):
     order_id = f"TOUR-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{os.urandom(4).hex()}"
     tour_name = str(tour.get("name") or "투어 예약").strip() or "투어 예약"
     meta = str(tour.get("meta") or "").strip()
-    order_name = f"{tour_name} {meta}".strip()
+    order_name = _fit_toss_order_name(f"{tour_name} {meta}".strip())
     toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
     if not toss_client_key:
         raise HTTPException(status_code=500, detail="토스 클라이언트 키가 설정되지 않았습니다.")
     base_url = str(request.base_url).rstrip("/")
 
     PENDING_TOUR_ORDERS[order_id] = {
+        "user_id": str(user_id),
         "amount": amount,
         "order_name": order_name,
         "tour": tour,
@@ -1945,6 +2005,22 @@ async def api_toss_tour_confirm(request: Request):
     if not secret_key:
         pending["status"] = "confirmed_mock"
         pending["payment_key"] = payment_key
+        pending["confirmed_at"] = datetime.datetime.now().isoformat()
+        save_booking(
+            user_id=int(pending.get("user_id") or 0),
+            item_type="tour",
+            order_id=order_id,
+            order_name=str(pending.get("order_name") or "투어 예약"),
+            amount=amount,
+            currency="KRW",
+            status="confirmed_mock",
+            status_label="예약 확정(모의 결제)",
+            route=str(((pending.get("tour") or {}).get("meta") or "")).strip(),
+            payment_key=payment_key,
+            payload=pending,
+            created_at_iso=str(pending.get("created_at") or ""),
+            confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+        )
         return {
             "status": "confirmed_mock",
             "order_id": order_id,
@@ -1979,6 +2055,21 @@ async def api_toss_tour_confirm(request: Request):
     pending["payment_key"] = payment_key
     pending["confirmed_at"] = datetime.datetime.now().isoformat()
     pending["toss_response"] = data
+    save_booking(
+        user_id=int(pending.get("user_id") or 0),
+        item_type="tour",
+        order_id=order_id,
+        order_name=str(pending.get("order_name") or "투어 예약"),
+        amount=amount,
+        currency="KRW",
+        status="confirmed",
+        status_label="예약 확정",
+        route=str(((pending.get("tour") or {}).get("meta") or "")).strip(),
+        payment_key=payment_key,
+        payload=pending,
+        created_at_iso=str(pending.get("created_at") or ""),
+        confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+    )
     return {"status": "confirmed", "order_id": order_id, "amount": amount, "payment": data}
 
 
@@ -2266,14 +2357,14 @@ async def api_pack_checkout(request: Request):
     order_id = f"PACK-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{os.urandom(4).hex()}"
     pack_name = str(pack.get("name") or "패키지 예약").strip() or "패키지 예약"
     meta = str(pack.get("meta") or "").strip()
-    order_name = f"{pack_name} {meta}".strip()
+    order_name = _fit_toss_order_name(f"{pack_name} {meta}".strip())
     toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
     if not toss_client_key:
         raise HTTPException(status_code=500, detail="토스 클라이언트 키가 설정되지 않았습니다.")
     base_url = str(request.base_url).rstrip("/")
 
-    # 패키지 결제 대기 주문 저장
     PENDING_PACK_ORDERS[order_id] = {
+        "user_id": str(user_id),
         "amount": amount,
         "order_name": order_name,
         "pack": pack,
@@ -2311,6 +2402,22 @@ async def api_toss_pack_confirm(request: Request):
     if not secret_key:
         pending["status"] = "confirmed_mock"
         pending["payment_key"] = payment_key
+        pending["confirmed_at"] = datetime.datetime.now().isoformat()
+        save_booking(
+            user_id=int(pending.get("user_id") or 0),
+            item_type="pack",
+            order_id=order_id,
+            order_name=str(pending.get("order_name") or "패키지 예약"),
+            amount=amount,
+            currency="KRW",
+            status="confirmed_mock",
+            status_label="예약 확정(모의 결제)",
+            route=str(((pending.get("pack") or {}).get("meta") or "")).strip(),
+            payment_key=payment_key,
+            payload=pending,
+            created_at_iso=str(pending.get("created_at") or ""),
+            confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+        )
         return {
             "status": "confirmed_mock",
             "order_id": order_id,
@@ -2345,6 +2452,21 @@ async def api_toss_pack_confirm(request: Request):
     pending["payment_key"] = payment_key
     pending["confirmed_at"] = datetime.datetime.now().isoformat()
     pending["toss_response"] = data
+    save_booking(
+        user_id=int(pending.get("user_id") or 0),
+        item_type="pack",
+        order_id=order_id,
+        order_name=str(pending.get("order_name") or "패키지 예약"),
+        amount=amount,
+        currency="KRW",
+        status="confirmed",
+        status_label="예약 확정",
+        route=str(((pending.get("pack") or {}).get("meta") or "")).strip(),
+        payment_key=payment_key,
+        payload=pending,
+        created_at_iso=str(pending.get("created_at") or ""),
+        confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+    )
     return {"status": "confirmed", "order_id": order_id, "amount": amount, "payment": data}
 # ========== PACK-DETAIL 전용 결제 성공/실패 페이지 ========== #
 
@@ -3241,6 +3363,11 @@ def gloval_hotel_detail(
     if selected_hotel and snapshot_matched and (
         str(os.getenv("HOTEL_DETAIL_FAST_MODE", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
     ):
+        # Ensure basic stay-time fields are present for chat-origin snapshots.
+        selected_hotel.setdefault("checkin_from", "15:00")
+        selected_hotel.setdefault("checkin_until", "23:59")
+        selected_hotel.setdefault("checkout_from", "00:00")
+        selected_hotel.setdefault("checkout_until", "11:00")
         try:
             selected_hotel["room_offers"] = _extract_room_offers_from_booking_detail(
                 None,
@@ -3260,6 +3387,33 @@ def gloval_hotel_detail(
                 continue
             ro["price_per_night"] = _price_per_night(ro.get("price"), nights)
             ro["price_original_per_night"] = _price_per_night(ro.get("price_original"), nights)
+
+        # Lightweight Google enrichment for map/address/photo even in fast mode.
+        try:
+            g = find_hotel_google_place(
+                name=selected_hotel.get("name_en") or selected_hotel.get("name") or city,
+                address=f"{selected_hotel.get('address') or city or ''} {country or ''}".strip(),
+                lat=_parse_float_param(selected_hotel.get("latitude")),
+                lon=_parse_float_param(selected_hotel.get("longitude")),
+                language="ko",
+            )
+            if isinstance(g, dict) and g.get("status") == "ok":
+                google_place = g
+                cand = g.get("candidate") or {}
+                details = g.get("details") or {}
+                if not selected_hotel.get("google_address"):
+                    selected_hotel["google_address"] = details.get("formatted_address") or cand.get("address")
+                if not selected_hotel.get("latitude"):
+                    selected_hotel["latitude"] = cand.get("lat")
+                if not selected_hotel.get("longitude"):
+                    selected_hotel["longitude"] = cand.get("lon")
+                photos = g.get("photo_urls") or []
+                if isinstance(photos, list) and photos:
+                    selected_hotel["photo_gallery"] = (selected_hotel.get("photo_gallery") or []) + photos[:6]
+                    if not selected_hotel.get("image"):
+                        selected_hotel["image"] = photos[0]
+        except Exception:
+            pass
         return templates.TemplateResponse(
             "gloval-hotel-detail.html",
             {
@@ -3272,7 +3426,7 @@ def gloval_hotel_detail(
                 "checkin": checkin,
                 "checkout": checkout,
                 "nights": nights,
-                "google_place": None,
+                "google_place": google_place,
             },
         )
 

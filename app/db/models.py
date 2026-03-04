@@ -87,3 +87,23 @@ class GroupBuyJoinRequest(Base):
     status = Column(String(20), nullable=False, default="pending")  # pending/accepted/rejected
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, onupdate=func.now(), server_default=func.now())
+
+
+class UserBooking(Base):
+    __tablename__ = "user_bookings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, nullable=False)
+    item_type = Column(String(20), index=True, nullable=False)  # flight | hotel | rental | tour | pack
+    order_id = Column(String(80), unique=True, index=True, nullable=False)
+    order_name = Column(String(255), nullable=False)
+    amount = Column(Integer, nullable=False, default=0)
+    currency = Column(String(10), nullable=False, default="KRW")
+    status = Column(String(30), nullable=False, default="confirmed")
+    status_label = Column(String(80), nullable=True)
+    route = Column(String(255), nullable=True)
+    payment_key = Column(String(255), nullable=True)
+    payload_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    confirmed_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, onupdate=func.now(), server_default=func.now())

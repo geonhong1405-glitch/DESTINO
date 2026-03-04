@@ -304,6 +304,8 @@ function setFlightSavedDrawer(open) {
     drawer.classList.toggle('is-open', !!open);
     drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
     fab.setAttribute('aria-expanded', open ? 'true' : 'false');
+    // 드로어 열림/닫힘에 따라 버튼에 is-open 클래스 토글
+    fab.classList.toggle('is-open', !!open);
 }
 
 function renderFlightSavedDrawer() {
@@ -329,7 +331,7 @@ function renderFlightSavedDrawer() {
         flightAlertState.forEach((item) => {
             const status = String(item.status || 'pending');
             const statusLabel = status === 'accepted' ? '수락됨' : (status === 'rejected' ? '거절됨' : '대기중');
-            const incoming = String(item.direction || 'incoming') !== 'mine';
+            const incoming = String(item.direction || 'mine') !== 'mine';
             const reqTitle = incoming
                 ? `${escapeHtml(item.requester_name || '-')}님이 요청했습니다`
                 : `${escapeHtml(item.requester_name || '작성자')}님의 응답`;

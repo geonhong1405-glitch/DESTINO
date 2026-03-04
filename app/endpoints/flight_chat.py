@@ -28,6 +28,7 @@ from app.services import chat_orchestrator_service
 from app.services import chat_heuristics_service
 from app.endpoints.rag_api import answer_rag_question
 from app.session import get_user_id_from_session
+from app.services.booking_history_service import save_booking, get_user_bookings
 
 try:
     from pinecone import Pinecone
@@ -781,6 +782,22 @@ def api_toss_confirm(payload: TossConfirmRequest):
     if not secret_key:
         pending["status"] = "confirmed_mock"
         pending["payment_key"] = payload.paymentKey
+        pending["confirmed_at"] = datetime.now().isoformat()
+        save_booking(
+            user_id=int(pending.get("user_id") or 0),
+            item_type="flight",
+            order_id=payload.orderId,
+            order_name=str(pending.get("order_name") or "항공권"),
+            amount=int(payload.amount),
+            currency="KRW",
+            status="confirmed_mock",
+            status_label="예약 확정(모의 결제)",
+            route=_extract_flight_route_from_offer(pending.get("offer")),
+            payment_key=payload.paymentKey,
+            payload=pending,
+            created_at_iso=str(pending.get("created_at") or ""),
+            confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+        )
         return {
             "status": "confirmed_mock",
             "order_id": payload.orderId,
@@ -815,7 +832,34 @@ def api_toss_confirm(payload: TossConfirmRequest):
     pending["payment_key"] = payload.paymentKey
     pending["confirmed_at"] = datetime.now().isoformat()
     pending["toss_response"] = data
+    save_booking(
+        user_id=int(pending.get("user_id") or 0),
+        item_type="flight",
+        order_id=payload.orderId,
+        order_name=str(pending.get("order_name") or "항공권"),
+        amount=int(payload.amount),
+        currency="KRW",
+        status="confirmed",
+        status_label="예약 확정",
+        route=_extract_flight_route_from_offer(pending.get("offer")),
+        payment_key=payload.paymentKey,
+        payload=pending,
+        created_at_iso=str(pending.get("created_at") or ""),
+        confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+    )
     return {"status": "confirmed", "order_id": payload.orderId, "amount": payload.amount, "payment": data}
+
+
+def _extract_flight_route_from_offer(offer: Any) -> str:
+    if not isinstance(offer, dict):
+        return ""
+    itineraries = offer.get("itineraries") if isinstance(offer.get("itineraries"), list) else []
+    out_segs = itineraries[0].get("segments") if itineraries and isinstance(itineraries[0], dict) else []
+    first_seg = out_segs[0] if out_segs and isinstance(out_segs[0], dict) else {}
+    last_seg = out_segs[-1] if out_segs and isinstance(out_segs[-1], dict) else {}
+    dep = ((first_seg.get("departure") or {}).get("iataCode") if isinstance(first_seg, dict) else "") or ""
+    arr = ((last_seg.get("arrival") or {}).get("iataCode") if isinstance(last_seg, dict) else "") or ""
+    return f"{dep} -> {arr}".strip(" ->")
 
 
 @router.get("/api/flight/bookings")
@@ -825,42 +869,7 @@ def api_flight_bookings(request: Request, limit: int = Query(20, ge=1, le=100)):
     if not user_id:
         raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
 
-    uid = str(user_id)
-    rows: list[dict[str, Any]] = []
-    for order_id, row in PENDING_FLIGHT_ORDERS.items():
-        if not isinstance(row, dict):
-            continue
-        if str(row.get("user_id") or "") != uid:
-            continue
-        status = str(row.get("status") or "").strip()
-        if status not in {"confirmed", "confirmed_mock"}:
-            continue
-
-        offer = row.get("offer") if isinstance(row.get("offer"), dict) else {}
-        itineraries = offer.get("itineraries") if isinstance(offer.get("itineraries"), list) else []
-        out_segs = itineraries[0].get("segments") if itineraries and isinstance(itineraries[0], dict) else []
-        first_seg = out_segs[0] if out_segs and isinstance(out_segs[0], dict) else {}
-        last_seg = out_segs[-1] if out_segs and isinstance(out_segs[-1], dict) else {}
-        dep = ((first_seg.get("departure") or {}).get("iataCode") if isinstance(first_seg, dict) else "") or ""
-        arr = ((last_seg.get("arrival") or {}).get("iataCode") if isinstance(last_seg, dict) else "") or ""
-        route = f"{dep} -> {arr}".strip(" ->")
-
-        rows.append(
-            {
-                "order_id": str(order_id),
-                "order_name": str(row.get("order_name") or "항공권"),
-                "amount": int(row.get("amount") or 0),
-                "currency": "KRW",
-                "status": status,
-                "status_label": "예약 확정(모의 결제)" if status == "confirmed_mock" else "예약 확정",
-                "created_at": str(row.get("created_at") or ""),
-                "confirmed_at": str(row.get("confirmed_at") or ""),
-                "route": route,
-                "item_type": "flight",
-            }
-        )
-
-    rows.sort(key=lambda x: str(x.get("confirmed_at") or x.get("created_at") or ""), reverse=True)
+    rows = [row for row in get_user_bookings(int(user_id), limit=limit) if str(row.get("item_type") or "") == "flight"]
     return {"bookings": rows[:limit]}
 
 

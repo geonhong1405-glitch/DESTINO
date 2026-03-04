@@ -78,6 +78,8 @@ let groupSavedTab = 'cart';
 let groupAlertState = [];
 let writeAttachSource = 'cart';
 let selectedLinkedItemKeys = new Set();
+let groupAlertInitialized = false;
+let seenGroupDecisionKeys = new Set();
 
 function isLoggedIn() {
     return !!(window.__AUTH__ && window.__AUTH__.nickname);
@@ -365,7 +367,28 @@ async function loadGroupAlerts() {
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        groupAlertState = Array.isArray(data) ? data : [];
+        const rows = Array.isArray(data) ? data : [];
+        const mineDone = rows.filter((x) => String(x?.direction || '') === 'mine' && ['accepted', 'rejected'].includes(String(x?.status || '')));
+        if (!groupAlertInitialized) {
+            seenGroupDecisionKeys = new Set(mineDone.map((x) => `${Number(x?.id)}:${String(x?.status || '')}`));
+            groupAlertInitialized = true;
+        } else {
+            const newly = mineDone.filter((x) => {
+                const key = `${Number(x?.id)}:${String(x?.status || '')}`;
+                if (seenGroupDecisionKeys.has(key)) return false;
+                seenGroupDecisionKeys.add(key);
+                return true;
+            });
+            if (newly.length) {
+                const msg = newly
+                    .map((x) => String(x?.message || '').trim())
+                    .filter(Boolean)
+                    .join(' / ');
+                showToast(msg || '참여요청 결과가 도착했습니다. 장바구니/알림을 확인해 주세요.');
+                await loadSavedItems();
+            }
+        }
+        groupAlertState = rows;
     } catch (_e) {
         groupAlertState = [];
     }
@@ -924,6 +947,9 @@ function renderGroupSavedDrawer() {
         const isActive = btn.getAttribute('data-group-saved-tab') === groupSavedTab;
         btn.classList.toggle('is-active', isActive);
         btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        if (btn.getAttribute('data-group-saved-tab') === 'alerts') {
+            btn.textContent = `알림 (${groupAlertState.length})`;
+        }
     });
 
     if (groupSavedTab === 'alerts') {
@@ -961,7 +987,7 @@ function renderGroupSavedDrawer() {
                                 : ''
                         }
                         ${
-                            status !== 'pending'
+                            status !== 'pending' && !incoming
                                 ? `<div class="group-saved-item__meta" style="margin-top:8px;">
                                     <button type="button" data-group-alert-remove="${Number(item.id)}" title="알림 삭제" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#475569;font-size:12px;font-weight:700;">알림 삭제</button>
                                 </div>`
@@ -1145,6 +1171,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadSavedItems();
     await loadGroupAlerts();
     renderGroupSavedDrawer();
+    setInterval(async () => {
+        await loadGroupAlerts();
+        renderGroupSavedDrawer();
+    }, 15000);
     lucide.createIcons();
 });
 

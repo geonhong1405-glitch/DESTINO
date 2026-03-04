@@ -1,4 +1,4 @@
-import datetime as dt
+﻿import datetime as dt
 import re
 from typing import Any, Optional
 
@@ -6,6 +6,64 @@ from app.api.rental_helper import search_rental_locations, parse_rental_search_r
 from app.api.sky_cars_api import parse_sky_car_search_results, search_sky_car_rentals
 from app.services.location_alias_service import LOCATION_ALIASES, COUNTRY_ALIASES
 from app.services import date_parsing_service
+
+
+def _normalize_city_query_for_rental(city_query: str | None) -> str | None:
+    q = str(city_query or "").strip()
+    if not q:
+        return None
+    ql = q.lower()
+    compact = re.sub(r"\s+", "", ql)
+
+    # Resolve through shared aliases first.
+    iata = None
+    for k, v in LOCATION_ALIASES.items():
+        kk = str(k or "").strip().lower()
+        if not kk:
+            continue
+        if kk == ql or kk.replace(" ", "") == compact:
+            iata = str(v or "").upper()
+            break
+    if not iata and re.fullmatch(r"[A-Za-z]{3}", q):
+        iata = q.upper()
+
+    iata_to_city = {
+        "NYC": "New York",
+        "TYO": "Tokyo",
+        "OSA": "Osaka",
+        "LON": "London",
+        "PAR": "Paris",
+        "ROM": "Rome",
+        "SEL": "Seoul",
+        "BKK": "Bangkok",
+        "SGN": "Ho Chi Minh City",
+        "HAN": "Hanoi",
+        "SIN": "Singapore",
+    }
+    if iata and iata in iata_to_city:
+        return iata_to_city[iata]
+    return q
+
+
+def _entity_retry_hints(city_query: str | None, country_code: str | None) -> list[str]:
+    q = re.sub(r"\s+", "", str(city_query or "").lower())
+    cc = str(country_code or "").upper().strip()
+    hints: list[str] = []
+
+    def _add(x: str):
+        if x and x not in hints:
+            hints.append(x)
+
+    if cc == "US" and any(k in q for k in ["?댁슃", "newyork", "nyc", "newyorkcity"]):
+        for x in ["JFK", "EWR", "LGA", "New York"]:
+            _add(x)
+    if cc == "JP" and any(k in q for k in ["?꾩퓙", "tokyo", "tyo"]):
+        for x in ["NRT", "HND", "Tokyo"]:
+            _add(x)
+    if cc == "KR" and any(k in q for k in ["?쒖슱", "seoul", "sel"]):
+        for x in ["ICN", "GMP", "Seoul"]:
+            _add(x)
+    return hints
 
 
 def _detect_country_code(message: str, prev_state: dict[str, Any]) -> Optional[str]:
@@ -70,9 +128,10 @@ def _detect_country_code(message: str, prev_state: dict[str, Any]) -> Optional[s
 
 
 def _parse_age(message: str, prev_state: dict[str, Any]) -> Optional[int]:
-    m = re.search(r"(\d{2})\s*살", message or "")
+    msg = str(message or "")
+    m = re.search(r"(\d{2})\s*살", msg)
     if not m:
-        m = re.search(r"(?:나이|운전자나이|driver age)\s*[:은는이]?\s*(\d{2})", (message or "").lower())
+        m = re.search(r"(?:나이|driver\s*age)\s*[:=]?\s*(\d{2})", msg.lower())
     if m:
         try:
             age = int(m.group(1))
@@ -85,12 +144,22 @@ def _parse_age(message: str, prev_state: dict[str, Any]) -> Optional[int]:
 
 def _parse_city_query(message: str, prev_state: dict[str, Any]) -> Optional[str]:
     msg = str(message or "")
+    msg_compact = re.sub(r"\s+", "", msg)
+    date_only_tokens = {"오늘", "내일", "내일모레", "내일모래", "모레", "글피"}
+    numeric_rel_date = bool(
+        re.search(r"\d+\s*일\s*(뒤|후)", msg)
+        or re.search(r"\d+\s*주\s*(뒤|후)", msg)
+    )
 
-    # "X??" pattern.
-    m = re.search(r"([\uAC00-\uD7A3A-Za-z\s]{1,40})\uC5D0\uC11C", msg)
+    # "X에서" pattern (non-greedy: stop at the first "에서").
+    m = re.search(r"([\uAC00-\uD7A3A-Za-z\s]{1,40}?)\uC5D0\uC11C", msg)
     if m:
         cand = m.group(1).strip(" ,.")
-        if cand and len(cand) >= 2:
+        # Remove trailing date-like tokens accidentally captured in chained "...에서" phrases.
+        cand = re.sub(r"\s*(오늘|내일|내일모레|내일모래|모레|글피)\s*$", "", cand).strip(" ,.")
+        cand = re.sub(r"\s*\d+\s*(일|주)\s*(뒤|후)\s*$", "", cand).strip(" ,.")
+        cand_compact = re.sub(r"\s+", "", cand)
+        if cand and len(cand) >= 2 and cand_compact not in date_only_tokens:
             return cand
 
     ml = msg.lower()
@@ -107,6 +176,8 @@ def _parse_city_query(message: str, prev_state: dict[str, Any]) -> Optional[str]
         return m_iata.group(1)
 
     rs = (prev_state or {}).get("rental_state") or {}
+    if any(tok in msg_compact for tok in date_only_tokens) or numeric_rel_date:
+        return rs.get("city_query")
     return rs.get("city_query")
 
 
@@ -129,7 +200,7 @@ def _parse_date_ymd(text: str, now: Optional[dt.date] = None) -> Optional[str]:
         pass
 
     # Fallback for fully qualified yyyy-mm-dd
-    m = re.search(r"(20\d{2})-(\d{1,2})-(\d{1,2})", s)
+    m = re.search(r"\b(20\d{2})-(\d{1,2})-(\d{1,2})\b", s)
     if m:
         try:
             return dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
@@ -167,6 +238,25 @@ def _parse_pickup_dropoff_dates(message: str, prev_state: dict[str, Any]) -> tup
             pickup = dates[0]
         elif dropoff is None and pickup != dates[0]:
             dropoff = dates[0]
+
+    # 2.5) Numeric relative ranges (e.g. "2일뒤에서부터 3일뒤까지", "2주 뒤 ~ 3주 뒤").
+    compact_num = re.sub(r"\s+", "", msg)
+    rel_pairs = re.findall(r"(\d+)\s*(일|주)\s*(?:뒤|후)", compact_num)
+    if rel_pairs:
+        now = dt.datetime.now().date()
+        if len(rel_pairs) >= 2 and any(k in compact_num for k in ["부터", "까지", "에서", "~", "-", "to"]):
+            n1, u1 = rel_pairs[0]
+            n2, u2 = rel_pairs[1]
+            d1 = now + dt.timedelta(days=int(n1) * (7 if u1 == "주" else 1))
+            d2 = now + dt.timedelta(days=int(n2) * (7 if u2 == "주" else 1))
+            if d2 <= d1:
+                d2 = d1 + dt.timedelta(days=1)
+            pickup = pickup or d1.isoformat()
+            dropoff = dropoff or d2.isoformat()
+        elif len(rel_pairs) == 1:
+            n1, u1 = rel_pairs[0]
+            d1 = now + dt.timedelta(days=int(n1) * (7 if u1 == "주" else 1))
+            pickup = pickup or d1.isoformat()
 
     # 3) Relative day range fallback (e.g. "?????? ????").
     compact = re.sub(r"\s+", "", msg)
@@ -264,7 +354,7 @@ def _rental_cards_html(city_label: str, pickup_date: str, dropoff_date: str, car
         name = str(car.get("name") or "Rental Car")
         supplier = str(car.get("supplier") or "Rental Partner")
         price = _fmt_money(car.get("price"), str(car.get("currency") or "KRW"))
-        specs = " · ".join([str(x) for x in (car.get("specs") or []) if x]) or "Option info"
+        specs = " 쨌 ".join([str(x) for x in (car.get("specs") or []) if x]) or "Option info"
         img = str(car.get("image") or "").strip()
         rating = car.get("rating")
 
@@ -297,7 +387,7 @@ def _rental_cards_html_v2(city_label: str, pickup_date: str, dropoff_date: str, 
         name = str(car.get("name") or "Rental Car")
         supplier = str(car.get("supplier") or "Rental Partner")
         price = _fmt_money(car.get("price"), str(car.get("currency") or "KRW"))
-        specs = " · ".join([str(x) for x in (car.get("specs") or []) if x]) or "Option info"
+        specs = " 쨌 ".join([str(x) for x in (car.get("specs") or []) if x]) or "Option info"
         img = str(car.get("image") or "").strip()
         rating = car.get("rating")
 
@@ -320,21 +410,39 @@ def _rental_cards_html_v2(city_label: str, pickup_date: str, dropoff_date: str, 
 
 def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, Any]] = None) -> tuple[str, dict[str, Any]]:
     prev_state = prev_state or {}
-    country_code = _detect_country_code(message, prev_state) or "KR"
-    city_query = _parse_city_query(message, prev_state)
-    pickup_date, dropoff_date = _parse_pickup_dropoff_dates(message, prev_state)
+    msg = str(message or "")
+    msg_compact = re.sub(r"\s+", "", msg)
+    country_code = _detect_country_code(msg, prev_state) or "KR"
+    city_query = _parse_city_query(msg, prev_state)
+    city_query_norm = _normalize_city_query_for_rental(city_query) or city_query
+    pickup_date, dropoff_date = _parse_pickup_dropoff_dates(msg, prev_state)
+
+    has_explicit_date_in_turn = bool(
+        re.search(r"\b20\d{2}-\d{1,2}-\d{1,2}\b", msg)
+        or re.search(r"\b\d{1,2}[/-]\d{1,2}\b", msg)
+        or re.search(r"\d{1,2}\s*월\s*\d{1,2}\s*일", msg)
+        or re.search(r"\d+\s*일\s*(뒤|후)", msg)
+        or re.search(r"\d+\s*주\s*(뒤|후)", msg)
+        or any(tok in msg_compact for tok in ["오늘", "내일", "내일모레", "내일모래", "모레", "글피"])
+    )
+    has_city_in_turn = bool(re.search(r"([\uAC00-\uD7A3A-Za-z\s]{1,40}?)\uC5D0\uC11C", msg))
+    if (not has_explicit_date_in_turn) and has_city_in_turn:
+        # New rental request without date must ask for pickup/dropoff; do not reuse stale dates.
+        pickup_date = None
+        dropoff_date = None
+
     driver_age = _parse_age(message, prev_state) or 30
 
     rental_state = {
         "country_code": country_code,
-        "city_query": city_query,
+        "city_query": city_query_norm,
         "pickup_date": pickup_date,
         "dropoff_date": dropoff_date,
         "driver_age": driver_age,
     }
 
     missing = []
-    if not city_query:
+    if not city_query_norm:
         missing.append("\uB3C4\uC2DC")
     if not pickup_date:
         missing.append("\uD53D\uC5C5\uC77C")
@@ -348,15 +456,15 @@ def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, A
         )
         return html, {"rental_context": True, "rental_state": rental_state}
 
-    locs = search_rental_locations(city_query, category="all", limit=5, country_code=country_code)
+    locs = search_rental_locations(city_query_norm, category="all", limit=5, country_code=country_code)
     if not locs:
         return (
-            f"<div>{city_query} \uC9C0\uC5ED\uC758 \uB80C\uD130\uCE74 \uD53D\uC5C5 \uC704\uCE58\uB97C \uCC3E\uC9C0 \uBABB\uD588\uC5B4\uC694. \uB3C4\uC2DC\uBA85/\uACF5\uD56D\uBA85\uC73C\uB85C \uB2E4\uC2DC \uC54C\uB824\uC8FC\uC138\uC694.</div>",
+            f"<div>{city_query_norm} \uC9C0\uC5ED\uC758 \uB80C\uD130\uCE74 \uD53D\uC5C5 \uC704\uCE58\uB97C \uCC3E\uC9C0 \uBABB\uD588\uC5B4\uC694. \uB3C4\uC2DC\uBA85/\uACF5\uD56D\uBA85\uC73C\uB85C \uB2E4\uC2DC \uC54C\uB824\uC8FC\uC138\uC694.</div>",
             {"rental_context": True, "rental_state": rental_state},
         )
 
     loc = locs[0]
-    pickup_name = str(loc.get("name") or city_query)
+    pickup_name = str(loc.get("name") or city_query_norm)
     pickup_lat = loc.get("lat")
     pickup_lon = loc.get("lon")
     if pickup_lat is None or pickup_lon is None:
@@ -391,10 +499,23 @@ def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, A
     raw, cars = _search_with_location(pickup_name, float(pickup_lat), float(pickup_lon))
 
     if not cars:
-        alt_locs = search_rental_locations(city_query, category="airport", limit=5, country_code=country_code)
+        msg = str((raw or {}).get("message") or "")
+        if "pickUpEntityId resolution failed" in msg:
+            for hint in _entity_retry_hints(city_query_norm, country_code):
+                try:
+                    raw_hint, cars_hint = _search_with_location(hint, float(pickup_lat), float(pickup_lon))
+                    if cars_hint:
+                        pickup_name = hint
+                        raw = raw_hint
+                        cars = cars_hint
+                        break
+                except Exception:
+                    continue
+
+        alt_locs = search_rental_locations(city_query_norm, category="airport", limit=5, country_code=country_code)
         for alt in alt_locs:
             try:
-                alt_name = str(alt.get("name") or city_query)
+                alt_name = str(alt.get("name") or city_query_norm)
                 alt_lat = alt.get("lat")
                 alt_lon = alt.get("lon")
                 if alt_lat is None or alt_lon is None:
