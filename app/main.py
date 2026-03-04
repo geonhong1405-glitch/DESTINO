@@ -26,6 +26,7 @@ from app.api.amadeus_api import (
     search_hotels as amadeus_search_hotels,
     resolve_location_to_iata as amadeus_resolve_location_to_iata,
 )
+from app.services.booking_history_service import save_booking, get_user_bookings
 
 import os
 import json
@@ -89,6 +90,7 @@ _TRANSLATE_CACHE_LOADED = False
 _TRANSLATE_CACHE_PATH = None
 PENDING_HOTEL_ORDERS: dict[str, dict] = {}
 PENDING_TOUR_ORDERS: dict[str, dict] = {}
+PENDING_PACK_ORDERS: dict[str, dict] = {}
 
 
 def _env_int(name: str, default: int) -> int:
@@ -965,7 +967,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
         photos = _collect_photos(node)
         room_size = None
         for txt in dedup_features + _collect_texts(node):
-            m = re.search(r"(\d+(?:\.\d+)?)\s*(?:m짼|??m2)", txt, flags=re.IGNORECASE)
+            m = re.search(r"(\d+(?:\.\d+)?)\s*(?:㎡|m2|m²)", txt, flags=re.IGNORECASE)
             if m:
                 room_size = m.group(1)
                 break
@@ -973,7 +975,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
         # Only accept nodes that look room/offer-like.
         is_roomish = False
         hay = " ".join([name or ""] + dedup_features + _collect_texts(node)[:10]).lower()
-        if any(x in hay for x in ["room", "媛앹떎", "湲덉뿰", "smoking", "移⑤?", "bed", "twin", "double", "suite"]):
+        if any(x in hay for x in ["room", "객실", "금연", "smoking", "침대", "bed", "twin", "double", "suite"]):
             is_roomish = True
         if name and (cur is not None or sold is not None):
             is_roomish = True
@@ -1003,7 +1005,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
         seen.add(key)
         offers.append(
             {
-                "name": name or "媛앹떎 ?듭뀡",
+                "name": name or "객실 옵션",
                 "price": int(cur) if cur is not None else None,
                 "price_original": int(orig) if orig is not None else None,
                 "currency": ccy or (fallback_hotel or {}).get("currency") or "KRW",
@@ -1045,7 +1047,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
         features = []
         rf = fallback_hotel.get("room_facts") or {}
         if rf.get("area_sqm"):
-            features.append(f"媛앹떎/?숈냼 ?ш린 {rf['area_sqm']}m짼")
+            features.append(f"객실/숙소 크기 {rf['area_sqm']}㎡")
         if rf.get("beds"):
             features.append(f"침대 {rf['beds']}개")
         if rf.get("bedrooms"):
@@ -1060,7 +1062,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
 
         offers.append(
             {
-                "name": (fallback_hotel.get("property_type") or "媛앹떎 ?듭뀡"),
+                "name": (fallback_hotel.get("property_type") or "객실 옵션"),
                 "price": fallback_hotel.get("price"),
                 "price_original": fallback_hotel.get("price_original"),
                 "currency": fallback_hotel.get("currency") or "KRW",
@@ -1786,6 +1788,15 @@ def api_me(request: Request, db: Session = Depends(get_db)):
     }
 
 
+@app.get("/api/bookings")
+def api_bookings(request: Request, limit: int = Query(100, ge=1, le=200)):
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+    return {"bookings": get_user_bookings(int(user_id), limit=limit)}
+
+
 @app.post("/api/hotel/checkout")
 async def api_hotel_checkout(request: Request):
     session_token = request.cookies.get("session_token")
@@ -1817,6 +1828,7 @@ async def api_hotel_checkout(request: Request):
     base_url = str(request.base_url).rstrip("/")
 
     PENDING_HOTEL_ORDERS[order_id] = {
+        "user_id": str(user_id),
         "amount": amount,
         "order_name": order_name,
         "hotel": hotel,
@@ -1854,6 +1866,22 @@ async def api_toss_hotel_confirm(request: Request):
     if not secret_key:
         pending["status"] = "confirmed_mock"
         pending["payment_key"] = payment_key
+        pending["confirmed_at"] = datetime.datetime.now().isoformat()
+        save_booking(
+            user_id=int(pending.get("user_id") or 0),
+            item_type="hotel",
+            order_id=order_id,
+            order_name=str(pending.get("order_name") or "호텔 예약"),
+            amount=amount,
+            currency="KRW",
+            status="confirmed_mock",
+            status_label="예약 확정(모의 결제)",
+            route=str(((pending.get("hotel") or {}).get("city") or "")).strip(),
+            payment_key=payment_key,
+            payload=pending,
+            created_at_iso=str(pending.get("created_at") or ""),
+            confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+        )
         return {
             "status": "confirmed_mock",
             "order_id": order_id,
@@ -1888,6 +1916,21 @@ async def api_toss_hotel_confirm(request: Request):
     pending["payment_key"] = payment_key
     pending["confirmed_at"] = datetime.datetime.now().isoformat()
     pending["toss_response"] = data
+    save_booking(
+        user_id=int(pending.get("user_id") or 0),
+        item_type="hotel",
+        order_id=order_id,
+        order_name=str(pending.get("order_name") or "호텔 예약"),
+        amount=amount,
+        currency="KRW",
+        status="confirmed",
+        status_label="예약 확정",
+        route=str(((pending.get("hotel") or {}).get("city") or "")).strip(),
+        payment_key=payment_key,
+        payload=pending,
+        created_at_iso=str(pending.get("created_at") or ""),
+        confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+    )
     return {"status": "confirmed", "order_id": order_id, "amount": amount, "payment": data}
 
 
@@ -1922,6 +1965,7 @@ async def api_tour_checkout(request: Request):
     base_url = str(request.base_url).rstrip("/")
 
     PENDING_TOUR_ORDERS[order_id] = {
+        "user_id": str(user_id),
         "amount": amount,
         "order_name": order_name,
         "tour": tour,
@@ -1959,6 +2003,22 @@ async def api_toss_tour_confirm(request: Request):
     if not secret_key:
         pending["status"] = "confirmed_mock"
         pending["payment_key"] = payment_key
+        pending["confirmed_at"] = datetime.datetime.now().isoformat()
+        save_booking(
+            user_id=int(pending.get("user_id") or 0),
+            item_type="tour",
+            order_id=order_id,
+            order_name=str(pending.get("order_name") or "투어 예약"),
+            amount=amount,
+            currency="KRW",
+            status="confirmed_mock",
+            status_label="예약 확정(모의 결제)",
+            route=str(((pending.get("tour") or {}).get("meta") or "")).strip(),
+            payment_key=payment_key,
+            payload=pending,
+            created_at_iso=str(pending.get("created_at") or ""),
+            confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+        )
         return {
             "status": "confirmed_mock",
             "order_id": order_id,
@@ -1993,6 +2053,21 @@ async def api_toss_tour_confirm(request: Request):
     pending["payment_key"] = payment_key
     pending["confirmed_at"] = datetime.datetime.now().isoformat()
     pending["toss_response"] = data
+    save_booking(
+        user_id=int(pending.get("user_id") or 0),
+        item_type="tour",
+        order_id=order_id,
+        order_name=str(pending.get("order_name") or "투어 예약"),
+        amount=amount,
+        currency="KRW",
+        status="confirmed",
+        status_label="예약 확정",
+        route=str(((pending.get("tour") or {}).get("meta") or "")).strip(),
+        payment_key=payment_key,
+        payload=pending,
+        created_at_iso=str(pending.get("created_at") or ""),
+        confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+    )
     return {"status": "confirmed", "order_id": order_id, "amount": amount, "payment": data}
 
 
@@ -2101,6 +2176,15 @@ async def api_pack_checkout(request: Request):
         raise HTTPException(status_code=500, detail="토스 클라이언트 키가 설정되지 않았습니다.")
     base_url = str(request.base_url).rstrip("/")
 
+    PENDING_PACK_ORDERS[order_id] = {
+        "user_id": str(user_id),
+        "amount": amount,
+        "order_name": order_name,
+        "pack": pack,
+        "traveler": traveler,
+        "created_at": datetime.datetime.now().isoformat(),
+    }
+
     return {
         "order_id": order_id,
         "order_name": order_name,
@@ -2112,6 +2196,91 @@ async def api_pack_checkout(request: Request):
         "fail_url": f"{base_url}/payment/pack/fail",
         "message": "결제 준비가 완료되었습니다.",
     }
+
+
+@app.post("/api/payments/toss/pack/confirm")
+async def api_toss_pack_confirm(request: Request):
+    body = await request.json()
+    payment_key = str(body.get("paymentKey") or "").strip()
+    order_id = str(body.get("orderId") or "").strip()
+    amount = int(body.get("amount") or 0)
+
+    pending = PENDING_PACK_ORDERS.get(order_id)
+    if not pending:
+        raise HTTPException(status_code=404, detail="주문 정보를 찾을 수 없습니다.")
+    if int(pending.get("amount") or 0) != amount:
+        raise HTTPException(status_code=400, detail="결제 금액 검증에 실패했습니다.")
+
+    secret_key = (os.getenv("TOSS_PAYMENTS_SECRET_KEY") or os.getenv("TOSS_SECRET_KEY") or "").strip()
+    if not secret_key:
+        pending["status"] = "confirmed_mock"
+        pending["payment_key"] = payment_key
+        pending["confirmed_at"] = datetime.datetime.now().isoformat()
+        save_booking(
+            user_id=int(pending.get("user_id") or 0),
+            item_type="pack",
+            order_id=order_id,
+            order_name=str(pending.get("order_name") or "패키지 예약"),
+            amount=amount,
+            currency="KRW",
+            status="confirmed_mock",
+            status_label="예약 확정(모의 결제)",
+            route=str(((pending.get("pack") or {}).get("meta") or "")).strip(),
+            payment_key=payment_key,
+            payload=pending,
+            created_at_iso=str(pending.get("created_at") or ""),
+            confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+        )
+        return {
+            "status": "confirmed_mock",
+            "order_id": order_id,
+            "amount": amount,
+            "message": "토스 시크릿 키가 없어 모의 승인 처리되었습니다.",
+        }
+
+    auth = base64.b64encode(f"{secret_key}:".encode("utf-8")).decode("ascii")
+    try:
+        res = requests.post(
+            "https://api.tosspayments.com/v1/payments/confirm",
+            headers={
+                "Authorization": f"Basic {auth}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "paymentKey": payment_key,
+                "orderId": order_id,
+                "amount": amount,
+            },
+            timeout=15,
+        )
+        data = res.json() if res.content else {}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"토스 승인 요청 실패: {e}")
+
+    if not res.ok:
+        msg = (data or {}).get("message") if isinstance(data, dict) else None
+        raise HTTPException(status_code=400, detail=msg or f"토스 승인 실패 ({res.status_code})")
+
+    pending["status"] = "confirmed"
+    pending["payment_key"] = payment_key
+    pending["confirmed_at"] = datetime.datetime.now().isoformat()
+    pending["toss_response"] = data
+    save_booking(
+        user_id=int(pending.get("user_id") or 0),
+        item_type="pack",
+        order_id=order_id,
+        order_name=str(pending.get("order_name") or "패키지 예약"),
+        amount=amount,
+        currency="KRW",
+        status="confirmed",
+        status_label="예약 확정",
+        route=str(((pending.get("pack") or {}).get("meta") or "")).strip(),
+        payment_key=payment_key,
+        payload=pending,
+        created_at_iso=str(pending.get("created_at") or ""),
+        confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+    )
+    return {"status": "confirmed", "order_id": order_id, "amount": amount, "payment": data}
 # ========== PACK-DETAIL 전용 결제 성공/실패 페이지 ========== #
 
 @app.get("/payment/pack/success", response_class=HTMLResponse)
@@ -2125,7 +2294,7 @@ def payment_pack_success_page():
 <script>
 const qs=new URLSearchParams(location.search);
 const body={paymentKey:qs.get('paymentKey'),orderId:qs.get('orderId'),amount:Number(qs.get('amount')||0)};
-fetch('/api/payments/toss/tour/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+fetch('/api/payments/toss/pack/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
  .then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))}))
  .then(x=>{document.getElementById('msg').textContent=x.ok?'결제가 승인되었습니다.':'결제 승인 실패: '+(x.data?.detail||x.data?.message||'알 수 없는 오류');})
  .catch(()=>{document.getElementById('msg').textContent='결제 승인 확인 중 오류가 발생했습니다.'});

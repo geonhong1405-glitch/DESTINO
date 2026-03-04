@@ -168,7 +168,7 @@ def _parse_pickup_dropoff_dates(message: str, prev_state: dict[str, Any]) -> tup
         elif dropoff is None and pickup != dates[0]:
             dropoff = dates[0]
 
-    # 3) Relative day range fallback (e.g. "?????? ????").
+    # 3) Relative day range fallback (e.g. "내일에서 모레").
     compact = re.sub(r"\s+", "", msg)
     has_range_connector = any(k in compact for k in ["\uBD80\uD130", "\uAE4C\uC9C0", "\uC5D0\uC11C", "~", "-"]) or ("from" in compact.lower() and "to" in compact.lower())
     token_offsets = {

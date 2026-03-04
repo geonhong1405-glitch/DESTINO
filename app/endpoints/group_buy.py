@@ -103,6 +103,63 @@ def _parse_join_message(raw: str | None) -> tuple[str, str]:
     return "", str(raw or "").strip()
 
 
+def _parse_join_message_payload(raw: str | None) -> dict:
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+    return {"detail": str(raw or "").strip()}
+
+
+def _ensure_linked_items_in_requester_cart(db, requester_user_id: int, linked_items: list[dict]) -> tuple[int, int]:
+    created_count = 0
+    existed_count = 0
+    uid = int(requester_user_id)
+
+    for item in _normalize_linked_items(linked_items):
+        item_type = str(item.get("item_type") or "").strip().lower()[:40] or "item"
+        name = str(item.get("name") or "").strip()[:255]
+        meta = str(item.get("meta") or "").strip()[:512]
+        source = str(item.get("source") or "").strip()[:50] or "group-buy"
+        payload = item.get("payload")
+        if not name:
+            continue
+
+        existing = (
+            db.query(UserSavedItem)
+            .filter(
+                UserSavedItem.user_id == uid,
+                UserSavedItem.list_type == "cart",
+                UserSavedItem.item_type == item_type,
+                UserSavedItem.name == name,
+                UserSavedItem.meta == meta,
+                UserSavedItem.source == source,
+            )
+            .first()
+        )
+        if existing:
+            existed_count += 1
+            continue
+
+        row = UserSavedItem(
+            user_id=uid,
+            list_type="cart",
+            item_type=item_type,
+            name=name,
+            meta=meta,
+            source=source,
+            payload_json=json.dumps(payload, ensure_ascii=False) if payload is not None else None,
+        )
+        db.add(row)
+        created_count += 1
+
+    return created_count, existed_count
+
+
 @router.get("/posts")
 def list_posts(request: Request):
     session_token = request.cookies.get("session_token")
@@ -325,7 +382,12 @@ def inbox_join_requests(request: Request):
             p = posts.get(int(r.post_id))
             owner = users.get(int(r.post_owner_user_id))
             status = r.status or "pending"
-            notice = "수락되었습니다. 게시글 작성자가 보낸 메일을 확인해주세요." if status == "accepted" else "거절되었습니다."
+            msg_payload = _parse_join_message_payload(r.message or "")
+            notice = ""
+            if status == "accepted":
+                notice = str(msg_payload.get("decision_notice") or "").strip() or "수락되었습니다. 장바구니를 확인해주세요."
+            elif status == "rejected":
+                notice = str(msg_payload.get("decision_notice") or "").strip() or "거절되었습니다."
             result.append(
                 {
                     "id": r.id,
@@ -355,6 +417,8 @@ async def decide_join_request(request_id: int, request: Request):
 
     db = SessionLocal()
     try:
+        added_count = 0
+        existed_count = 0
         row = (
             db.query(GroupBuyJoinRequest)
             .filter(
@@ -369,13 +433,18 @@ async def decide_join_request(request_id: int, request: Request):
             return {"ok": True, "updated": False}
 
         row.status = "accepted" if action == "accept" else "rejected"
+        join_payload = _parse_join_message_payload(row.message or "")
 
         if action == "accept":
             post = db.query(GroupBuyPost).filter(GroupBuyPost.id == int(row.post_id)).first()
+            owner_user = db.query(User).filter(User.id == int(row.post_owner_user_id or 0)).first()
+            owner_email = str(owner_user.email or "").strip() if owner_user else ""
             if post:
                 if int(post.current_people or 1) >= int(post.max_people or 4):
                     post.status = "closed"
                     row.status = "rejected"
+                    join_payload["decision_notice"] = "정원이 마감되어 자동 거절되었습니다."
+                    row.message = json.dumps(join_payload, ensure_ascii=False)[:500]
                     db.commit()
                     return {"ok": True, "updated": False, "reason": "FULL"}
                 next_people = int(post.current_people or 0) + 1
@@ -383,8 +452,35 @@ async def decide_join_request(request_id: int, request: Request):
                 if int(post.current_people) >= int(post.max_people or 4):
                     post.status = "closed"
 
+                _, linked_items = _split_desc_and_linked_items(post.description or "")
+                added_count, existed_count = _ensure_linked_items_in_requester_cart(
+                    db=db,
+                    requester_user_id=int(row.requester_user_id),
+                    linked_items=linked_items,
+                )
+                if added_count > 0:
+                    email_msg = f" 작성자 이메일: {owner_email}." if owner_email else ""
+                    join_payload["decision_notice"] = f"수락되었습니다.{email_msg} 연결 상품 {added_count}개가 장바구니에 담겼습니다."
+                elif existed_count > 0:
+                    email_msg = f" 작성자 이메일: {owner_email}." if owner_email else ""
+                    join_payload["decision_notice"] = f"수락되었습니다.{email_msg} 연결 상품은 이미 장바구니에 있어 중복 추가되지 않았습니다. (기존 {existed_count}개)"
+                else:
+                    email_msg = f" 작성자 이메일: {owner_email}." if owner_email else ""
+                    join_payload["decision_notice"] = f"수락되었습니다.{email_msg} 연결된 상품이 없어 장바구니 추가는 없습니다."
+            else:
+                join_payload["decision_notice"] = "수락되었습니다."
+        else:
+            join_payload["decision_notice"] = "거절되었습니다."
+
+        row.message = json.dumps(join_payload, ensure_ascii=False)[:500]
+
         db.commit()
-        return {"ok": True, "updated": True}
+        return {
+            "ok": True,
+            "updated": True,
+            "cart_added_count": int(added_count),
+            "cart_existing_count": int(existed_count),
+        }
     finally:
         db.close()
 
@@ -402,9 +498,8 @@ def delete_join_request_alert(request_id: int, request: Request):
         if not row:
             raise HTTPException(status_code=404, detail="요청을 찾을 수 없습니다.")
 
-        is_owner = int(row.post_owner_user_id or 0) == int(user_id)
         is_requester = int(row.requester_user_id or 0) == int(user_id)
-        if not (is_owner or is_requester):
+        if not is_requester:
             raise HTTPException(status_code=403, detail="권한이 없습니다.")
 
         # 진행 중 요청은 실수 방지를 위해 알림 삭제 불가

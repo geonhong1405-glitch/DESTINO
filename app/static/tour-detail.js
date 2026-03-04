@@ -841,22 +841,6 @@ function openPaymentStep(snapshot, traveler) {
                 </div>
             </div>
         `;
-        // 예약자 정보창 스크롤바 스타일 추가
-        style.textContent += `
-            .tour-checkout-info-scroll::-webkit-scrollbar {
-                width: 8px;
-                background: #f1f5f9;
-                border-radius: 6px;
-            }
-            .tour-checkout-info-scroll::-webkit-scrollbar-thumb {
-                background: #cbd5e1;
-                border-radius: 6px;
-            }
-            .tour-checkout-info-scroll {
-                scrollbar-width: thin;
-                scrollbar-color: #cbd5e1 #f1f5f9;
-            }
-        `;
 
         panel.querySelector("[data-tour-checkout-close]")?.addEventListener("click", closeCheckoutModal);
         panel.querySelector("#tourPayNowBtn")?.addEventListener("click", async function () {
