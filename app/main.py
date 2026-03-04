@@ -57,7 +57,7 @@ def _validate_signup(password: str, email: str, phone: str) -> str | None:
 
 def _validate_password_only(password: str) -> str | None:
     if not _PASSWORD_REGEX.match(password or ""):
-        return "鍮꾨?踰덊샇???곷Ц/?レ옄/?뱀닔臾몄옄 ?ы븿 8???댁긽?댁뼱???⑸땲??"
+        return "비밀번호는 영문/숫자/특수문자 포함 8자 이상이어야 합니다."
     return None
 
 
@@ -726,7 +726,7 @@ app = FastAPI()
 
 @app.on_event("startup")
 def _clear_sessions_on_startup():
-    # ?붽뎄?ы빆: ?쒕쾭 ?ъ떆????湲곗〈 濡쒓렇???몄뀡 臾댄슚??
+    # 서버 시작 시 기존 로그인 세션 무효화
     clear_all_sessions()
 
 
@@ -818,11 +818,11 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
     offers: list[dict] = []
     seen = set()
     room_name_pat = re.compile(
-        r"(room|suite|studio|double|twin|single|deluxe|family|queen|king|standard|superior|湲덉뿰???≪뿰???붾툝猷??몄쐢猷??깃?猷??⑤?由щ８|?ㅼ쐞???붾윮??",
+        r"(room|suite|studio|double|twin|single|deluxe|family|queen|king|standard|superior|금연|흡연|블루룸|트윈룸|싱글룸|패밀리룸|스위트|디럭스)",
         re.IGNORECASE,
     )
     amenity_like_pat = re.compile(
-        r"(?섎━踰좎씠?????紐⑤떇肄?怨듦린泥?젙湲?肄섏꽱??媛쒕퀎?곸쑝濡??묐룞?섎뒗 ?먯뼱而??됰㈃\s*tv|?ㅼ뼱?쒕씪?댁뼱|?댄뫖|鍮꾨뜲|?щ━???꾧린\s*二쇱쟾??$",
+        r"(private|모닝콜|공기청정기|콘센트|에어컨|평면\s*tv|헤어드라이어|소파|비데|무료\s*주차)",
         re.IGNORECASE,
     )
 
@@ -896,7 +896,7 @@ def _extract_room_offers_from_booking_detail(raw, fallback_hotel: dict | None = 
                         return not v
                     return v
         joined = " ".join(_collect_texts(node)).lower()
-        if any(x in joined for x in ["sold out", "留ㅼ쭊", "留덇컧", "?먮ℓ ?꾨즺", "?덉빟 遺덇?"]):
+        if any(x in joined for x in ["sold out", "매진", "마감", "판매 완료", "예약 불가"]):
             return True
         return None
 
@@ -1453,8 +1453,8 @@ def parse_booking_hotels(booking_result: dict) -> list[dict]:
             return None
         if dist:
             if "m" in dist or "km" in dist:
-                return f"{label} ??{dist}"
-            return f"{label} ??{dist}m"
+                return f"{label} · {dist}"
+            return f"{label} · {dist}m"
         return label
 
     for h in rows:
@@ -1710,16 +1710,16 @@ def api_update_profile(request: Request, payload: dict, db: Session = Depends(ge
     session_token = request.cookies.get("session_token")
     user_id = get_user_id_from_session(session_token) if session_token else None
     if not user_id:
-        return {"ok": False, "error_code": "NOT_LOGGED_IN", "error": "濡쒓렇?몄씠 ?꾩슂?⑸땲??"}
+        return {"ok": False, "error_code": "NOT_LOGGED_IN", "error": "로그인이 필요합니다."}
 
     user = db.query(User).filter(User.id == int(user_id)).first()
     if not user:
-        return {"ok": False, "error_code": "USER_NOT_FOUND", "error": "?ъ슜?먮? 李얠쓣 ???놁뒿?덈떎."}
+        return {"ok": False, "error_code": "USER_NOT_FOUND", "error": "사용자를 찾을 수 없습니다."}
 
     password = (payload or {}).get("password") or ""
     ok, _ = _verify_password(password, user.password)
     if not ok:
-        return {"ok": False, "error_code": "PASSWORD_INVALID", "error": "鍮꾨?踰덊샇媛 ?щ컮瑜댁? ?딆뒿?덈떎."}
+        return {"ok": False, "error_code": "PASSWORD_INVALID", "error": "비밀번호가 올바르지 않습니다."}
 
     nickname = (payload or {}).get("nickname") or user.nickname
     email = (payload or {}).get("email") or user.email
@@ -1728,11 +1728,11 @@ def api_update_profile(request: Request, payload: dict, db: Session = Depends(ge
     if email and email != user.email:
         exists = db.query(User).filter(User.email == email).first()
         if exists:
-            return {"ok": False, "error_code": "EMAIL_EXISTS", "error": "?대? ?ъ슜 以묒씤 ?대찓?쇱엯?덈떎."}
+            return {"ok": False, "error_code": "EMAIL_EXISTS", "error": "이미 사용 중인 이메일입니다."}
     if phone and phone != user.phone:
         exists = db.query(User).filter(User.phone == phone).first()
         if exists:
-            return {"ok": False, "error_code": "PHONE_EXISTS", "error": "?대? ?ъ슜 以묒씤 ?꾪솕踰덊샇?낅땲??"}
+            return {"ok": False, "error_code": "PHONE_EXISTS", "error": "이미 사용 중인 휴대폰 번호입니다."}
 
     user.nickname = nickname
     user.email = email
@@ -1781,7 +1781,7 @@ async def api_hotel_checkout(request: Request):
 
     body = await request.json()
     if not isinstance(body, dict):
-        raise HTTPException(status_code=400, detail="?섎せ???붿껌?낅땲??")
+        raise HTTPException(status_code=400, detail="잘못된 요청입니다.")
 
     hotel = body.get("hotel") if isinstance(body.get("hotel"), dict) else {}
     guest = body.get("guest") if isinstance(body.get("guest"), dict) else {}
@@ -1791,15 +1791,15 @@ async def api_hotel_checkout(request: Request):
     except Exception:
         amount = 0
     if amount <= 0:
-        raise HTTPException(status_code=400, detail="寃곗젣 媛?ν븳 湲덉븸???뺤씤?????놁뒿?덈떎.")
+        raise HTTPException(status_code=400, detail="결제 가능한 금액을 확인할 수 없습니다.")
 
     order_id = f"HTL-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{os.urandom(4).hex()}"
-    hotel_name = str(hotel.get("name") or "?명뀛 ?덉빟").strip() or "?명뀛 ?덉빟"
+    hotel_name = str(hotel.get("name") or "호텔 예약").strip() or "호텔 예약"
     city = str(hotel.get("city") or "").strip()
     order_name = f"{hotel_name} {city}".strip()
     toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
     if not toss_client_key:
-        raise HTTPException(status_code=500, detail="?좎뒪 ?대씪?댁뼵???ㅺ? ?ㅼ젙?섏? ?딆븯?듬땲??")
+        raise HTTPException(status_code=500, detail="토스 클라이언트 키가 설정되지 않았습니다.")
     base_url = str(request.base_url).rstrip("/")
 
     PENDING_HOTEL_ORDERS[order_id] = {
@@ -1819,7 +1819,7 @@ async def api_hotel_checkout(request: Request):
         "toss_client_key": toss_client_key,
         "success_url": f"{base_url}/payment/hotel/success",
         "fail_url": f"{base_url}/payment/hotel/fail",
-        "message": "寃곗젣 以鍮꾧? ?꾨즺?섏뿀?듬땲??",
+        "message": "결제 준비가 완료되었습니다.",
     }
 
 
@@ -1832,9 +1832,9 @@ async def api_toss_hotel_confirm(request: Request):
 
     pending = PENDING_HOTEL_ORDERS.get(order_id)
     if not pending:
-        raise HTTPException(status_code=404, detail="二쇰Ц ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎.")
+        raise HTTPException(status_code=404, detail="주문 정보를 찾을 수 없습니다.")
     if int(pending.get("amount") or 0) != amount:
-        raise HTTPException(status_code=400, detail="寃곗젣 湲덉븸 寃利앹뿉 ?ㅽ뙣?덉뒿?덈떎.")
+        raise HTTPException(status_code=400, detail="결제 금액 검증에 실패했습니다.")
 
     secret_key = (os.getenv("TOSS_PAYMENTS_SECRET_KEY") or os.getenv("TOSS_SECRET_KEY") or "").strip()
     if not secret_key:
@@ -1844,7 +1844,7 @@ async def api_toss_hotel_confirm(request: Request):
             "status": "confirmed_mock",
             "order_id": order_id,
             "amount": amount,
-            "message": "?좎뒪 ?쒗겕由??ㅺ? ?놁뼱 紐⑥쓽 ?뱀씤 泥섎━?섏뿀?듬땲??",
+            "message": "토스 시크릿 키가 없어 모의 승인 처리되었습니다.",
         }
 
     auth = base64.b64encode(f"{secret_key}:".encode("utf-8")).decode("ascii")
@@ -1864,11 +1864,11 @@ async def api_toss_hotel_confirm(request: Request):
         )
         data = res.json() if res.content else {}
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"?좎뒪 ?뱀씤 ?붿껌 ?ㅽ뙣: {e}")
+        raise HTTPException(status_code=502, detail=f"토스 승인 요청 실패: {e}")
 
     if not res.ok:
         msg = (data or {}).get("message") if isinstance(data, dict) else None
-        raise HTTPException(status_code=400, detail=msg or f"?좎뒪 ?뱀씤 ?ㅽ뙣 ({res.status_code})")
+        raise HTTPException(status_code=400, detail=msg or f"토스 승인 실패 ({res.status_code})")
 
     pending["status"] = "confirmed"
     pending["payment_key"] = payment_key
@@ -1886,7 +1886,7 @@ async def api_tour_checkout(request: Request):
 
     body = await request.json()
     if not isinstance(body, dict):
-        raise HTTPException(status_code=400, detail="?섎せ???붿껌?낅땲??")
+        raise HTTPException(status_code=400, detail="잘못된 요청입니다.")
 
     tour = body.get("tour") if isinstance(body.get("tour"), dict) else {}
     traveler = body.get("traveler") if isinstance(body.get("traveler"), dict) else {}
@@ -1896,15 +1896,15 @@ async def api_tour_checkout(request: Request):
     except Exception:
         amount = 0
     if amount <= 0:
-        raise HTTPException(status_code=400, detail="寃곗젣 媛?ν븳 湲덉븸???뺤씤?????놁뒿?덈떎.")
+        raise HTTPException(status_code=400, detail="결제 가능한 금액을 확인할 수 없습니다.")
 
     order_id = f"TOUR-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{os.urandom(4).hex()}"
-    tour_name = str(tour.get("name") or "?ъ뼱 ?덉빟").strip() or "?ъ뼱 ?덉빟"
+    tour_name = str(tour.get("name") or "투어 예약").strip() or "투어 예약"
     meta = str(tour.get("meta") or "").strip()
     order_name = f"{tour_name} {meta}".strip()
     toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
     if not toss_client_key:
-        raise HTTPException(status_code=500, detail="?좎뒪 ?대씪?댁뼵???ㅺ? ?ㅼ젙?섏? ?딆븯?듬땲??")
+        raise HTTPException(status_code=500, detail="토스 클라이언트 키가 설정되지 않았습니다.")
     base_url = str(request.base_url).rstrip("/")
 
     PENDING_TOUR_ORDERS[order_id] = {
@@ -1924,7 +1924,7 @@ async def api_tour_checkout(request: Request):
         "toss_client_key": toss_client_key,
         "success_url": f"{base_url}/payment/tour/success",
         "fail_url": f"{base_url}/payment/tour/fail",
-        "message": "寃곗젣 以鍮꾧? ?꾨즺?섏뿀?듬땲??",
+        "message": "결제 준비가 완료되었습니다.",
     }
 
 
@@ -1937,9 +1937,9 @@ async def api_toss_tour_confirm(request: Request):
 
     pending = PENDING_TOUR_ORDERS.get(order_id)
     if not pending:
-        raise HTTPException(status_code=404, detail="二쇰Ц ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎.")
+        raise HTTPException(status_code=404, detail="주문 정보를 찾을 수 없습니다.")
     if int(pending.get("amount") or 0) != amount:
-        raise HTTPException(status_code=400, detail="寃곗젣 湲덉븸 寃利앹뿉 ?ㅽ뙣?덉뒿?덈떎.")
+        raise HTTPException(status_code=400, detail="결제 금액 검증에 실패했습니다.")
 
     secret_key = (os.getenv("TOSS_PAYMENTS_SECRET_KEY") or os.getenv("TOSS_SECRET_KEY") or "").strip()
     if not secret_key:
@@ -1949,7 +1949,7 @@ async def api_toss_tour_confirm(request: Request):
             "status": "confirmed_mock",
             "order_id": order_id,
             "amount": amount,
-            "message": "?좎뒪 ?쒗겕由??ㅺ? ?놁뼱 紐⑥쓽 ?뱀씤 泥섎━?섏뿀?듬땲??",
+            "message": "토스 시크릿 키가 없어 모의 승인 처리되었습니다.",
         }
 
     auth = base64.b64encode(f"{secret_key}:".encode("utf-8")).decode("ascii")
@@ -1969,11 +1969,11 @@ async def api_toss_tour_confirm(request: Request):
         )
         data = res.json() if res.content else {}
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"?좎뒪 ?뱀씤 ?붿껌 ?ㅽ뙣: {e}")
+        raise HTTPException(status_code=502, detail=f"토스 승인 요청 실패: {e}")
 
     if not res.ok:
         msg = (data or {}).get("message") if isinstance(data, dict) else None
-        raise HTTPException(status_code=400, detail=msg or f"?좎뒪 ?뱀씤 ?ㅽ뙣 ({res.status_code})")
+        raise HTTPException(status_code=400, detail=msg or f"토스 승인 실패 ({res.status_code})")
 
     pending["status"] = "confirmed"
     pending["payment_key"] = payment_key
@@ -1987,16 +1987,16 @@ def payment_hotel_success_page():
     return """
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>?명뀛 寃곗젣 ?뺤씤 以?/title>
+<title>호텔 결제 확인 중</title>
 <style>body{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a} .box{max-width:560px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px} .muted{color:#64748b;font-size:14px}</style>
-</head><body><div class="box"><h2>寃곗젣 ?뺤씤 以묒엯?덈떎...</h2><p id="msg" class="muted">?좎떆留?湲곕떎??二쇱꽭??</p><a href="/gloval-hotel">?명뀛 ?섏씠吏濡??뚯븘媛湲?/a></div>
+</head><body><div class="box"><h2>결제 확인 중입니다...</h2><p id="msg" class="muted">잠시만 기다려 주세요.</p><a href="/gloval-hotel">호텔 페이지로 돌아가기</a></div>
 <script>
 const qs=new URLSearchParams(location.search);
 const body={paymentKey:qs.get('paymentKey'),orderId:qs.get('orderId'),amount:Number(qs.get('amount')||0)};
 fetch('/api/payments/toss/hotel/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
  .then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))}))
- .then(x=>{document.getElementById('msg').textContent=x.ok?'寃곗젣媛 ?뱀씤?섏뿀?듬땲??':'寃곗젣 ?뱀씤 ?ㅽ뙣: '+(x.data?.detail||x.data?.message||'?????녿뒗 ?ㅻ쪟');})
- .catch(()=>{document.getElementById('msg').textContent='寃곗젣 ?뱀씤 ?뺤씤 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.'});
+ .then(x=>{document.getElementById('msg').textContent=x.ok?'결제가 승인되었습니다.':'결제 승인 실패: '+(x.data?.detail||x.data?.message||'알 수 없는 오류');})
+ .catch(()=>{document.getElementById('msg').textContent='결제 승인 확인 중 오류가 발생했습니다.'});
 </script></body></html>
 """
 
@@ -2008,9 +2008,9 @@ def payment_hotel_fail_page(code: str | None = Query(None), message: str | None 
     return f"""
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>?명뀛 寃곗젣 ?ㅽ뙣</title>
+<title>호텔 결제 실패</title>
 <style>body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a}} .box{{max-width:560px;margin:24px auto;background:#fff;border:1px solid #fecaca;border-radius:12px;padding:18px}} .muted{{color:#64748b;font-size:14px}}</style>
-</head><body><div class="box"><h2>寃곗젣媛 ?꾨즺?섏? ?딆븯?듬땲??</h2><p class="muted">肄붾뱶: {c or '-'}</p><p class="muted">硫붿떆吏: {m or '-'}</p><a href="/gloval-hotel">?명뀛 ?섏씠吏濡??뚯븘媛湲?/a></div></body></html>
+</head><body><div class="box"><h2>결제가 완료되지 않았습니다.</h2><p class="muted">코드: {c or '-'}</p><p class="muted">메시지: {m or '-'}</p><a href="/gloval-hotel">호텔 페이지로 돌아가기</a></div></body></html>
 """
 
 
@@ -2019,16 +2019,16 @@ def payment_tour_success_page():
     return """
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>?ъ뼱 寃곗젣 ?뺤씤 以?/title>
+<title>투어 결제 확인 중</title>
 <style>body{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a} .box{max-width:560px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px} .muted{color:#64748b;font-size:14px}</style>
-</head><body><div class="box"><h2>寃곗젣 ?뺤씤 以묒엯?덈떎...</h2><p id="msg" class="muted">?좎떆留?湲곕떎??二쇱꽭??</p><a href="/tour">?ъ뼱 ?섏씠吏濡??뚯븘媛湲?/a></div>
+</head><body><div class="box"><h2>결제 확인 중입니다...</h2><p id="msg" class="muted">잠시만 기다려 주세요.</p><a href="/tour">투어 페이지로 돌아가기</a></div>
 <script>
 const qs=new URLSearchParams(location.search);
 const body={paymentKey:qs.get('paymentKey'),orderId:qs.get('orderId'),amount:Number(qs.get('amount')||0)};
 fetch('/api/payments/toss/tour/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
  .then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))}))
- .then(x=>{document.getElementById('msg').textContent=x.ok?'寃곗젣媛 ?뱀씤?섏뿀?듬땲??':'寃곗젣 ?뱀씤 ?ㅽ뙣: '+(x.data?.detail||x.data?.message||'?????녿뒗 ?ㅻ쪟');})
- .catch(()=>{document.getElementById('msg').textContent='寃곗젣 ?뱀씤 ?뺤씤 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.'});
+ .then(x=>{document.getElementById('msg').textContent=x.ok?'결제가 승인되었습니다.':'결제 승인 실패: '+(x.data?.detail||x.data?.message||'알 수 없는 오류');})
+ .catch(()=>{document.getElementById('msg').textContent='결제 승인 확인 중 오류가 발생했습니다.'});
 </script></body></html>
 """
 
@@ -2040,9 +2040,9 @@ def payment_tour_fail_page(code: str | None = Query(None), message: str | None =
     return f"""
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>?ъ뼱 寃곗젣 ?ㅽ뙣</title>
+<title>투어 결제 실패</title>
 <style>body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a}} .box{{max-width:560px;margin:24px auto;background:#fff;border:1px solid #fecaca;border-radius:12px;padding:18px}} .muted{{color:#64748b;font-size:14px}}</style>
-</head><body><div class="box"><h2>寃곗젣媛 ?꾨즺?섏? ?딆븯?듬땲??</h2><p class="muted">肄붾뱶: {c or '-'}</p><p class="muted">硫붿떆吏: {m or '-'}</p><a href="/tour">?ъ뼱 ?섏씠吏濡??뚯븘媛湲?/a></div></body></html>
+</head><body><div class="box"><h2>결제가 완료되지 않았습니다.</h2><p class="muted">코드: {c or '-'}</p><p class="muted">메시지: {m or '-'}</p><a href="/tour">투어 페이지로 돌아가기</a></div></body></html>
 """
 @app.get("/logout")
 def logout(request: Request):
@@ -2056,7 +2056,7 @@ def logout(request: Request):
 
 @app.get("/check-username")
 def check_username(username: str = Query(...), db: Session = Depends(get_db)):
-    # ?꾩씠??以묐났 ?덉슜 ?뺤콉: 以묐났 泥댄겕 寃곌낵瑜??몄텧?섏? ?딆쓬
+    # 아이디 중복 확인은 항상 사용 가능하도록 중복 여부를 노출하지 않음
     return {"exists": False}
 
 
@@ -2137,11 +2137,11 @@ def find_id_post(
     if not user:
         return templates.TemplateResponse(
             "find_id.html",
-            {"request": request, "error": "?낅젰???뺣낫? ?쇱튂?섎뒗 怨꾩젙??李얠쓣 ???놁뒿?덈떎."},
+            {"request": request, "error": "입력한 정보와 일치하는 계정을 찾을 수 없습니다."},
         )
     return templates.TemplateResponse(
         "find_id.html",
-        {"request": request, "result": f"?꾩씠?? {user.name}"},
+        {"request": request, "result": f"아이디: {user.name}"},
     )
 
 
@@ -2163,7 +2163,7 @@ def find_password_post(
     if new_password != new_password_confirm:
         return templates.TemplateResponse(
             "find_password.html",
-            {"request": request, "error": "鍮꾨?踰덊샇媛 ?쇱튂?섏? ?딆뒿?덈떎."},
+            {"request": request, "error": "비밀번호가 일치하지 않습니다."},
         )
     validation_error = _validate_password_only(new_password)
     if validation_error:
@@ -2175,13 +2175,13 @@ def find_password_post(
     if not user:
         return templates.TemplateResponse(
             "find_password.html",
-            {"request": request, "error": "?낅젰???뺣낫? ?쇱튂?섎뒗 怨꾩젙??李얠쓣 ???놁뒿?덈떎."},
+            {"request": request, "error": "입력한 정보와 일치하는 계정을 찾을 수 없습니다."},
         )
     user.password = _hash_password(new_password)
     db.commit()
     return templates.TemplateResponse(
         "find_password.html",
-        {"request": request, "result": "鍮꾨?踰덊샇媛 蹂寃쎈릺?덉뒿?덈떎. 濡쒓렇?명빐 二쇱꽭??"},
+        {"request": request, "result": "비밀번호가 변경되었습니다. 로그인해 주세요."},
     )
 
 
@@ -2229,13 +2229,13 @@ def tour_page(request: Request):
     nickname = get_nickname_from_request(request)
     return templates.TemplateResponse("tour.html", {"request": request, "nickname": nickname})
 
-# ?좉퇋 ?ъ뼱 ?곸꽭 ?섏씠吏 ?쇱슦??異붽?
+# 신규 투어 상세 페이지 라우트
 @app.get("/tour-detail", response_class=HTMLResponse)
 def tour_detail(request: Request, tour_id: str = Query(None)):
     nickname = get_nickname_from_request(request)
     session_token = request.cookies.get("session_token")
     user_is_authenticated = bool(get_user_id_from_session(session_token)) if session_token else False
-    # TODO: tour_id濡?DB?먯꽌 ?ъ뼱 ?뺣낫 議고쉶 ???꾨떖
+    # TODO: tour_id로 DB에서 투어 정보 조회 후 전달
     return templates.TemplateResponse(
         "tour-detail.html",
         {
@@ -2367,7 +2367,7 @@ def signin_post(
         .all()
     )
     if not users:
-        return templates.TemplateResponse("signin.html", {"request": request, "error": "?꾩씠???먮뒗 鍮꾨?踰덊샇媛 ?щ컮瑜댁? ?딆뒿?덈떎. ?ㅼ떆 ?낅젰?댁＜?몄슂."})
+        return templates.TemplateResponse("signin.html", {"request": request, "error": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해 주세요."})
 
     matched_user = None
     needs_upgrade = False
@@ -2379,7 +2379,7 @@ def signin_post(
             break
 
     if not matched_user:
-        return templates.TemplateResponse("signin.html", {"request": request, "error": "?꾩씠???먮뒗 鍮꾨?踰덊샇媛 ?щ컮瑜댁? ?딆뒿?덈떎. ?ㅼ떆 ?낅젰?댁＜?몄슂."})
+        return templates.TemplateResponse("signin.html", {"request": request, "error": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해 주세요."})
 
     if needs_upgrade:
         matched_user.password = _hash_password(password)
@@ -2585,7 +2585,7 @@ def gloval_hotel_detail(
             snapshot_hotel = None
 
     if not (hotel_id and city and checkin and checkout):
-        error_message = "?곸꽭 ?뺣낫瑜??쒖떆?섎젮硫??명뀛/?꾩떆/?좎쭨 ?뺣낫媛 ?꾩슂?⑸땲??"
+        error_message = "상세 정보를 표시하려면 호텔/도시/날짜 정보가 필요합니다."
     elif snapshot_hotel and str(snapshot_hotel.get("hotel_id") or "") == str(hotel_id):
         # Fast path: list page already passed a hotel snapshot.
         selected_hotel = snapshot_hotel
@@ -2605,7 +2605,7 @@ def gloval_hotel_detail(
                 if selected_hotel:
                     break
         except Exception as e:
-            error_message = f"?명뀛 ?곸꽭 議고쉶 ?ㅽ뙣: {e}"
+            error_message = f"호텔 상세 조회 실패: {e}"
 
     if not selected_hotel and not error_message:
         if snapshot_hotel and (
@@ -2614,7 +2614,7 @@ def gloval_hotel_detail(
             selected_hotel = snapshot_hotel
             snapshot_matched = True
         else:
-            error_message = "?좏깮???명뀛 ?뺣낫瑜?李얠? 紐삵뻽?듬땲?? 寃??寃곌낵瑜??덈줈怨좎묠?????ㅼ떆 ?쒕룄??二쇱꽭??"
+            error_message = "선택한 호텔 정보를 찾지 못했습니다. 검색 결과를 새로고침한 뒤 다시 시도해 주세요."
 
     # Snapshot detail should render immediately; skip heavy external enrich calls.
     if selected_hotel and snapshot_matched and (
@@ -2885,13 +2885,13 @@ def create_user(
     db: Session = Depends(get_db),
 ):
     if db.query(User).filter(User.email == email).first():
-        return templates.TemplateResponse("join.html", {"request": request, "error": "?대? ?ъ슜 以묒씤 ?대찓?쇱엯?덈떎."})
+        return templates.TemplateResponse("join.html", {"request": request, "error": "이미 사용 중인 이메일입니다."})
     if db.query(User).filter(User.phone == phone).first():
-        return templates.TemplateResponse("join.html", {"request": request, "error": "?대? ?ъ슜 以묒씤 ?꾪솕踰덊샇?낅땲??"})
+        return templates.TemplateResponse("join.html", {"request": request, "error": "이미 사용 중인 휴대폰 번호입니다."})
     if db.query(User).filter(User.nickname == nickname).first():
-        return templates.TemplateResponse("join.html", {"request": request, "error": "?대? ?ъ슜 以묒씤 ?됰꽕?꾩엯?덈떎."})
+        return templates.TemplateResponse("join.html", {"request": request, "error": "이미 사용 중인 닉네임입니다."})
     if password != password_confirm:
-        return templates.TemplateResponse("join.html", {"request": request, "error": "鍮꾨?踰덊샇媛 ?쇱튂?섏? ?딆뒿?덈떎."})
+        return templates.TemplateResponse("join.html", {"request": request, "error": "비밀번호가 일치하지 않습니다."})
     validation_error = _validate_signup(password, email, phone)
     if validation_error:
         return templates.TemplateResponse("join.html", {"request": request, "error": validation_error})

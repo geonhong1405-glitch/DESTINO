@@ -71,7 +71,7 @@ def _get_with_retry(
     raise RuntimeError("Booking API request failed without response.")
 
 def search_hotels(city, checkin_date, checkout_date, adults=2, currency_code="KRW", page_number=1, languagecode="ko"):
-    # 1. ?꾩떆紐낆쑝濡?dest_id 議고쉶
+    # 1. 도시명으로 dest_id 조회
     dest_url = f"https://{BOOKING_RAPIDAPI_HOST}/api/v1/hotels/searchDestination"
     headers = {
         'x-rapidapi-key': BOOKING_RAPIDAPI_KEY,

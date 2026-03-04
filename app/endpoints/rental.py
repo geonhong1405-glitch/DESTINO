@@ -36,18 +36,18 @@ _APP_DIR = os.path.dirname(os.path.dirname(__file__))
 templates = Jinja2Templates(directory=os.path.join(_APP_DIR, "templates"))
 
 _RENTAL_COUNTRY_OPTIONS = [
-    {"code": "JP", "name": "??", "currency": "JPY"},
-    {"code": "KR", "name": "????", "currency": "KRW"},
-    {"code": "US", "name": "??", "currency": "USD"},
-    {"code": "CN", "name": "??", "currency": "CNY"},
-    {"code": "HK", "name": "??", "currency": "HKD"},
-    {"code": "MO", "name": "??", "currency": "MOP"},
-    {"code": "FR", "name": "???", "currency": "EUR"},
-    {"code": "AE", "name": "??????", "currency": "AED"},
-    {"code": "TH", "name": "??", "currency": "THB"},
-    {"code": "VN", "name": "???", "currency": "VND"},
-    {"code": "SG", "name": "????", "currency": "SGD"},
-    {"code": "TW", "name": "??", "currency": "TWD"},
+    {"code": "JP", "name": "일본", "currency": "JPY"},
+    {"code": "KR", "name": "대한민국", "currency": "KRW"},
+    {"code": "US", "name": "미국", "currency": "USD"},
+    {"code": "CN", "name": "중국", "currency": "CNY"},
+    {"code": "HK", "name": "홍콩", "currency": "HKD"},
+    {"code": "MO", "name": "마카오", "currency": "MOP"},
+    {"code": "FR", "name": "프랑스", "currency": "EUR"},
+    {"code": "AE", "name": "아랍에미리트", "currency": "AED"},
+    {"code": "TH", "name": "태국", "currency": "THB"},
+    {"code": "VN", "name": "베트남", "currency": "VND"},
+    {"code": "SG", "name": "싱가포르", "currency": "SGD"},
+    {"code": "TW", "name": "대만", "currency": "TWD"},
 ]
 
 # Fallback FX table used when live exchange API is unavailable.
@@ -187,21 +187,21 @@ def _extract_rental_api_error(raw: dict | None) -> str | None:
     if raw.get("error"):
         return str(raw.get("error"))
     if isinstance(raw.get("errors"), dict) and raw.get("errors"):
-        return f"??? API ?? ???? ??? ? ????. (??? ??: {list(raw.get('errors', {}).items())})"
+        return f"렌터카 API 요청 파라미터가 올바르지 않습니다. (오류 상세: {list(raw.get('errors', {}).items())})"
 
     message = str(raw.get("message") or "").strip()
     status = str(raw.get("status") or "").strip()
     joined = f"{status} {message}".strip().lower()
 
     if "something went wrong" in joined:
-        return "??? API ??? ?? ?????. ?? ? ?? ??? ???."
+        return "렌터카 API 서비스 일시 오류입니다. 잠시 후 다시 시도해 주세요."
     if any(k in joined for k in ("invalid", "required", "parameter", "validation")):
         detail = message or status
         if detail:
-            return f"??? API ?? ???? ??? ? ????. (??? ??: {detail})"
-        return "??? API ?? ???? ??? ? ????. ?? ? ?? ??? ???."
+            return f"렌터카 API 요청 파라미터가 올바르지 않습니다. (오류 상세: {detail})"
+        return "렌터카 API 요청 파라미터가 올바르지 않습니다. 잠시 후 다시 시도해 주세요."
     if any(k in joined for k in ("rate limit", "too many requests")):
-        return "??? API ??? ?? ?? ???????. ?? ? ?? ??? ???."
+        return "렌터카 API 요청 한도를 초과했습니다. 잠시 후 다시 시도해 주세요."
     return None
 
 def _clean_provider_detail(detail: str | None) -> str:
@@ -810,7 +810,7 @@ def rental_page(
                 rental_error = api_error
                 _add_fallback_reason(f"booking={api_error}")
             elif not rental_cars:
-                rental_error = "??? ?? ??? ?? ?????. ?? ??/???? ?? ??? ???."
+                rental_error = "실시간 차량 검색 결과가 없습니다. 날짜/장소를 다시 확인해 주세요."
                 _add_fallback_reason("booking=no_cars")
 
             reliable_count = sum(
@@ -861,7 +861,7 @@ def rental_page(
                     rental_provider_detail = _public_provider_detail(rental_provider, " / ".join(fallback_reasons))
                     rental_error = _build_public_rental_failure_message(fallback_reasons)
         except Exception as e:
-            rental_error = f"??? ?? ??: {e}"
+            rental_error = f"렌터카 검색 중 오류: {e}"
 
     rental_provider_detail = _public_provider_detail(rental_provider, rental_provider_detail)
 

@@ -343,8 +343,8 @@
             function syncDateDisplay() {
                 const s = `${startDate?.value || ''} ${startTime?.value || ''}`.trim();
                 const e = `${endDate?.value || ''} ${endTime?.value || ''}`.trim();
-                if (startDisplay) startDisplay.textContent = s || '?좎쭨? ?쒓컙???좏깮';
-                if (endDisplay) endDisplay.textContent = e || '?좎쭨? ?쒓컙???좏깮';
+                if (startDisplay) startDisplay.textContent = s || '날짜와 시간을 선택';
+                if (endDisplay) endDisplay.textContent = e || '날짜와 시간을 선택';
                 if (pickupAtHidden) pickupAtHidden.value = s;
                 if (dropoffAtHidden) dropoffAtHidden.value = e;
             }

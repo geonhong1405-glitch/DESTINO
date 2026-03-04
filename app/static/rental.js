@@ -379,7 +379,7 @@ async function selectDestinationCity(els, state, payload) {
   state.destinationSearching = false;
 
   resetSelectedLocations(els);
-  // 紐⑹쟻吏 ?좏깮 ?꾩뿉??寃?됱갹 ?띿뒪?몃? 鍮꾩썙 ?섎룞 寃?됱씠 ?명븯?꾨줉 ?좎?
+  // 목적지 선택 시에는 검색 입력창만 비우고, 추천 목록은 자동 조회로 유도
   if (els.pickupSearchInput) els.pickupSearchInput.value = '';
   if (els.dropoffSearchInput) els.dropoffSearchInput.value = '';
   closeAllPopovers(els);
