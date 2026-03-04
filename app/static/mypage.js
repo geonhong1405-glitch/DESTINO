@@ -686,8 +686,71 @@ function renderBookings() {
         `;
         recentList.innerHTML = emptyHtml;
         allList.innerHTML = emptyHtml;
+        return;
     }
+
+    const formatWhen = (item) => {
+        const raw = String(item?.confirmed_at || item?.created_at || '').trim();
+        if (!raw) return '-';
+        const d = new Date(raw);
+        if (Number.isNaN(d.getTime())) return raw;
+        return d.toLocaleString();
+    };
+
+    const buildBookingCard = (item) => {
+        const amount = Number(item?.amount || 0);
+        const cur = String(item?.currency || 'KRW').toUpperCase();
+        const status = String(item?.status_label || item?.status || '예약 확정');
+        const route = String(item?.route || '').trim();
+        return `
+            <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all relative border-l-4 border-l-[#00AEEF]">
+                <div class="flex justify-between items-start mb-3">
+                    <span class="px-2 py-1 bg-blue-50 text-[#00AEEF] text-[10px] font-bold rounded-lg uppercase">항공</span>
+                    <span class="text-xs font-bold text-emerald-600">${escapeHtml(status)}</span>
+                </div>
+                <h5 class="font-bold text-gray-800 mb-1 truncate">${escapeHtml(String(item?.order_name || '항공권'))}</h5>
+                <p class="text-sm text-gray-500">${escapeHtml(route || '-')}</p>
+                <p class="text-sm font-semibold text-gray-700 mt-2">${escapeHtml(`${cur} ${amount.toLocaleString()}`)}</p>
+                <div class="mt-4 pt-3 border-t border-gray-50 flex justify-between items-center">
+                    <span class="text-[10px] text-gray-400">주문번호: ${escapeHtml(String(item?.order_id || '-'))}</span>
+                    <span class="text-[10px] text-gray-400">${escapeHtml(formatWhen(item))}</span>
+                </div>
+            </div>
+        `;
+    };
+
+    const recent = bookings.slice(0, 3);
+    recentList.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${recent.map((item) => buildBookingCard(item)).join('')}
+        </div>
+    `;
+    allList.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${bookings.map((item) => buildBookingCard(item)).join('')}
+        </div>
+    `;
     lucide.createIcons();
+}
+
+async function loadFlightBookings() {
+    try {
+        const res = await fetch('/api/flight/bookings', { credentials: 'include', cache: 'no-store' });
+        if (res.status === 401) {
+            bookings.splice(0, bookings.length);
+            renderBookings();
+            updateDisplay();
+            return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json().catch(() => ({}));
+        const rows = Array.isArray(data?.bookings) ? data.bookings : [];
+        bookings.splice(0, bookings.length, ...rows);
+    } catch (_e) {
+        bookings.splice(0, bookings.length);
+    }
+    renderBookings();
+    updateDisplay();
 }
 
 async function loadMyTripPosts() {
@@ -785,6 +848,7 @@ window.onload = () => {
     }
     updateDisplay();
     renderBookings();
+    loadFlightBookings();
     loadSavedItems();
     loadMyTripPosts();
     loadJoinRequestInbox();
@@ -802,8 +866,8 @@ window.onload = () => {
 };
 
 window.addEventListener('focus', () => {
+    loadFlightBookings();
     loadSavedItems();
     loadMyTripPosts();
     loadJoinRequestInbox();
 });
-

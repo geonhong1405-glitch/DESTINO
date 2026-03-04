@@ -745,6 +745,7 @@ def api_flight_checkout(payload: FlightCheckoutRequest, request: Request):
     base_url = str(request.base_url).rstrip("/")
 
     PENDING_FLIGHT_ORDERS[order_id] = {
+        "user_id": str(user_id),
         "amount": amount,
         "order_name": order_name,
         "customer_name": payload.customer_name,
@@ -817,6 +818,52 @@ def api_toss_confirm(payload: TossConfirmRequest):
     return {"status": "confirmed", "order_id": payload.orderId, "amount": payload.amount, "payment": data}
 
 
+@router.get("/api/flight/bookings")
+def api_flight_bookings(request: Request, limit: int = Query(20, ge=1, le=100)):
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+
+    uid = str(user_id)
+    rows: list[dict[str, Any]] = []
+    for order_id, row in PENDING_FLIGHT_ORDERS.items():
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("user_id") or "") != uid:
+            continue
+        status = str(row.get("status") or "").strip()
+        if status not in {"confirmed", "confirmed_mock"}:
+            continue
+
+        offer = row.get("offer") if isinstance(row.get("offer"), dict) else {}
+        itineraries = offer.get("itineraries") if isinstance(offer.get("itineraries"), list) else []
+        out_segs = itineraries[0].get("segments") if itineraries and isinstance(itineraries[0], dict) else []
+        first_seg = out_segs[0] if out_segs and isinstance(out_segs[0], dict) else {}
+        last_seg = out_segs[-1] if out_segs and isinstance(out_segs[-1], dict) else {}
+        dep = ((first_seg.get("departure") or {}).get("iataCode") if isinstance(first_seg, dict) else "") or ""
+        arr = ((last_seg.get("arrival") or {}).get("iataCode") if isinstance(last_seg, dict) else "") or ""
+        route = f"{dep} -> {arr}".strip(" ->")
+
+        rows.append(
+            {
+                "order_id": str(order_id),
+                "order_name": str(row.get("order_name") or "항공권"),
+                "amount": int(row.get("amount") or 0),
+                "currency": "KRW",
+                "status": status,
+                "status_label": "예약 확정(모의 결제)" if status == "confirmed_mock" else "예약 확정",
+                "created_at": str(row.get("created_at") or ""),
+                "confirmed_at": str(row.get("confirmed_at") or ""),
+                "route": route,
+                "item_type": "flight",
+            }
+        )
+
+    rows.sort(key=lambda x: str(x.get("confirmed_at") or x.get("created_at") or ""), reverse=True)
+    return {"bookings": rows[:limit]}
+
+
 @router.get("/payment/flight/success", response_class=HTMLResponse)
 def payment_flight_success_page():
     return """
@@ -824,7 +871,7 @@ def payment_flight_success_page():
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>결제 확인 중</title>
 <style>body{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a} .box{max-width:560px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px} .muted{color:#64748b;font-size:14px}</style>
-</head><body><div class="box"><h2>결제 확인 중입니다...</h2><p id="msg" class="muted">잠시만 기다려 주세요.</p><a href="/airport">항공 페이지로 돌아가기</a></div>
+</head><body><div class="box"><h2>결제 확인 중입니다...</h2><p id="msg" class="muted">잠시만 기다려 주세요.</p><a href="/mypage">마이페이지로 이동</a></div>
 <script>
 const qs=new URLSearchParams(location.search);
 const body={paymentKey:qs.get('paymentKey'),orderId:qs.get('orderId'),amount:Number(qs.get('amount')||0)};
@@ -879,11 +926,17 @@ body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0
     <div class="row">주문번호: {oid or '-'}</div>
     <div class="row">승인시각: {confirmed_at or '-'}</div>
     <div class="amt">KRW {amount:,}</div>
+    <div class="row">2초 후 마이페이지로 이동합니다.</div>
     <div class="actions">
-      <a class="btn btn-primary" href="/airport">항공 검색으로</a>
-      <a class="btn btn-ghost" href="/planner">플래너로</a>
+      <a class="btn btn-primary" href="/mypage">마이페이지로</a>
+      <a class="btn btn-ghost" href="/airport">항공 검색으로</a>
     </div>
   </div>
+  <script>
+    setTimeout(function () {{
+      window.location.replace('/mypage');
+    }}, 2000);
+  </script>
 </body></html>
 """
 

@@ -299,8 +299,22 @@ app = FastAPI()
 
 @app.on_event("startup")
 def _clear_sessions_on_startup():
-    # 요구사항: 서버 재시작 시 기존 로그인 세션 무효화
-    clear_all_sessions()
+    # Optional: only clear sessions on startup when explicitly requested.
+    if str(os.getenv("CLEAR_SESSIONS_ON_STARTUP", "0")).strip() in {"1", "true", "TRUE", "yes", "on"}:
+        clear_all_sessions()
+
+
+@app.middleware("http")
+async def _normalize_localhost(request: Request, call_next):
+    # Prevent split login cookies between localhost and 127.0.0.1.
+    host = (request.url.hostname or "").strip().lower()
+    if host == "localhost":
+        port = request.url.port or 8000
+        target = f"{request.url.scheme}://127.0.0.1:{port}{request.url.path}"
+        if request.url.query:
+            target += f"?{request.url.query}"
+        return RedirectResponse(url=target, status_code=307)
+    return await call_next(request)
 
 
 def get_db():

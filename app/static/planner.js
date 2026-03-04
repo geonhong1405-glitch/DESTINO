@@ -702,6 +702,12 @@
         return "-";
     }
 
+    function isUnknownText(value) {
+        const s = String(value || "").trim();
+        if (!s) return true;
+        return /^[?？\-\s]+$/.test(s);
+    }
+
     function ptDurationMinutes(value) {
         const m = String(value || "").toUpperCase().match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/);
         if (!m) return 0;
@@ -761,6 +767,14 @@
             prev = seg.idx;
         });
         return out;
+    }
+
+    function extractRouteCodesFromSegments(segmentDetails) {
+        const txt = String(segmentDetails || "").toUpperCase();
+        if (!txt) return { dep: "", arr: "" };
+        const codes = txt.match(/\b[A-Z]{3}\b/g) || [];
+        if (!codes.length) return { dep: "", arr: "" };
+        return { dep: codes[0] || "", arr: codes[codes.length - 1] || "" };
     }
 
     function summarizeLegs(segs) {
@@ -1091,7 +1105,7 @@
                 const depDate = depParts.length > 1 ? depParts[0] : "";
                 const arrDate = arrParts.length > 1 ? arrParts[0] : "";
                 const routeInfo = cardData.routeInfo || "여정 정보";
-                const duration = cardData.duration || "-";
+                const rawDuration = String(cardData.duration || "").trim();
                 const price = cardData.price || "-";
                 const airline = cardData.airline || "항공사";
                 const airlineCode = String(cardData.airline || "").trim().toUpperCase() || "-";
@@ -1100,28 +1114,26 @@
                 const legSummaries = summarizeLegs(segs);
                 const outSeg = legSummaries[0] || segs[0];
                 const inSeg = legSummaries[1] || segs[1];
-                const appearsRoundByRoute = Boolean(
-                    outSeg &&
-                    inSeg &&
-                    outSeg.depCode &&
-                    inSeg.arrCode &&
-                    outSeg.depCode === inSeg.arrCode
-                );
-                const isRoundTrip = Boolean(cardData.isRoundTrip && appearsRoundByRoute);
+                const inferredCodes = extractRouteCodesFromSegments(cardData?.segmentDetails || "");
+                const isRoundTrip = Boolean(cardData.isRoundTrip || legSummaries.length >= 2);
                 const isDirect = /직항/.test(routeInfo);
+                const fallbackDuration = outSeg?.duration ? formatPtDurationKo(outSeg.duration) : "-";
+                const duration = isUnknownText(rawDuration) ? fallbackDuration : formatPtDurationKo(rawDuration);
                 const durationLabel = isRoundTrip ? "왕복 여정" : (isDirect ? "비행시간" : "총 여정");
                 const canRenderRoundPairs = Boolean(
                     isRoundTrip &&
                     outSeg &&
                     inSeg &&
-                    legSummaries.length >= 2 &&
-                    outSeg.depCode === inSeg.arrCode &&
-                    outSeg.arrCode === inSeg.depCode
+                    legSummaries.length >= 2
                 );
-                const routeInfoLabel = isRoundTrip
-                    ? (canRenderRoundPairs ? "출국/귀국 직항" : "왕복 여정")
-                    : routeInfo;
-                const totalLegs = segs.length || (canRenderRoundPairs ? 2 : 1);
+                const outRouteCode = `${String(outSeg?.depCode || "-")} → ${String(outSeg?.arrCode || "-")}`;
+                const inRouteCode = `${String(inSeg?.depCode || "-")} → ${String(inSeg?.arrCode || "-")}`;
+                const inferredStops = Number(outSeg?.stops ?? Math.max(segs.length - 1, 0));
+                const inferredRouteInfo = inferredStops <= 0 ? "직항" : `경유 ${inferredStops}회`;
+                const safeRouteInfo = isUnknownText(routeInfo) ? inferredRouteInfo : routeInfo;
+                const routeInfoLabel = isRoundTrip ? "왕복 여정" : safeRouteInfo;
+                const singleRouteCode = `${String(outSeg?.depCode || inferredCodes.dep || "-")} → ${String(outSeg?.arrCode || inferredCodes.arr || "-")}`;
+                const totalLegs = Math.max(legSummaries.length, isRoundTrip ? 2 : 1);
                 const fareDisplay = parseFareDisplay(price);
 
                 card.innerHTML = `
@@ -1143,32 +1155,36 @@
                                 <div class="ai-flight-card__v2-row">
                                     <div class="ai-flight-card__point">
                                     <div class="ai-flight-card__time">${escapeHtml(formatKoreanMeridiemTime(oDep.time))}</div>
+                                    <div class="ai-flight-card__date">${escapeHtml(oDep.date || "-")}</div>
                                     <div class="ai-flight-card__code">${escapeHtml(outSeg.depCode)}</div>
                                     </div>
                                     <div class="ai-flight-card__v2-route">
                                         <div class="ai-flight-card__duration">${escapeHtml(formatPtDurationKo(outSeg.duration))}</div>
-                                        <div class="ai-flight-card__v2-routecode">${escapeHtml(outSeg.routeText || `${outSeg.depCode} → ${outSeg.arrCode}`)}</div>
+                                        <div class="ai-flight-card__v2-routecode">${escapeHtml(outRouteCode)}</div>
                                         <div class="ai-flight-card__line" data-dots="${'.'.repeat(Math.max(0, Number(outSeg.stops || 0)))}"></div>
                                         <div class="ai-flight-card__routeinfo">${escapeHtml(outSeg.isDirect ? "직항" : `경유 ${outSeg.stops}회`)}</div>
                                     </div>
                                     <div class="ai-flight-card__point ai-flight-card__point--arr">
                                     <div class="ai-flight-card__time">${escapeHtml(formatKoreanMeridiemTime(oArr.time))}</div>
+                                    <div class="ai-flight-card__date">${escapeHtml(oArr.date || "-")}</div>
                                     <div class="ai-flight-card__code">${escapeHtml(outSeg.arrCode)}</div>
                                     </div>
                                 </div>
                                 <div class="ai-flight-card__v2-row">
                                     <div class="ai-flight-card__point">
                                         <div class="ai-flight-card__time">${escapeHtml(formatKoreanMeridiemTime(iDep.time))}</div>
+                                        <div class="ai-flight-card__date">${escapeHtml(iDep.date || "-")}</div>
                                         <div class="ai-flight-card__code">${escapeHtml(inSeg.depCode)}</div>
                                     </div>
                                     <div class="ai-flight-card__v2-route">
                                         <div class="ai-flight-card__duration">${escapeHtml(formatPtDurationKo(inSeg.duration))}</div>
-                                        <div class="ai-flight-card__v2-routecode">${escapeHtml(inSeg.routeText || `${inSeg.depCode} → ${inSeg.arrCode}`)}</div>
+                                        <div class="ai-flight-card__v2-routecode">${escapeHtml(inRouteCode)}</div>
                                         <div class="ai-flight-card__line" data-dots="${'.'.repeat(Math.max(0, Number(inSeg.stops || 0)))}"></div>
                                         <div class="ai-flight-card__routeinfo">${escapeHtml(inSeg.isDirect ? "직항" : `경유 ${inSeg.stops}회`)}</div>
                                     </div>
                                     <div class="ai-flight-card__point ai-flight-card__point--arr">
                                         <div class="ai-flight-card__time">${escapeHtml(formatKoreanMeridiemTime(iArr.time))}</div>
+                                        <div class="ai-flight-card__date">${escapeHtml(iArr.date || "-")}</div>
                                         <div class="ai-flight-card__code">${escapeHtml(inSeg.arrCode)}</div>
                                     </div>
                                 </div>
@@ -1186,6 +1202,7 @@
                                 <span class="ai-flight-card__duration">${escapeHtml(duration)}</span>
                                 <span class="ai-flight-card__duration-label">${escapeHtml(durationLabel)}</span>
                             </div>
+                            <div class="ai-flight-card__v2-routecode">${escapeHtml(singleRouteCode)}</div>
                             <div class="ai-flight-card__line"></div>
                             <div class="ai-flight-card__routeinfo">${escapeHtml(routeInfoLabel)}</div>
                         </div>
@@ -1328,6 +1345,8 @@
                 if (isFlight) {
                     const priceRaw = String(cardData?.price || "");
                     const digitsOnly = priceRaw.replace(/[^\d.]/g, "");
+                    const legsForPay = summarizeLegs(parseFlightSegmentEntries(cardData?.segmentDetails || ""));
+                    const inferredRoundTrip = Boolean(cardData?.isRoundTrip || legsForPay.length >= 2);
                     const qs = new URLSearchParams({
                         airline: String(cardData?.airline || ""),
                         dep: String(cardData?.dep || ""),
@@ -1339,7 +1358,7 @@
                         currency: "KRW",
                         dep_at: String(cardData?.dep || ""),
                         arr_at: String(cardData?.arr || ""),
-                        round: cardData?.isRoundTrip ? "1" : "0",
+                        round: inferredRoundTrip ? "1" : "0",
                     });
                     window.location.href = `/flight-detail?${qs.toString()}`;
                     return;
