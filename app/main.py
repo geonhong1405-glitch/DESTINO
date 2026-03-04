@@ -726,8 +726,22 @@ app = FastAPI()
 
 @app.on_event("startup")
 def _clear_sessions_on_startup():
-    # 서버 시작 시 기존 로그인 세션 무효화
-    clear_all_sessions()
+    # Optional: only clear sessions on startup when explicitly requested.
+    if str(os.getenv("CLEAR_SESSIONS_ON_STARTUP", "0")).strip() in {"1", "true", "TRUE", "yes", "on"}:
+        clear_all_sessions()
+
+
+@app.middleware("http")
+async def _normalize_localhost(request: Request, call_next):
+    # Prevent split login cookies between localhost and 127.0.0.1.
+    host = (request.url.hostname or "").strip().lower()
+    if host == "localhost":
+        port = request.url.port or 8000
+        target = f"{request.url.scheme}://127.0.0.1:{port}{request.url.path}"
+        if request.url.query:
+            target += f"?{request.url.query}"
+        return RedirectResponse(url=target, status_code=307)
+    return await call_next(request)
 
 
 def get_db():
@@ -2053,6 +2067,83 @@ def logout(request: Request):
     response.delete_cookie(key="session_token", path="/")
     return response
 
+# ========== 패키지 상품 결제 전용 엔드포인트 ========== #
+from fastapi import Request, HTTPException
+import datetime, os
+
+@app.post("/api/pack/checkout")
+async def api_pack_checkout(request: Request):
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="잘못된 요청입니다.")
+
+    pack = body.get("tour") if isinstance(body.get("tour"), dict) else {}
+    traveler = body.get("traveler") if isinstance(body.get("traveler"), dict) else {}
+
+    try:
+        amount = int(round(float(pack.get("price") or 0)))
+    except Exception:
+        amount = 0
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="결제 가능한 금액을 확인할 수 없습니다.")
+
+    order_id = f"PACK-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{os.urandom(4).hex()}"
+    pack_name = str(pack.get("name") or "패키지 예약").strip() or "패키지 예약"
+    meta = str(pack.get("meta") or "").strip()
+    order_name = f"{pack_name} {meta}".strip()
+    toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
+    if not toss_client_key:
+        raise HTTPException(status_code=500, detail="토스 클라이언트 키가 설정되지 않았습니다.")
+    base_url = str(request.base_url).rstrip("/")
+
+    return {
+        "order_id": order_id,
+        "order_name": order_name,
+        "amount": amount,
+        "currency": "KRW",
+        "payment_mode": "toss",
+        "toss_client_key": toss_client_key,
+        "success_url": f"{base_url}/payment/pack/success",
+        "fail_url": f"{base_url}/payment/pack/fail",
+        "message": "결제 준비가 완료되었습니다.",
+    }
+# ========== PACK-DETAIL 전용 결제 성공/실패 페이지 ========== #
+
+@app.get("/payment/pack/success", response_class=HTMLResponse)
+def payment_pack_success_page():
+    return """
+<!doctype html>
+<html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">
+<title>패키지 결제 확인 중</title>
+<style>body{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a} .box{max-width:560px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px} .muted{color:#64748b;font-size:14px}</style>
+</head><body><div class=\"box\"><h2>결제 확인 중입니다...</h2><p id=\"msg\" class=\"muted\">잠시만 기다려 주세요.</p><a href=\"/package\">패키지 상품 페이지로 돌아가기</a></div>
+<script>
+const qs=new URLSearchParams(location.search);
+const body={paymentKey:qs.get('paymentKey'),orderId:qs.get('orderId'),amount:Number(qs.get('amount')||0)};
+fetch('/api/payments/toss/tour/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+ .then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))}))
+ .then(x=>{document.getElementById('msg').textContent=x.ok?'결제가 승인되었습니다.':'결제 승인 실패: '+(x.data?.detail||x.data?.message||'알 수 없는 오류');})
+ .catch(()=>{document.getElementById('msg').textContent='결제 승인 확인 중 오류가 발생했습니다.'});
+</script></body></html>
+"""
+
+@app.get("/payment/pack/fail", response_class=HTMLResponse)
+def payment_pack_fail_page(code: str | None = Query(None), message: str | None = Query(None)):
+    c = (code or "").strip()
+    m = (message or "").strip()
+    return f"""
+<!doctype html>
+<html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">
+<title>패키지 결제 실패</title>
+<style>body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a}} .box{{max-width:560px;margin:24px auto;background:#fff;border:1px solid #fecaca;border-radius:12px;padding:18px}} .muted{{color:#64748b;font-size:14px}}</style>
+</head><body><div class=\"box\"><h2>결제가 완료되지 않았습니다.</h2><p class=\"muted\">코드: {c or '-'}...</p><p class=\"muted\">메시지: {m or '-'}...</p><a href=\"/package\">패키지 상품 페이지로 돌아가기</a></div></body></html>
+"""
+
 
 @app.get("/check-username")
 def check_username(username: str = Query(...), db: Session = Depends(get_db)):
@@ -2902,3 +2993,27 @@ def create_user(
     db.refresh(user)
     return RedirectResponse(url="/login", status_code=302)
 
+@app.get("/pack-detail", response_class=HTMLResponse)
+async def pack_detail(request: Request):
+    # 로그인 여부 및 닉네임 추출 (예시)
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    nickname = None
+    user_is_authenticated = False
+    if user_id:
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == int(user_id)).first()
+            if user:
+                nickname = user.nickname
+                user_is_authenticated = True
+        finally:
+            db.close()
+    return templates.TemplateResponse(
+        "pack-detail.html",
+        {
+            "request": request,
+            "user_is_authenticated": user_is_authenticated,
+            "nickname": nickname,
+        },
+    )

@@ -26,10 +26,25 @@ def _handle_hotel_intent(req: Any, prev_state: dict, context: str, SESSION_STATE
 def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STATE: dict, sid: str, NeedMoreInfoError: type, _parse_flight_slots, _has_date_signal, _merge_state, _missing_questions, flight_search_service, chat_renderers):
     parsed = _parse_flight_slots(req.message, context)
     state = _merge_state(prev_state, parsed)
+    origin_changed = bool(parsed.get("origin")) and str(parsed.get("origin")) != str(prev_state.get("origin") or "")
+    destination_changed = bool(parsed.get("destination")) and str(parsed.get("destination")) != str(prev_state.get("destination") or "")
+    route_changed = origin_changed or destination_changed
+    has_explicit_date_in_turn = bool(
+        parsed.get("departure_date")
+        or parsed.get("return_date")
+        or _has_date_signal(req.message)
+    )
+    route_changed_without_date = bool(route_changed and not has_explicit_date_in_turn)
+
+    # If user changed route but did not specify date this turn, do not silently reuse old dates.
+    if route_changed_without_date:
+        state.pop("departure_date", None)
+        state.pop("return_date", None)
+
     # Shared travel dates can come from non-flight intents (hotel/rentalcar).
-    if not state.get("departure_date") and prev_state.get("travel_checkin"):
+    if (not route_changed_without_date) and (not state.get("departure_date")) and prev_state.get("travel_checkin"):
         state["departure_date"] = prev_state.get("travel_checkin")
-    if not state.get("return_date") and prev_state.get("travel_checkout"):
+    if (not route_changed_without_date) and (not state.get("return_date")) and prev_state.get("travel_checkout"):
         state["return_date"] = prev_state.get("travel_checkout")
     if state.get("departure_date"):
         state["travel_checkin"] = state.get("departure_date")

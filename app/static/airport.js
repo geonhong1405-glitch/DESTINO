@@ -225,6 +225,8 @@ async function startFlightCheckout(savePayload) {
             if (checkout.payment_mode !== 'toss' || !checkout.toss_client_key) {
                 modal.classList.remove('is-open');
                 alert(`[모의 결제] 주문번호: ${checkout.order_id}\n결제금액: ${checkout.amount.toLocaleString('ko-KR')}원`);
+                const oid = encodeURIComponent(String(checkout.order_id || ''));
+                location.href = `/payment/flight/confirmed?orderId=${oid}`;
                 return;
             }
             const TossPayments = await loadTossPaymentsScript();

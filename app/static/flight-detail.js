@@ -118,6 +118,7 @@
     if (data.retFlightNo) retChips.push(`편명 ${data.retFlightNo}`);
     if (data.retAircraft) retChips.push(`기종 ${data.retAircraft}`);
     if (data.retCabin) retChips.push(`좌석 ${data.retCabin}`);
+    if (data.baggage) retChips.push(data.baggage);
     byId("fdRetJourneyMeta").innerHTML = retChips.map((x) => `<div class="fd-j-chip">${x}</div>`).join("");
   }
 
@@ -332,6 +333,8 @@
 
       if (checkout.payment_mode !== "toss" || !checkout.toss_client_key) {
         alert(`[모의 결제]\n주문번호: ${checkout.order_id}\n결제금액: ${Number(checkout.amount || 0).toLocaleString("ko-KR")}원`);
+        const oid = encodeURIComponent(String(checkout.order_id || ""));
+        location.href = `/payment/flight/confirmed?orderId=${oid}`;
         return;
       }
 
