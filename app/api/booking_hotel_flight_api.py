@@ -85,7 +85,7 @@ def search_hotels(city, checkin_date, checkout_date, adults=2, currency_code="KR
         log_debug(f"searchDestination response: status={dest_resp.status_code}, text={dest_resp.text[:500]}")
         dest_json = dest_resp.json()
         dest_id = None
-        # 怨듭떇 ?묐떟 援ъ“???곕씪 dest_id 異붿텧
+        # 공식 응답 구조에 따라 dest_id 추출
         if dest_json and 'data' in dest_json and dest_json['data']:
             dest_id = dest_json['data'][0].get('dest_id')
         elif isinstance(dest_json, list) and len(dest_json) > 0 and 'dest_id' in dest_json[0]:

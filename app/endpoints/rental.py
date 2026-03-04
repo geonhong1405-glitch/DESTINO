@@ -25,6 +25,7 @@ from app.api.rental_helper import (
 from app.db.db import SessionLocal
 from app.db.models import User
 from app.session import get_user_id_from_session
+from app.services.booking_history_service import save_booking
 
 
 router = APIRouter()
@@ -974,7 +975,7 @@ def rental_detail_page(
 
 @router.post("/api/rental/checkout")
 def api_rental_checkout(payload: RentalCheckoutRequest, request: Request):
-    _require_user_id(request)
+    user_id = _require_user_id(request)
 
     amount = _extract_rental_amount_krw(payload.car)
     order_id = f"RNT-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
@@ -983,6 +984,7 @@ def api_rental_checkout(payload: RentalCheckoutRequest, request: Request):
     base_url = str(request.base_url).rstrip("/")
 
     PENDING_RENTAL_ORDERS[order_id] = {
+        "user_id": str(user_id),
         "amount": amount,
         "order_name": order_name,
         "car": payload.car,
@@ -1019,6 +1021,28 @@ def api_toss_rental_confirm(payload: dict):
     if not secret_key:
         pending["status"] = "confirmed_mock"
         pending["payment_key"] = payment_key
+        pending["confirmed_at"] = datetime.datetime.now().isoformat()
+        save_booking(
+            user_id=int(pending.get("user_id") or 0),
+            item_type="rental",
+            order_id=order_id,
+            order_name=str(pending.get("order_name") or "렌터카 예약"),
+            amount=amount,
+            currency="KRW",
+            status="confirmed_mock",
+            status_label="예약 확정(모의 결제)",
+            route=str(
+                (
+                    (pending.get("car") or {}).get("pickup_name")
+                    or (pending.get("car") or {}).get("dropoff_name")
+                    or ""
+                )
+            ).strip(),
+            payment_key=payment_key,
+            payload=pending,
+            created_at_iso=str(pending.get("created_at") or ""),
+            confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+        )
         return {
             "status": "confirmed_mock",
             "order_id": order_id,
@@ -1053,6 +1077,27 @@ def api_toss_rental_confirm(payload: dict):
     pending["payment_key"] = payment_key
     pending["confirmed_at"] = datetime.datetime.now().isoformat()
     pending["toss_response"] = data
+    save_booking(
+        user_id=int(pending.get("user_id") or 0),
+        item_type="rental",
+        order_id=order_id,
+        order_name=str(pending.get("order_name") or "렌터카 예약"),
+        amount=amount,
+        currency="KRW",
+        status="confirmed",
+        status_label="예약 확정",
+        route=str(
+            (
+                (pending.get("car") or {}).get("pickup_name")
+                or (pending.get("car") or {}).get("dropoff_name")
+                or ""
+            )
+        ).strip(),
+        payment_key=payment_key,
+        payload=pending,
+        created_at_iso=str(pending.get("created_at") or ""),
+        confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+    )
     return {"status": "confirmed", "order_id": order_id, "amount": amount, "payment": data}
 
 
