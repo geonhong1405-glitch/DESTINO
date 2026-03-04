@@ -97,10 +97,11 @@ async def add_saved_item(request: Request):
     if list_type not in _LIST_TYPES:
         raise HTTPException(status_code=400, detail="list_type은 wishlist/cart만 가능합니다.")
 
+    # name/meta/source를 무조건 소문자+trim으로 저장
     item_type = str(payload.get("item_type") or "").strip().lower() or "item"
-    name = str(payload.get("name") or "").strip()
-    meta = str(payload.get("meta") or "").strip()
-    source = str(payload.get("source") or "").strip()
+    name = str(payload.get("name") or "").strip().lower()
+    meta = str(payload.get("meta") or "").strip().lower()
+    source = str(payload.get("source") or "").strip().lower()
     raw_payload = payload.get("payload")
     if not name:
         raise HTTPException(status_code=400, detail="name이 필요합니다.")
@@ -109,9 +110,9 @@ async def add_saved_item(request: Request):
         user_id,
         list_type,
         item_type,
-        name.lower(),
-        meta.lower(),
-        source.lower(),
+        name,
+        meta,
+        source,
     )
 
     db = SessionLocal()
