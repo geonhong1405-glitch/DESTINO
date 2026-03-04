@@ -980,6 +980,7 @@ function getBookingSnapshot() {
 }
 
 function handleBooking() {
+        if (!isUserLoggedIn()) return requireLoginMessage();
         const snapshot = getBookingSnapshot();
         if (!snapshot.date) return showToast("방문 날짜를 선택해주세요.");
         if (snapshot.adult === 0 && snapshot.child === 0) return showToast("인원을 선택해주세요.");

@@ -868,25 +868,138 @@ def api_flight_bookings(request: Request, limit: int = Query(20, ge=1, le=100)):
 def payment_flight_success_page():
     return """
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>결제 확인 중</title>
-<style>body{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a} .box{max-width:560px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px} .muted{color:#64748b;font-size:14px}</style>
-</head><body><div class="box"><h2>결제 확인 중입니다...</h2><p id="msg" class="muted">잠시만 기다려 주세요.</p><a href="/mypage">마이페이지로 이동</a></div>
-<script>
-const qs=new URLSearchParams(location.search);
-const body={paymentKey:qs.get('paymentKey'),orderId:qs.get('orderId'),amount:Number(qs.get('amount')||0)};
-fetch('/api/payments/toss/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
- .then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))}))
- .then(x=>{
-   if(x.ok){
-     const oid = encodeURIComponent(body.orderId || '');
-     window.location.replace('/payment/flight/confirmed?orderId=' + oid);
-     return;
-   }
-   document.getElementById('msg').textContent='결제 승인 실패: '+(x.data?.detail||x.data?.message||'알 수 없는 오류');
- })
- .catch(()=>{document.getElementById('msg').textContent='결제 승인 확인 중 오류가 발생했습니다.'});
-</script></body></html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>DESTINO | 결제 확인</title>
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+    <style>
+        :root {
+            --primary-blue: #00AEEF;
+            --dark-navy: #1A202C;
+            --bg-gray: #F8F9FA;
+            --text-muted: #718096;
+        }
+        * { box-sizing: border-box; font-family: 'Pretendard', -apple-system, sans-serif; }
+        body {
+            background-color: var(--bg-gray);
+            display: flex; align-items: center; justify-content: center;
+            height: 100vh; margin: 0; color: var(--dark-navy);
+        }
+        .container {
+            background: #fff;
+            width: 100%;
+            max-width: 480px;
+            padding: 40px 24px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        .status-icon {
+            width: 64px; height: 64px;
+            background: #f0f9ff;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 24px;
+        }
+        .spinner {
+            width: 24px; height: 24px;
+            border: 3px solid #e2e8f0;
+            border-top-color: var(--primary-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        h2 { font-size: 24px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.5px; }
+        p { color: var(--text-muted); line-height: 1.6; margin-bottom: 32px; }
+        .info-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 32px;
+            text-align: left;
+            display: none;
+        }
+        .info-row {
+            display: flex; justify-content: space-between; margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .info-row span:first-child { color: var(--text-muted); }
+        .info-row span:last-child { font-weight: 600; }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-primary { background-color: var(--primary-blue); color: white; }
+        .btn-primary:hover { background-color: #0096ce; }
+        .btn-outline { border: 1px solid #e2e8f0; color: var(--text-muted); margin-top: 12px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status-icon" id="icon-box">
+            <div class="spinner" id="spinner"></div>
+        </div>
+        <h2 id="title">결제 확인 중</h2>
+        <p id="msg">안전한 결제 승인을 위해 잠시만 기다려 주세요.</p>
+        <div class="info-card" id="info-card">
+            <div class="info-row">
+                <span>주문번호</span>
+                <span id="res-orderId">-</span>
+            </div>
+            <div class="info-row">
+                <span>결제금액</span>
+                <span id="res-amount">-</span>
+            </div>
+        </div>
+        <a href="/mypage" class="btn btn-primary" id="main-btn">마이페이지로 이동</a>
+        <a href="/airport" class="btn btn-outline">항공 검색으로</a>
+    </div>
+    <script>
+        const qs = new URLSearchParams(location.search);
+        const orderId = qs.get('orderId');
+        const amount = Number(qs.get('amount') || 0);
+        const body = { paymentKey: qs.get('paymentKey'), orderId: orderId, amount: amount };
+        fetch('/api/payments/toss/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        })
+        .then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))
+        .then(x => {
+            const iconBox = document.getElementById('icon-box');
+            const title = document.getElementById('title');
+            const msg = document.getElementById('msg');
+            const infoCard = document.getElementById('info-card');
+            if (x.ok) {
+                iconBox.innerHTML = '✅';
+                iconBox.style.fontSize = '32px';
+                title.textContent = '결제가 완료되었습니다!';
+                msg.textContent = '항공권 예약이 완료되었습니다. <br>마이페이지에서 상세 내역을 확인하세요.';
+                infoCard.style.display = 'block';
+                document.getElementById('res-orderId').textContent = orderId;
+                document.getElementById('res-amount').textContent = amount.toLocaleString() + '원';
+                document.getElementById('main-btn').textContent = '예약 내역 확인하기';
+            } else {
+                iconBox.innerHTML = '❌';
+                iconBox.style.fontSize = '32px';
+                title.textContent = '결제에 실패했습니다';
+                msg.textContent = x.data?.detail || x.data?.message || '알 수 없는 오류가 발생했습니다.';
+            }
+        })
+        .catch(() => {
+            document.getElementById('title').textContent = '오류 발생';
+            document.getElementById('msg').textContent = '서버와의 통신 중 문제가 발생했습니다.';
+        });
+    </script>
+</body>
+</html>
 """
 
 
