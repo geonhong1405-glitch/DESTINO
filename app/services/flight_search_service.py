@@ -437,6 +437,8 @@ def _filter_pref(rows: list[dict[str, Any]], state: dict[str, Any]) -> list[dict
         def _in_window(h: int, w: str) -> bool:
             if w == "morning":
                 return 6 <= h < 12
+            if w == "midday":
+                return 11 <= h < 15
             if w == "afternoon":
                 return 12 <= h < 18
             if w == "evening":

@@ -142,6 +142,79 @@ def _parse_age(message: str, prev_state: dict[str, Any]) -> Optional[int]:
     return rs.get("driver_age")
 
 
+def _parse_passenger_count(message: str, prev_state: dict[str, Any]) -> Optional[int]:
+    msg = str(message or "")
+    ml = msg.lower()
+
+    # Explicit grouped counts: 성인/아동/유아
+    adults = None
+    children = None
+    infants = None
+
+    m_adults = re.search(r"(?:성인|어른|adult[s]?)\s*(\d+)\s*(?:명|인)?", msg, re.IGNORECASE)
+    if m_adults:
+        adults = int(m_adults.group(1))
+    m_children = re.search(r"(?:아동|아이|어린이|child(?:ren)?)\s*(\d+)\s*(?:명|인)?", msg, re.IGNORECASE)
+    if m_children:
+        children = int(m_children.group(1))
+    m_infants = re.search(r"(?:유아|infant[s]?)\s*(\d+)\s*(?:명|인)?", msg, re.IGNORECASE)
+    if m_infants:
+        infants = int(m_infants.group(1))
+
+    if adults is not None or children is not None or infants is not None:
+        total = max(0, adults or 0) + max(0, children or 0) + max(0, infants or 0)
+        return total if total > 0 else None
+
+    # Generic total headcount: 4명 / 4인 / for 4 people
+    m_total = re.search(r"(?:인원|총)?\s*(\d+)\s*(?:명|인|people|pax)", msg, re.IGNORECASE)
+    if m_total:
+        n = int(m_total.group(1))
+        return n if n > 0 else None
+    m_total_simple = re.search(r"(\d+)\s*(?:명|인)", msg)
+    if m_total_simple:
+        n = int(m_total_simple.group(1))
+        return n if n > 0 else None
+
+    rs = (prev_state or {}).get("rental_state") or {}
+    prev = rs.get("passenger_count")
+    try:
+        prev_n = int(prev) if prev is not None else None
+    except Exception:
+        prev_n = None
+    return prev_n if (prev_n is not None and prev_n > 0) else None
+
+
+def _has_explicit_passenger_in_turn(message: str) -> bool:
+    msg = str(message or "")
+    ml = msg.lower()
+    return bool(
+        re.search(r"(?:성인|어른|adult[s]?|아동|아이|어린이|child(?:ren)?|유아|infant[s]?)\s*\d+", msg, re.IGNORECASE)
+        or re.search(r"(?:인원|총)?\s*\d+\s*(?:명|인|people|pax)", msg, re.IGNORECASE)
+        or re.search(r"\d+\s*(?:명|인)", msg)
+        or re.search(r"\bfor\s+\d+\s*(?:people|pax)\b", ml)
+    )
+
+
+def _filter_cars_by_passengers(cars: list[dict[str, Any]], passenger_count: Optional[int]) -> list[dict[str, Any]]:
+    if not passenger_count or passenger_count <= 0:
+        return cars
+    filtered: list[dict[str, Any]] = []
+    for car in cars or []:
+        seats = car.get("seats")
+        seat_n = None
+        if isinstance(seats, (int, float)):
+            seat_n = int(seats)
+        else:
+            specs = " ".join(str(x) for x in (car.get("specs") or []))
+            m = re.search(r"(\d+)\s*인승", specs)
+            if m:
+                seat_n = int(m.group(1))
+        # Keep unknown-seat cars to avoid over-pruning provider data quality issues.
+        if seat_n is None or seat_n >= passenger_count:
+            filtered.append(car)
+    return filtered
+
+
 def _parse_city_query(message: str, prev_state: dict[str, Any]) -> Optional[str]:
     msg = str(message or "")
     msg_compact = re.sub(r"\s+", "", msg)
@@ -477,12 +550,29 @@ def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, A
         or any(tok in msg_compact for tok in ["오늘", "내일", "내일모레", "내일모래", "모레", "글피"])
     )
     has_city_in_turn = bool(re.search(r"([\uAC00-\uD7A3A-Za-z\s]{1,40}?)\uC5D0\uC11C", msg))
-    if (not has_explicit_date_in_turn) and has_city_in_turn:
+    has_explicit_pickup_in_turn = _has_specific_pickup_location_in_turn(msg)
+    has_explicit_passenger_in_turn = _has_explicit_passenger_in_turn(msg)
+    has_rental_intent_in_turn = bool(
+        re.search(r"(렌터카|렌트카|차량\s*대여|car\s*rental|rent\s*car|rental\s*car)", msg, re.IGNORECASE)
+    )
+
+    # New generic rental request should not silently reuse stale pickup/date context.
+    if has_rental_intent_in_turn and (not has_explicit_pickup_in_turn) and (not has_explicit_date_in_turn):
+        city_query_norm = None
+        pickup_query_norm = None
+        pickup_date = None
+        dropoff_date = None
+
+    # New location request without explicit date must ask pickup/dropoff date.
+    if (not has_explicit_date_in_turn) and (has_city_in_turn or has_explicit_pickup_in_turn):
         # New rental request without date must ask for pickup/dropoff; do not reuse stale dates.
         pickup_date = None
         dropoff_date = None
 
     driver_age = _parse_age(message, prev_state) or 30
+    passenger_count = _parse_passenger_count(message, prev_state)
+    if has_rental_intent_in_turn and (not has_explicit_passenger_in_turn):
+        passenger_count = None
 
     rental_state = {
         "country_code": country_code,
@@ -491,20 +581,23 @@ def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, A
         "pickup_date": pickup_date,
         "dropoff_date": dropoff_date,
         "driver_age": driver_age,
+        "passenger_count": passenger_count,
     }
 
     missing = []
     if not pickup_query_norm:
-        missing.append("\uD53D\uC5C5\uC9C0\uC810(\uC608: \uB3C4\uCFC4 \uD558\uB124\uB2E4\uACF5\uD56D, \uB098\uB9AC\uD0C0\uACF5\uD56D, \uB274\uC695 JFK\uACF5\uD56D)")
+        missing.append("\uD53D\uC5C5\uC9C0\uC810")
     if not pickup_date:
         missing.append("\uD53D\uC5C5\uC77C")
     if not dropoff_date:
         missing.append("\uBC18\uB0A9\uC77C")
+    if not passenger_count:
+        missing.append("\uC778\uC6D0\uC218")
     if missing:
         html = (
             "<div>\uB80C\uD130\uCE74\uB97C \uCC3E\uC73C\uB824\uBA74 "
             + ", ".join(missing)
-            + " \uC815\uBCF4\uB97C \uC54C\uB824\uC8FC\uC138\uC694.<br>\uC608: \uB3C4\uCFC4 \uD558\uB124\uB2E4\uACF5\uD56D\uC5D0\uC11C \uD53D\uC5C5, 3\uC6D4 7\uC77C~3\uC6D4 8\uC77C</div>"
+            + " \uC815\uBCF4\uB97C \uC54C\uB824\uC8FC\uC138\uC694.</div>"
         )
         return html, {"rental_context": True, "rental_state": rental_state}
 
@@ -593,5 +686,15 @@ def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, A
         )
 
     cars = _normalize_prices_to_krw(cars)
+    cars = _filter_cars_by_passengers(cars, passenger_count)
+    if not cars:
+        need = int(passenger_count or 0)
+        msg = (
+            f"<div>요청하신 인원({need}명)에 맞는 차량을 찾지 못했어요. "
+            "더 큰 픽업 지점(예: 공항) 또는 날짜를 바꿔 다시 시도해 주세요.</div>"
+            if need > 0
+            else "<div>렌터카 검색 결과를 찾지 못했어요. 다른 조건으로 다시 시도해 주세요.</div>"
+        )
+        return msg, {"rental_context": True, "rental_state": rental_state}
     html = _rental_cards_html_v2(pickup_name, pickup_date, dropoff_date, cars)
     return html, {"rental_context": True, "rental_state": rental_state}

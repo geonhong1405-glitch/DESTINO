@@ -1006,9 +1006,22 @@
             return "";
         };
 
-        const detectDefaultType = () => {
-            if (/(렌터카|렌트카|rental)/i.test(html)) return "렌터카";
-            if (/(호텔|숙소|hotel)/i.test(html)) return "호텔";
+        const detectDefaultType = (lineText, fields) => {
+            const line = String(lineText || "");
+            const hasRentalField = Boolean(
+                pickField(fields, "pickup") ||
+                pickField(fields, "dropoff") ||
+                pickField(fields, "supplier") ||
+                pickField(fields, "specs")
+            );
+            const hasHotelField = Boolean(
+                pickField(fields, "checkin") ||
+                pickField(fields, "checkout") ||
+                pickField(fields, "hotelId") ||
+                pickField(fields, "maps")
+            );
+            if (hasRentalField || /(렌터카|렌트카|rental)/i.test(line)) return "렌터카";
+            if (hasHotelField || /(호텔|숙소|hotel)/i.test(line)) return "호텔";
             return "상품";
         };
 
@@ -1041,10 +1054,26 @@
             }
 
             const rawType = String(pickField(fields, "type") || "").toLowerCase();
-            let resolvedType = detectDefaultType();
+            let resolvedType = detectDefaultType(line, fields);
             if (/(패키지|package)/i.test(rawType)) resolvedType = "패키지";
             else if (/(공동구매|group\s*buy|groupbuy)/i.test(rawType)) resolvedType = "공동구매";
             else if (/(티켓|ticket)/i.test(rawType)) resolvedType = "티켓";
+
+            const hasKnownField = Boolean(
+                rawType ||
+                pickField(fields, "price") ||
+                pickField(fields, "rating") ||
+                pickField(fields, "address") ||
+                pickField(fields, "checkin") ||
+                pickField(fields, "checkout") ||
+                pickField(fields, "pickup") ||
+                pickField(fields, "dropoff") ||
+                pickField(fields, "supplier") ||
+                pickField(fields, "hotelId") ||
+                pickField(fields, "photo")
+            );
+            if (!hasKnownField) continue;
+            if (/^(항공권\s*추천|숙소\s*추천|여행\s*초안\s*추천)$/i.test(name)) continue;
 
             cards.push({
                 type: resolvedType,
@@ -1231,7 +1260,24 @@
     function enhanceCommerceCards(botBubble, rawHtml) {
         const flightCards = parseFlightTableCards(rawHtml);
         const listCards = parseListCards(rawHtml);
-        const cards = flightCards.length ? flightCards : listCards;
+        const htmlText = String(rawHtml || "");
+        const merged = [];
+        const seen = new Set();
+        [...flightCards, ...listCards].forEach((c) => {
+            const key = [
+                String(c?.type || ""),
+                String(c?.name || ""),
+                String(c?.price || ""),
+                String(c?.dep || ""),
+                String(c?.arr || ""),
+                String(c?.checkin || ""),
+                String(c?.checkout || ""),
+            ].join("||");
+            if (seen.has(key)) return;
+            seen.add(key);
+            merged.push(c);
+        });
+        const cards = merged;
         if (!cards.length) return;
 
         const content = botBubble.querySelector(".ai-msg__content");
@@ -1241,6 +1287,12 @@
         section.className = "ai-commerce-cards";
         const title = cards[0].type === "항공편" ? "항공편 카드" : `${cards[0].type} 카드`;
         section.innerHTML = `<div class="ai-commerce-cards__title">${escapeHtml(title)}</div>`;
+        if (!flightCards.length && /(항공편을 찾지 못했|조건에 맞는 항공편이 없습니다)/i.test(htmlText)) {
+            const warn = document.createElement("div");
+            warn.style.cssText = "margin:8px 0 12px;padding:8px 10px;border:1px solid #fde68a;background:#fffbeb;border-radius:8px;color:#92400e;font-size:13px;";
+            warn.textContent = "항공권은 현재 조건에서 결과가 없어 숙소만 표시했어요. 날짜/예산을 조정해 보세요.";
+            section.appendChild(warn);
+        }
 
         const grid = document.createElement("div");
         grid.className = "ai-commerce-cards__grid";
@@ -1497,6 +1549,7 @@
                 const isFlight = t === "항공편" || t === "flight";
                 const isHotel = t === "호텔" || t === "hotel" || t === "숙소" || t === "stay" || t === "accommodation";
                 const isTicket = t === "티켓" || t === "ticket" || t === "activity";
+                const isRental = t === "렌터카" || t === "rental" || t === "car rental" || t === "rentcar" || t === "car";
                 const isTourLikeProduct = isTicket || t === "패키지" || t === "package" || t === "공동구매" || t === "groupbuy" || t === "group buy";
                 if (isFlight) {
                     const priceRaw = String(cardData?.price || "");
@@ -1555,6 +1608,34 @@
                         snapshot,
                     });
                     window.location.href = `/gloval-hotel/detail?${detailQs.toString()}`;
+                    return;
+                }
+                if (isRental) {
+                    const priceRaw = String(cardData?.price || "").trim();
+                    const priceNumber = Number(priceRaw.replace(/[^\d.]/g, ""));
+                    const ratingRaw = String(cardData?.rating || "").trim();
+                    const ratingNumber = Number(ratingRaw.replace(/[^\d.]/g, ""));
+                    const specsText = String(cardData?.specs || "").trim();
+                    const specs = specsText
+                        ? specsText.split(/[|,/]/).map((s) => s.trim()).filter(Boolean)
+                        : [];
+                    const carPayload = {
+                        name: String(cardData?.name || "렌터카 상품"),
+                        supplier: String(cardData?.company || cardData?.supplier || ""),
+                        price: Number.isFinite(priceNumber) ? priceNumber : 0,
+                        currency: "KRW",
+                        image: String(cardData?.photo || ""),
+                        specs,
+                        pickup_name: String(cardData?.pickup_name || cardData?.pickup || ""),
+                        dropoff_name: String(cardData?.dropoff_name || cardData?.dropoff || ""),
+                        pickup_at: String(cardData?.pickup_at || cardData?.pickup || ""),
+                        dropoff_at: String(cardData?.dropoff_at || cardData?.dropoff || ""),
+                    };
+                    if (Number.isFinite(ratingNumber) && ratingNumber > 0) {
+                        carPayload.rating = ratingNumber;
+                    }
+                    const encoded = encodeURIComponent(JSON.stringify(carPayload));
+                    window.location.href = `/rental/detail?car=${encoded}`;
                     return;
                 }
                 if (isTourLikeProduct) {

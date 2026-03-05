@@ -144,6 +144,26 @@ def parse_flight_slots(
     if contains_fn(message, ["가장 빨리", "최단", "빠르게"]):
         parsed["sort_by"] = "fastest_cheap" if parsed.get("sort_by") == "price_asc" else "fastest"
 
+    # departure time preference heuristics
+    if contains_fn(msg_l, ["직항만", "직항으로", "직항 위주"]) or "direct only" in msg_l:
+        parsed["direct_only"] = True
+
+    if contains_fn(msg_l, ["아침", "오전"]) or "morning" in msg_l:
+        parsed["departure_window"] = "morning"
+        parsed["time_pref"] = parsed.get("time_pref") or "morning"
+    elif contains_fn(msg_l, ["점심", "점심쯤", "정오", "낮"]) or "noon" in msg_l or "lunch" in msg_l or "midday" in msg_l:
+        parsed["departure_window"] = "midday"
+        parsed["time_pref"] = parsed.get("time_pref") or "midday"
+    elif contains_fn(msg_l, ["오후"]) or "afternoon" in msg_l:
+        parsed["departure_window"] = "afternoon"
+        parsed["time_pref"] = parsed.get("time_pref") or "afternoon"
+    elif contains_fn(msg_l, ["저녁", "퇴근 후"]) or "evening" in msg_l:
+        parsed["departure_window"] = "evening"
+        parsed["time_pref"] = parsed.get("time_pref") or "evening"
+    elif contains_fn(msg_l, ["밤", "야간", "심야", "새벽"]) or "night" in msg_l or "late night" in msg_l:
+        parsed["departure_window"] = "night"
+        parsed["time_pref"] = parsed.get("time_pref") or "night"
+
     return parsed
 
 
