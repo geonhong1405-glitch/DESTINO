@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DESTINO - 렌터카 예약</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
-    <link rel="stylesheet" href="/static/rental.css?v=20260227b">
+    <link rel="stylesheet" href="../static/rental.css?v=20260227b">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -275,7 +275,6 @@
         </section>
 
         <button id="rentalSavedFab" class="rental-saved-fab" type="button" aria-expanded="false" aria-controls="rentalSavedDrawer" title="장바구니 열기">
-            <span class="rental-saved-fab__icon">🧺</span>
             <span class="rental-saved-fab__label">장바구니</span>
             <span id="rentalSavedFabCount" class="rental-saved-fab__count" hidden>0</span>
         </button>
@@ -297,6 +296,89 @@
         </div>
     </main>
 
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-top">
+                <div class="footer-column">
+                    <h3>고객센터</h3>
+                    <p>오전 9시 ~ 새벽 3시 운영</p>
+                    <p>채팅 상담 문의: 24시간 운영</p>
+                    <div class="cs-buttons">
+                        <a href="tel:1670-0000" class="btn-cs">
+                            <span class="icon">📞</span>
+                            <div class="text">
+                                <strong>전화 상담</strong>
+                            </div>
+                        </a>
+                        <a href="#" class="btn-cs">
+                            <span class="icon">✉️</span>
+                            <div class="text">
+                                <strong>메일 문의</strong>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="footer-column">
+                    <h3>회사</h3>
+                    <ul>
+                        <li><a href="#">회사소개</a></li>
+                        <li><a href="#">채용정보</a></li>
+                        <li><a href="#">제휴문의</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-column">
+                    <h3>서비스</h3>
+                    <ul>
+                        <li><a href="#">공지사항</a></li>
+                        <li><a href="#">자주 묻는 질문</a></li>
+                        <li><a href="#">여행 매거진</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-column">
+                    <h3>혜택</h3>
+                    <ul>
+                        <li><a href="#">멤버십 안내</a></li>
+                        <li><a href="#">공동예매 가이드</a></li>
+                        <li><a href="#">포인트 정책</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-column">
+                    <h3>모든 여행</h3>
+                    <ul>
+                        <li><a href="#">항공</a></li>
+                        <li><a href="#">숙소</a></li>
+                        <li><a href="#">패키지</a></li>
+                        <li><a href="#">티켓</a></li>
+                        <li><a href="#">렌터카</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <hr class="footer-divider" />
+
+            <div class="footer-bottom">
+                <div class="company-info">
+                    <p>(주)데스티노 컴퍼니 | 대표이사: 김여행 | 사업자등록번호: 000-00-00000</p>
+                    <p>주소: 서울특별시 강남구 테헤란로 123 | 이메일: help@destino.com</p>
+                    <p class="disclaimer">
+                        데스티노는 통신판매중개자로서 통신판매의 당사자가 아니며, 상품의 예약, 이용 및 환불 등과
+                        관련한 의무와 책임은 각 판매자에게 있습니다.
+                    </p>
+
+                    <div class="footer-policy">
+                        <a href="#">이용약관</a>
+                        <a href="#"><strong>개인정보처리방침</strong></a>
+                        <a href="#">소비자 분쟁해결 기준</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
     <script>
         window.__RENTAL_INITIAL__ = {
             countryCode: {{ (country_code or 'JP')|tojson }},
@@ -313,7 +395,7 @@
         };
         window.__RENTAL_LOGGED_IN__ = {{ (true if nickname else false)|tojson }};
     </script>
-    <script src="/static/rental.js?v=20260304i"></script>
+    <script src="../static/rental.js?v=20260304i"></script>
     <script>
         // Fallback date-popover binding: keeps date fields usable even if main JS partially fails.
         document.addEventListener('DOMContentLoaded', function () {

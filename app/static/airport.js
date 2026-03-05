@@ -362,17 +362,35 @@ function renderFlightSavedDrawer() {
         return;
     }
 
+    /* 여기 부분 썸네일, 가격 수정함 */
     const items = Array.isArray(savedItemState[flightSavedDrawerTab]) ? savedItemState[flightSavedDrawerTab] : [];
     listEl.innerHTML = '';
     emptyEl.style.display = items.length ? 'none' : 'block';
     emptyEl.textContent = flightSavedDrawerTab === 'wishlist' ? '위시리스트 항목이 없습니다.' : '장바구니 항목이 없습니다.';
     items.forEach((item) => {
+        // home.js의 homeSavedItemHtml 구조 참고
+        const thumb = item?.payload?.thumb_url;
+        const kind = `${getSavedItemTypeLabel(item?.item_type)} · ${item?.source || 'saved-item'}`;
+        // meta: '₩123,000 | 출발 ...' 형태라면
+        let price = '';
+        let lines = [];
+        if (item.meta) {
+            const parts = String(item.meta).split('|').map(x => x.trim()).filter(Boolean);
+            price = parts[0] || '';
+            lines = parts.slice(1, 3);
+        }
         const li = document.createElement('li');
         li.className = 'flight-saved-item';
         li.innerHTML = `
-            <div class="flight-saved-item__type">${escapeHtml(getSavedItemTypeLabel(item.item_type))}</div>
-            <div class="flight-saved-item__name">${escapeHtml(item.name || '-')}</div>
-            ${item.meta ? `<div class="flight-saved-item__meta">${escapeHtml(item.meta).replace(/\|/g, '<br>')}</div>` : ''}
+            <div class="flight-saved-thumb">
+                ${thumb ? `<img src="${escapeHtml(thumb)}" alt="썸네일" loading="lazy">` : ''}
+            </div>
+            <div class="flight-saved-item__meta">
+                <div class="flight-saved-item__type">${escapeHtml(kind)}</div>
+                <div class="flight-saved-item__name">${escapeHtml(item.name || '-')}</div>
+                ${price ? `<div class="flight-saved-line flight-saved-price">${escapeHtml(price)}</div>` : ''}
+                ${lines.map(line => `<div class="flight-saved-line">${escapeHtml(line)}</div>`).join('')}
+            </div>
             <button type="button" class="flight-saved-item__remove" data-flight-saved-remove="${item.id}" title="삭제">×</button>
         `;
         listEl.appendChild(li);
@@ -473,6 +491,8 @@ function buildFlightSavedItemPayload(offer, airline) {
     const meta = [priceLabel, depAt ? `출발 ${depAt.replace('T', ' ')}` : '', arrAt ? `도착 ${arrAt.replace('T', ' ')}` : '']
         .filter(Boolean)
         .join(' | ');
+    // 썸네일(항공사 로고) URL 추가
+    const thumb_url = getAirlineLogoUrl(airline.code);
     return {
         item_type: 'flight',
         name,
@@ -486,6 +506,7 @@ function buildFlightSavedItemPayload(offer, airline) {
             travelerPricings: offer?.travelerPricings || [],
             baggage_summary: extractBaggageSummary(offer),
             baggage_options: extractChargeableBaggageOptions(offer),
+            thumb_url, // 추가
         },
     };
 }

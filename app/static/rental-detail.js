@@ -1,4 +1,4 @@
-function loadTossPaymentsScript() {
+﻿function loadTossPaymentsScript() {
   if (window.TossPayments) return Promise.resolve(window.TossPayments);
   return new Promise((resolve, reject) => {
     const existing = document.querySelector('script[data-toss-sdk="1"]');
@@ -106,18 +106,29 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     try {
-      const res = await fetch('/api/rental/checkout', {
+      const doCheckout = () => fetch('/api/rental/checkout', {
         method: 'POST',
-        credentials: 'same-origin',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
+      let res = await doCheckout();
       if (res.status === 401) {
-        if (confirm('로그인이 필요합니다. 로그인 페이지로 이동할까요?')) {
-          location.href = '/login';
+        try {
+          const me = await fetch('/api/me', { credentials: 'include', cache: 'no-store' });
+          const meData = await me.json().catch(() => ({}));
+          if (me.ok && meData?.ok && meData?.user?.id) {
+            res = await doCheckout();
+          }
+        } catch (_e) {}
+        if (res.status === 401) {
+          if (confirm('로그인이 필요합니다. 로그인 페이지로 이동할까요?')) {
+            const next = encodeURIComponent(window.location.pathname + window.location.search);
+            location.href = `/login?next=${next}`;
+          }
+          return;
         }
-        return;
       }
 
       const checkout = await res.json().catch(() => ({}));
