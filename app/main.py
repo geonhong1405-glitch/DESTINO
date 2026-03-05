@@ -2180,7 +2180,7 @@ def payment_hotel_success_page():
                 <span id="res-amount">-</span>
             </div>
         </div>
-        <a href="/gloval-hotel" class="btn btn-primary" id="main-btn">호텔 상품 보기</a>
+        <a href="/gloval-hotel" class="btn btn-primary" id="main-btn">호텔 상품 페이지로 돌아가기</a>
         <a href="/" class="btn btn-outline">메인페이지로 이동</a>
     </div>
     <script>
@@ -2203,11 +2203,11 @@ def payment_hotel_success_page():
                 iconBox.innerHTML = '✅';
                 iconBox.style.fontSize = '32px';
                 title.textContent = '결제가 완료되었습니다!';
-                msg.textContent = '호텔 예약이 완료되었습니다. <br>마이페이지에서 상세 내역을 확인하세요.';
+                msg.textContent = '호텔 예약이 완료되었습니다. 마이페이지에서 상세 내역을 확인하세요.';
                 infoCard.style.display = 'block';
                 document.getElementById('res-orderId').textContent = orderId;
                 document.getElementById('res-amount').textContent = amount.toLocaleString() + '원';
-                document.getElementById('main-btn').textContent = '예약 내역 확인하기';
+                document.getElementById('main-btn').textContent = ' 보러가기';
             } else {
                 iconBox.innerHTML = '❌';
                 iconBox.style.fontSize = '32px';
@@ -2316,7 +2316,7 @@ def payment_tour_success_page():
     </style>
 </head>
 <body>
-    <div class=\"container\">\n        <div class=\"status-icon\" id=\"icon-box\">\n            <div class=\"spinner\" id=\"spinner\"></div>\n        </div>\n        <h2 id=\"title\">결제 확인 중</h2>\n        <p id=\"msg\">안전한 결제 승인을 위해 잠시만 기다려 주세요.</p>\n        <div class=\"info-card\" id=\"info-card\">\n            <div class=\"info-row\">\n                <span>주문번호</span>\n                <span id=\"res-orderId\">-</span>\n            </div>\n            <div class=\"info-row\">\n                <span>결제금액</span>\n                <span id=\"res-amount\">-</span>\n            </div>\n        </div>\n        <a href=\"/tour\" class=\"btn btn-primary\" id=\"main-btn\">투어 상품 보기</a>\n        <a href=\"/\" class=\"btn btn-outline\">메인페이지로 이동</a>\n    </div>\n    <script>\n        const qs = new URLSearchParams(location.search);\n        const orderId = qs.get('orderId');\n        const amount = Number(qs.get('amount') || 0);\n        const body = { paymentKey: qs.get('paymentKey'), orderId: orderId, amount: amount };\n        fetch('/api/payments/toss/tour/confirm', {\n            method: 'POST',\n            headers: { 'Content-Type': 'application/json' },\n            body: JSON.stringify(body)\n        })\n        .then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))\n        .then(x => {\n            const iconBox = document.getElementById('icon-box');\n            const title = document.getElementById('title');\n            const msg = document.getElementById('msg');\n            const infoCard = document.getElementById('info-card');\n            if (x.ok) {\n                iconBox.innerHTML = '✅';\n                iconBox.style.fontSize = '32px';\n                title.textContent = '결제가 완료되었습니다!';\n                msg.textContent = '투어 예약이 완료되었습니다. 마이페이지에서 상세 내역을 확인하세요.';\n                infoCard.style.display = 'block';\n                document.getElementById('res-orderId').textContent = orderId;\n                document.getElementById('res-amount').textContent = amount.toLocaleString() + '원';\n                document.getElementById('main-btn').textContent = '예약 내역 확인하기';\n            } else {\n                iconBox.innerHTML = '❌';\n                iconBox.style.fontSize = '32px';\n                title.textContent = '결제에 실패했습니다';\n                msg.textContent = x.data?.detail || x.data?.message || '알 수 없는 오류가 발생했습니다.';\n            }\n        })\n        .catch(() => {\n            document.getElementById('title').textContent = '오류 발생';\n            document.getElementById('msg').textContent = '서버와의 통신 중 문제가 발생했습니다.';\n        });\n    </script>\n</body>\n</html>
+    <div class=\"container\">\n        <div class=\"status-icon\" id=\"icon-box\">\n            <div class=\"spinner\" id=\"spinner\"></div>\n        </div>\n        <h2 id=\"title\">결제 확인 중</h2>\n        <p id=\"msg\">안전한 결제 승인을 위해 잠시만 기다려 주세요.</p>\n        <div class=\"info-card\" id=\"info-card\">\n            <div class=\"info-row\">\n                <span>주문번호</span>\n                <span id=\"res-orderId\">-</span>\n            </div>\n            <div class=\"info-row\">\n                <span>결제금액</span>\n                <span id=\"res-amount\">-</span>\n            </div>\n        </div>\n        <a href=\"/tour\" class=\"btn btn-primary\" id=\"main-btn\">티켓 상품 페이지로 돌아가기</a>\n        <a href=\"/\" class=\"btn btn-outline\">메인페이지로 이동</a>\n    </div>\n    <script>\n        const qs = new URLSearchParams(location.search);\n        const orderId = qs.get('orderId');\n        const amount = Number(qs.get('amount') || 0);\n        const body = { paymentKey: qs.get('paymentKey'), orderId: orderId, amount: amount };\n        fetch('/api/payments/toss/tour/confirm', {\n            method: 'POST',\n            headers: { 'Content-Type': 'application/json' },\n            body: JSON.stringify(body)\n        })\n        .then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))\n        .then(x => {\n            const iconBox = document.getElementById('icon-box');\n            const title = document.getElementById('title');\n            const msg = document.getElementById('msg');\n            const infoCard = document.getElementById('info-card');\n            if (x.ok) {\n                iconBox.innerHTML = '✅';\n                iconBox.style.fontSize = '32px';\n                title.textContent = '결제가 완료되었습니다!';\n                msg.textContent = '투어 예약이 완료되었습니다. 마이페이지에서 상세 내역을 확인하세요.';\n                infoCard.style.display = 'block';\n                document.getElementById('res-orderId').textContent = orderId;\n                document.getElementById('res-amount').textContent = amount.toLocaleString() + '원';\n                document.getElementById('main-btn').textContent = '티켓 상품 페이지로 돌아가기';\n            } else {\n                iconBox.innerHTML = '❌';\n                iconBox.style.fontSize = '32px';\n                title.textContent = '결제에 실패했습니다';\n                msg.textContent = x.data?.detail || x.data?.message || '알 수 없는 오류가 발생했습니다.';\n            }\n        })\n        .catch(() => {\n            document.getElementById('title').textContent = '오류 발생';\n            document.getElementById('msg').textContent = '서버와의 통신 중 문제가 발생했습니다.';\n        });\n    </script>\n</body>\n</html>
 """
 
 
@@ -2329,7 +2329,7 @@ def payment_tour_fail_page(code: str | None = Query(None), message: str | None =
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>투어 결제 실패</title>
 <style>body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a}} .box{{max-width:560px;margin:24px auto;background:#fff;border:1px solid #fecaca;border-radius:12px;padding:18px}} .muted{{color:#64748b;font-size:14px}}</style>
-</head><body><div class="box"><h2>결제가 완료되지 않았습니다.</h2><p class="muted">코드: {c or '-'}</p><p class="muted">메시지: {m or '-'}</p><a href="/tour">투어 페이지로 돌아가기</a></div></body></html>
+</head><body><div class="box"><h2>결제가 완료되지 않았습니다.</h2><p class="muted">코드: {c or '-'}</p><p class="muted">메시지: {m or '-'}</p><a href="/tour">티켓 상품 페이지로 돌아가기</a></div></body></html>
 """
 @app.get("/logout")
 def logout(request: Request):
@@ -2802,7 +2802,7 @@ def payment_pack_fail_page(code: str | None = Query(None), message: str | None =
 
         <div class="button-group">
             <a href="/package" class="btn btn-primary">패키지기</a>
-            <a href="/" class="btn btn-secondary">메인으로 돌아가기</a>
+            <a href="/" class="btn btn-secondary">메인페이지로 이동</a>
         </div>
     </div>
 </body>

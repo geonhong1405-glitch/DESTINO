@@ -1222,7 +1222,7 @@ def payment_rental_success_page():
                 infoCard.style.display = 'block';
                 document.getElementById('res-orderId').textContent = orderId;
                 document.getElementById('res-amount').textContent = amount.toLocaleString() + '원';
-                document.getElementById('main-btn').textContent = '예약 내역 확인하기';
+                document.getElementById('main-btn').textContent = '렌터카 상품 페이지로 돌아가기';
             } else {
                 iconBox.innerHTML = '❌';
                 iconBox.style.fontSize = '32px';
