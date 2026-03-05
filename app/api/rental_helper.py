@@ -109,8 +109,49 @@ def _match_preset(query: str, category: str, limit: int, country_code: str | Non
 
     # Relax country filter once to avoid empty UX.
     if cc:
-        return _match_preset(query=query, category=category, limit=limit, country_code=None)
-    return []
+        retry = _match_preset(query=query, category=category, limit=limit, country_code=None)
+        if retry:
+            return retry
+
+    # Last-resort fallback: ignore query and return major hubs by country/category.
+    fallback: list[dict] = []
+    for item in _preset_locations():
+        if category in {"airport", "station", "city"} and item.get("category") != category:
+            continue
+        if cc and item.get("country_code") != cc:
+            continue
+        fallback.append(
+            {
+                "name": item.get("name"),
+                "sub": item.get("sub"),
+                "lat": item.get("lat"),
+                "lon": item.get("lon"),
+                "category": item.get("category", "all"),
+                "country_code": item.get("country_code"),
+            }
+        )
+        if len(fallback) >= max(1, int(limit or 10)):
+            break
+    if fallback:
+        return fallback
+
+    # Final global fallback when country has no preset entries.
+    for item in _preset_locations():
+        if category in {"airport", "station", "city"} and item.get("category") != category:
+            continue
+        fallback.append(
+            {
+                "name": item.get("name"),
+                "sub": item.get("sub"),
+                "lat": item.get("lat"),
+                "lon": item.get("lon"),
+                "category": item.get("category", "all"),
+                "country_code": item.get("country_code"),
+            }
+        )
+        if len(fallback) >= max(1, int(limit or 10)):
+            break
+    return fallback
 
 
 def _google_places_search(query: str, category: str, limit: int) -> list[dict]:
@@ -192,15 +233,13 @@ def search_rental_locations(
     country_code: str | None = None,
 ) -> list[dict]:
     q = (query or "").strip()
-    if not q:
-        return []
 
     cat = (category or "all").strip().lower()
     if cat not in {"all", "airport", "station", "city"}:
         cat = "all"
 
     # 1) Try Google Places for broad global coverage when key is configured.
-    google_rows = _google_places_search(q, cat, limit)
+    google_rows = _google_places_search(q, cat, limit) if q else []
     if google_rows:
         return google_rows
 

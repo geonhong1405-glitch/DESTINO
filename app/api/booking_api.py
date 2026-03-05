@@ -193,10 +193,15 @@ def search_car_rentals(
         sec_no_location = dict(sec_with_location)
         sec_no_location.pop("location", None)
         attempts.append(sec_no_location)
+    try:
+        max_attempts = int(str(os.getenv("BOOKING_SEARCH_MAX_ATTEMPTS", "3")).strip())
+    except Exception:
+        max_attempts = 3
+    max_attempts = max(1, min(4, max_attempts))
 
     last_data = None
     last_status = 0
-    for params in attempts:
+    for params in attempts[:max_attempts]:
         cache_key = _cache_key_from_params(url, params)
         cached = _cache_get(cache_key)
         if cached:

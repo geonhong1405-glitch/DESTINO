@@ -35,13 +35,13 @@ def _has_creds() -> bool:
 
 def _timeout_config() -> tuple[float, float]:
     try:
-        connect = float(str(os.getenv("SKY_API_CONNECT_TIMEOUT", "5")).strip())
+        connect = float(str(os.getenv("SKY_API_CONNECT_TIMEOUT", "3")).strip())
     except Exception:
-        connect = 5.0
+        connect = 3.0
     try:
-        read = float(str(os.getenv("SKY_API_READ_TIMEOUT", "20")).strip())
+        read = float(str(os.getenv("SKY_API_READ_TIMEOUT", "10")).strip())
     except Exception:
-        read = 20.0
+        read = 10.0
     return max(1.0, connect), max(3.0, read)
 
 
@@ -51,9 +51,9 @@ def _retry_config() -> tuple[int, float]:
     except Exception:
         retries = 2
     try:
-        backoff = float(str(os.getenv("SKY_API_RETRY_BACKOFF_MS", "500")).strip()) / 1000.0
+        backoff = float(str(os.getenv("SKY_API_RETRY_BACKOFF_MS", "200")).strip()) / 1000.0
     except Exception:
-        backoff = 0.5
+        backoff = 0.2
     return max(0, retries), max(0.0, backoff)
 
 
