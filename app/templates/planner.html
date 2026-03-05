@@ -134,6 +134,28 @@
             </section>
         </main>
 
+        <!-- 장바구니 버튼/드로어: HTML에 미리 삽입 -->
+        <button id="ai-cart-fab" class="ai-cart-fab" type="button" aria-expanded="false" aria-controls="ai-cart-drawer" title="장바구니 열기">
+            <span class="ai-cart-fab__label">장바구니</span>
+            <span id="ai-cart-count" class="ai-cart-fab__count" hidden>0</span>
+        </button>
+        <div id="ai-cart-drawer" class="ai-cart-drawer" aria-hidden="true">
+            <div class="ai-cart-drawer__backdrop" data-cart-close></div>
+            <section class="ai-cart-drawer__panel">
+                <div class="ai-cart-drawer__grab"></div>
+                <div class="ai-cart-drawer__header">
+                    <div class="ai-cart-tabs" role="tablist" aria-label="저장 항목 탭">
+                        <button type="button" class="ai-cart-tab is-active" data-cart-tab="cart" role="tab" aria-selected="true">장바구니</button>
+                        <button type="button" class="ai-cart-tab" data-cart-tab="wishlist" role="tab" aria-selected="false">위시리스트</button>
+                        <button type="button" class="ai-cart-tab" data-cart-tab="alerts" role="tab" aria-selected="false">알림</button>
+                    </div>
+                    <button type="button" class="ai-cart-drawer__close" data-cart-close>닫기</button>
+                </div>
+                <ul id="ai-cart-list" class="ai-cart-list"></ul>
+                <div id="ai-cart-empty" class="ai-cart-empty">저장된 항목이 없습니다.</div>
+            </section>
+        </div>
+
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-container">

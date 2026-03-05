@@ -1219,7 +1219,6 @@ ul {
     display: none;
     overflow: hidden;
 }
-
 .ai-cart-drawer.is-open { display: block; }
 
 .ai-cart-drawer__grab {
