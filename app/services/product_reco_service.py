@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+import re
 from typing import Any
 
 from app.db.db import SessionLocal
@@ -145,6 +147,7 @@ def _extract_city_hint(message: str) -> str:
         "\uC624\uC0AC\uCE74": "\uC624\uC0AC\uCE74",
         "\uAD50\uD1A0": "\uAD50\uD1A0",
         "\uB274\uC695": "\uB274\uC695",
+        "\uC554\uC2A4\uD14C\uB974\uB2F4": "\uC554\uC2A4\uD14C\uB974\uB2F4",
         "\uD30C\uB9AC": "\uD30C\uB9AC",
         "\uB7F0\uB358": "\uB7F0\uB358",
         "\uB2E4\uB0AD": "\uB2E4\uB0AD",
@@ -155,6 +158,7 @@ def _extract_city_hint(message: str) -> str:
         "kyoto": "\uAD50\uD1A0",
         "new york": "\uB274\uC695",
         "nyc": "\uB274\uC695",
+        "amsterdam": "\uC554\uC2A4\uD14C\uB974\uB2F4",
         "paris": "\uD30C\uB9AC",
         "london": "\uB7F0\uB358",
         "danang": "\uB2E4\uB0AD",
@@ -165,6 +169,153 @@ def _extract_city_hint(message: str) -> str:
         if k in msg:
             return v
     return ""
+
+
+def _country_from_city(city: str) -> str:
+    c = str(city or "").strip()
+    if c in {"\uB3C4\uCFC4", "\uC624\uC0AC\uCE74", "\uAD50\uD1A0"}:
+        return "\uC77C\uBCF8"
+    if c in {"\uB274\uC695"}:
+        return "\uBBF8\uAD6D"
+    if c in {"\uC554\uC2A4\uD14C\uB974\uB2F4"}:
+        return "\uB124\uB35C\uB780\uB4DC"
+    if c in {"\uD30C\uB9AC"}:
+        return "\uD504\uB791\uC2A4"
+    if c in {"\uB7F0\uB358"}:
+        return "\uC601\uAD6D"
+    if c in {"\uBC29\uCF55"}:
+        return "\uD0DC\uAD6D"
+    if c in {"\uD0C0\uC774\uBCA0\uC774"}:
+        return "\uB300\uB9CC"
+    if c in {"\uB2E4\uB0AD"}:
+        return "\uBCA0\uD2B8\uB0A8"
+    return ""
+
+
+def _extract_country_hint(message: str) -> str:
+    msg = str(message or "").lower()
+    country_map = {
+        "\uC77C\uBCF8": "\uC77C\uBCF8",
+        "\uBBF8\uAD6D": "\uBBF8\uAD6D",
+        "\uD0DC\uAD6D": "\uD0DC\uAD6D",
+        "\uBCA0\uD2B8\uB0A8": "\uBCA0\uD2B8\uB0A8",
+        "\uD504\uB791\uC2A4": "\uD504\uB791\uC2A4",
+        "\uC601\uAD6D": "\uC601\uAD6D",
+        "\uB300\uB9CC": "\uB300\uB9CC",
+        "\uC2A4\uD398\uC778": "\uC2A4\uD398\uC778",
+        "\uC774\uD0C8\uB9AC\uC544": "\uC774\uD0C8\uB9AC\uC544",
+        "\uBCA8\uAE30\uC5D0": "\uBCA8\uAE30\uC5D0",
+        "\uB124\uB35C\uB780\uB4DC": "\uB124\uB35C\uB780\uB4DC",
+        "\uB124\uB35C\uB79C\uB4DC": "\uB124\uB35C\uB780\uB4DC",
+        "\uCCB4\uCF54": "\uCCB4\uCF54",
+        "japan": "\uC77C\uBCF8",
+        "usa": "\uBBF8\uAD6D",
+        "united states": "\uBBF8\uAD6D",
+        "america": "\uBBF8\uAD6D",
+        "thailand": "\uD0DC\uAD6D",
+        "vietnam": "\uBCA0\uD2B8\uB0A8",
+        "france": "\uD504\uB791\uC2A4",
+        "uk": "\uC601\uAD6D",
+        "england": "\uC601\uAD6D",
+        "britain": "\uC601\uAD6D",
+        "great britain": "\uC601\uAD6D",
+        "gb": "\uC601\uAD6D",
+        "united kingdom": "\uC601\uAD6D",
+        "taiwan": "\uB300\uB9CC",
+        "spain": "\uC2A4\uD398\uC778",
+        "italy": "\uC774\uD0C8\uB9AC\uC544",
+        "belgium": "\uBCA8\uAE30\uC5D0",
+        "netherlands": "\uB124\uB35C\uB780\uB4DC",
+        "netherland": "\uB124\uB35C\uB780\uB4DC",
+        "holland": "\uB124\uB35C\uB780\uB4DC",
+        "czech": "\uCCB4\uCF54",
+        "czechia": "\uCCB4\uCF54",
+        "czech republic": "\uCCB4\uCF54",
+    }
+    for k, v in country_map.items():
+        if k in msg:
+            return v
+    return ""
+
+
+def infer_country_hint(message: str, prev_state: dict[str, Any] | None = None) -> str:
+    current = _extract_country_hint(message)
+    if current:
+        return current
+    if isinstance(prev_state, dict):
+        return str(prev_state.get("country_hint") or "").strip()
+    return ""
+
+
+def _parse_int_price(value: str) -> int | None:
+    digits = "".join(ch for ch in str(value or "") if ch.isdigit())
+    if not digits:
+        return None
+    try:
+        return int(digits)
+    except Exception:
+        return None
+
+
+def _load_ticket_catalog_from_tour_page() -> list[dict[str, Any]]:
+    root = Path(__file__).resolve().parents[1]
+    tour_html = root / "templates" / "tour.html"
+    tour_css = root / "static" / "tour.css"
+    if not tour_html.exists() or not tour_css.exists():
+        return []
+
+    try:
+        html = tour_html.read_text(encoding="utf-8", errors="ignore")
+        css = tour_css.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return []
+
+    class_to_url: dict[str, str] = {}
+    for m in re.finditer(r"\.(tImg\d+)\s*\{[\s\S]*?background:\s*url\(\"([^\"]+)\"\)", css, flags=re.IGNORECASE):
+        class_to_url[m.group(1)] = m.group(2).strip()
+
+    items: list[dict[str, Any]] = []
+    card_pattern = re.compile(
+        r"<div class=\"tour-image\s+(tImg\d+)\"[\s\S]*?"
+        r"<p class=\"tour-loc\">([\s\S]*?)</p>[\s\S]*?"
+        r"<h3 class=\"tour-name\">([\s\S]*?)</h3>[\s\S]*?"
+        r"<span class=\"price-val\">([\d,]+)</span>",
+        flags=re.IGNORECASE,
+    )
+    for m in card_pattern.finditer(html):
+        image_cls = m.group(1).strip()
+        location = re.sub(r"\s+", " ", m.group(2)).strip()
+        name = re.sub(r"\s+", " ", m.group(3)).strip()
+        price = _parse_int_price(m.group(4))
+        if not name or not location:
+            continue
+        items.append(
+            {
+                "type": "\uD2F0\uCF13",
+                "name": name,
+                "price": price,
+                "currency": "KRW",
+                "location": location,
+                "rating": None,
+                "photo": class_to_url.get(image_cls, ""),
+            }
+        )
+    return items
+
+
+def _get_ticket_items() -> list[dict[str, Any]]:
+    # Merge tour-page catalog with legacy ticket catalog so city-specific asks
+    # (e.g., 도쿄) can still resolve even if tour page has no such city card.
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for src in (_load_ticket_catalog_from_tour_page(), list(TICKET_CATALOG)):
+        for it in src:
+            name = str(it.get("name") or "").strip()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            merged.append(it)
+    return merged
 
 
 def _photo_for_groupbuy(country: str, city: str) -> str:
@@ -237,7 +388,24 @@ def recommend_products(message: str, prev_state: dict[str, Any] | None = None, l
     prev_state = prev_state or {}
     msg = str(message or "").lower()
     city_hint = _extract_city_hint(message)
+    country_hint = infer_country_hint(message, prev_state)
     last_type = str(prev_state.get("last_product_type") or "")
+    is_activity_query = _contains_any(
+        msg,
+        [
+            "\uC561\uD2F0\uBE44\uD2F0",
+            "\uD65C\uB3D9",
+            "\uD22C\uC5B4",
+            "\uCCB4\uD5D8",
+            "\uB180\uAC70\uB9AC",
+            "\uC785\uC7A5\uAD8C",
+            "\uAD00\uB78C\uAD8C",
+            "\uD2F0\uCF13",
+            "activity",
+            "tour",
+            "ticket",
+        ],
+    )
 
     wants_groupbuy = _contains_any(
         msg,
@@ -249,7 +417,7 @@ def recommend_products(message: str, prev_state: dict[str, Any] | None = None, l
             "groupbuy",
         ],
     )
-    wants_ticket = _contains_any(
+    wants_ticket = is_activity_query or _contains_any(
         msg,
         [
             "\uD2F0\uCF13",
@@ -263,7 +431,7 @@ def recommend_products(message: str, prev_state: dict[str, Any] | None = None, l
             "tour",
         ],
     )
-    wants_package = _contains_any(
+    wants_package = (not is_activity_query) and _contains_any(
         msg,
         [
             "\uD328\uD0A4\uC9C0",
@@ -291,7 +459,7 @@ def recommend_products(message: str, prev_state: dict[str, Any] | None = None, l
         if exclude_type != "\uD328\uD0A4\uC9C0":
             pool.extend(list(PACKAGE_CATALOG))
         if exclude_type != "\uD2F0\uCF13":
-            pool.extend(list(TICKET_CATALOG))
+            pool.extend(_get_ticket_items())
         if exclude_type != "\uACF5\uB3D9\uAD6C\uB9E4":
             pool.extend(_get_groupbuy_items(limit=50))
         return pool
@@ -300,8 +468,13 @@ def recommend_products(message: str, prev_state: dict[str, Any] | None = None, l
     seen_names = set(str(x) for x in (prev_state.get("last_product_names") or []) if str(x).strip())
     seen_type = str(prev_state.get("last_product_type") or "")
 
-    if wants_ticket:
-        selected = list(TICKET_CATALOG)
+    force_ticket_scope = bool(is_activity_query or city_hint or country_hint)
+
+    if force_ticket_scope:
+        selected = _get_ticket_items()
+        selected_type = "\uD2F0\uCF13"
+    elif wants_ticket:
+        selected = _get_ticket_items()
         selected_type = "\uD2F0\uCF13"
     elif wants_groupbuy:
         selected = _get_groupbuy_items(limit=50)
@@ -313,7 +486,7 @@ def recommend_products(message: str, prev_state: dict[str, Any] | None = None, l
         if last_type == "\uACF5\uB3D9\uAD6C\uB9E4":
             selected = _get_groupbuy_items(limit=50)
         elif last_type == "\uD2F0\uCF13":
-            selected = list(TICKET_CATALOG)
+            selected = _get_ticket_items()
         else:
             selected = list(PACKAGE_CATALOG)
         selected_type = last_type
@@ -354,10 +527,28 @@ def recommend_products(message: str, prev_state: dict[str, Any] | None = None, l
             or city_hint in str(x.get("name") or "")
             or city_hint in str(x.get("meta") or "")
         ]
-        if filtered:
-            selected = filtered
-        elif selected_type == "\uD2F0\uCF13":
-            selected = []
+        # City mention must remain city-scoped; do not broaden to country/cross-city.
+        selected = filtered
+    elif country_hint:
+        filtered = [
+            x
+            for x in selected
+            if country_hint in str(x.get("location") or "")
+            or country_hint in str(x.get("name") or "")
+            or country_hint in str(x.get("meta") or "")
+        ]
+        selected = filtered
+
+    # Safety fallback: for activity queries, avoid empty results due strict hint mismatch.
+    if is_activity_query and not selected:
+        fallback = _get_ticket_items()
+        if city_hint:
+            # Keep strict city-only behavior.
+            selected = [x for x in fallback if city_hint in str(x.get("location") or "")]
+        elif country_hint:
+            selected = [x for x in fallback if country_hint in str(x.get("location") or "")]
+        if not selected:
+            selected = fallback
 
     selected.sort(key=lambda x: (x.get("price") is None, x.get("price") or 10**12))
     return selected[: max(1, int(limit))]

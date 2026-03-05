@@ -264,6 +264,17 @@ def handle_chat_request(
         history.append({"role": "user", "text": req.message})
         context = _build_context(history)
         prev_state = SESSION_STATE.get(sid, {})
+        # Persist last mentioned country so short follow-up turns like
+        # "액티비티 활동" can inherit country scope from previous turn.
+        try:
+            country_hint = product_reco_service.infer_country_hint(req.message, prev_state)
+        except Exception:
+            country_hint = ""
+        if country_hint:
+            seeded_state = dict(prev_state)
+            seeded_state["country_hint"] = country_hint
+            prev_state = seeded_state
+            SESSION_STATE[sid] = seeded_state
 
         # Hard gate: ignore non-travel queries unless we are clearly in an active travel slot-filling flow.
         msg_l = (req.message or "").lower()
@@ -275,6 +286,9 @@ def handle_chat_request(
                 "호텔", "숙소", "숙박", "hotel", "체크인", "체크아웃",
                 "렌터카", "렌트카", "rental", "car",
                 "package", "groupbuy", "group buy", "ticket", "activity", "tour",
+                "\uC5EC\uD589", "\uC561\uD2F0\uBE44\uD2F0", "\uD22C\uC5B4", "\uCD94\uCC9C",
+                "\uD638\uD154", "\uC219\uC18C", "\uD56D\uACF5", "\uBE44\uD589", "\uD2F0\uCF13",
+                "\uCF54\uC2A4", "\uC77C\uC815", "\uAD00\uAD11", "\uBA85\uC18C", "\uB9DB\uC9D1",
                 "일정", "코스", "itinerary", "plan",
                 "맛집", "명소", "관광", "교통", "비자", "환전", "치안",
             ],
@@ -286,6 +300,8 @@ def handle_chat_request(
                 "호텔", "숙소", "숙박", "hotel", "체크인", "체크아웃",
                 "렌터카", "렌트카", "rental", "pickup", "dropoff",
                 "package", "groupbuy", "group buy", "ticket", "activity", "tour",
+                "\uC561\uD2F0\uBE44\uD2F0", "\uD22C\uC5B4", "\uD2F0\uCF13",
+                "\uD638\uD154", "\uC219\uC18C", "\uC77C\uC815", "\uCF54\uC2A4", "\uAD00\uAD11",
                 "일정", "코스", "itinerary", "plan", "day",
                 "맛집", "명소", "관광", "교통", "비자", "환전", "치안",
             ],
@@ -351,7 +367,7 @@ def handle_chat_request(
                 )
             }
 
-        if (not active_travel_followup) and domain and (domain.get("is_travel") is False) and float(domain.get("confidence") or 0) >= 0.6:
+        if (not active_travel_followup) and domain and (domain.get("is_travel") is False) and float(domain.get("confidence") or 0) >= 0.6 and (not has_travel_signal):
             state = dict(prev_state)
             state["last_intent"] = "knowledge"
             SESSION_STATE[sid] = state

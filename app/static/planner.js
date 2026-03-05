@@ -134,6 +134,13 @@
             "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&w=800&q=80",
         ],
     };
+    const TOUR_PAGE_IMAGE_FALLBACK = {
+        disney: "https://cdn.pixabay.com/photo/2017/04/30/13/36/disneyland-paris-2272907_1280.jpg",
+        skytree: "https://media.istockphoto.com/id/1194071526/ko/%EC%82%AC%EC%A7%84/%EC%9D%BC%EB%B3%B8-%EC%86%8C%EB%85%80%EB%8A%94-%EA%B2%A8%EC%9A%B8%EC%B2%A0%EC%97%90-%EC%A0%84%ED%86%B5-%EA%B8%B0%EB%AA%A8%EB%85%B8-%EB%93%9C%EB%A0%88%EC%8A%A4%EB%A5%BC-%EC%9E%85%EA%B3%A0-%EA%B1%B7%EA%B3%A0-%EA%B5%90%ED%86%A0%EC%8B%9C%EC%9D%98-%EB%88%88%EC%9D%84-%EB%B3%B4%ED%98%B8%ED%95%98%EA%B8%B0-%EC%9C%84%ED%95%B4-%EC%9A%B0%EC%82%B0%EC%9D%84-%EC%82%AC%EC%9A%A9%ED%95%A9%EB%8B%88%EB%8B%A4.jpg?b=1&s=1024x1024&w=0&k=20&c=IfqDhqA2K88H3WwAMSEg0xTAysz27ffoELdX2gLLf48=",
+        usj: "https://cdn.pixabay.com/photo/2016/12/18/03/12/usj-1914942_1280.jpg",
+        ny: "https://cdn.pixabay.com/photo/2015/08/05/12/38/prague-castle-876467_1280.jpg",
+        liberty: "https://cdn.pixabay.com/photo/2020/08/12/11/16/norway-5482384_1280.jpg",
+    };
 
     function savedTypeLabel(itemType) {
         const type = String(itemType || "").toLowerCase();
@@ -194,6 +201,18 @@
         const u = String(url || "").trim();
         if (!u) return "";
         return looksLikeLogoImage(u) ? "" : u;
+    }
+
+    function productFallbackImageFromTour(name, type) {
+        const n = String(name || "").toLowerCase();
+        const t = String(type || "").toLowerCase();
+        if (!(t.includes("티켓") || t.includes("ticket"))) return "";
+        if (n.includes("디즈니")) return TOUR_PAGE_IMAGE_FALLBACK.disney;
+        if (n.includes("스카이트리") || n.includes("skytree")) return TOUR_PAGE_IMAGE_FALLBACK.skytree;
+        if (n.includes("유니버셜") || n.includes("universal") || n.includes("usj")) return TOUR_PAGE_IMAGE_FALLBACK.usj;
+        if (n.includes("자유의 여신상") || n.includes("liberty")) return TOUR_PAGE_IMAGE_FALLBACK.liberty;
+        if (n.includes("타임스퀘어") || n.includes("times square") || n.includes("뉴욕")) return TOUR_PAGE_IMAGE_FALLBACK.ny;
+        return "";
     }
 
     function normalizeRentalName(name, supplier) {
@@ -1379,6 +1398,7 @@
                 const descText = String(descFromMeta || "").trim();
                 const typeLabel = String(cardData.type || "상품");
                 const thumbLabel = typeLabel === "티켓" ? "TICKET" : (typeLabel === "공동구매" ? "GROUP" : "PACKAGE");
+                const fallbackPhoto = productFallbackImageFromTour(cardData.name, typeLabel);
 
                 const chips = [];
                 if (ratingText) chips.push(`평점 ${ratingText}`);
@@ -1386,7 +1406,7 @@
 
                 card.classList.add("ai-commerce-card--hotel", "ai-commerce-card--product");
                 card.innerHTML = `
-                    ${cardData.photo ? `<div class="ai-hotel-card__thumb-wrap"><img class="ai-hotel-card__thumb" src="${escapeHtml(cardData.photo)}" alt="${escapeHtml(cardData.name)}" loading="lazy" onerror="this.onerror=null; const w=this.closest('.ai-hotel-card__thumb-wrap'); if(w){w.classList.add('ai-hotel-card__thumb-wrap--placeholder'); w.innerHTML='<div class=\'ai-hotel-card__thumb-fallback\'>${thumbLabel}</div>'; }"></div>` : `<div class="ai-hotel-card__thumb-wrap ai-hotel-card__thumb-wrap--placeholder"><div class="ai-hotel-card__thumb-fallback">${thumbLabel}</div></div>`}
+                    ${cardData.photo ? `<div class="ai-hotel-card__thumb-wrap"><img class="ai-hotel-card__thumb" src="${escapeHtml(cardData.photo)}" data-fallback-src="${escapeHtml(fallbackPhoto)}" alt="${escapeHtml(cardData.name)}" loading="lazy" onerror="this.onerror=null; const fb=this.getAttribute('data-fallback-src'); if(fb && this.src!==fb){ this.src=fb; this.removeAttribute('data-fallback-src'); return; } const w=this.closest('.ai-hotel-card__thumb-wrap'); if(w){w.classList.add('ai-hotel-card__thumb-wrap--placeholder'); w.innerHTML='<div class=\'ai-hotel-card__thumb-fallback\'>${thumbLabel}</div>'; }"></div>` : `<div class="ai-hotel-card__thumb-wrap ai-hotel-card__thumb-wrap--placeholder"><div class="ai-hotel-card__thumb-fallback">${thumbLabel}</div></div>`}
                     <div class="ai-hotel-card__body">
                         <div class="ai-commerce-card__type">${escapeHtml(typeLabel)}</div>
                         <div class="ai-commerce-card__name">${escapeHtml(cardData.name)}</div>
@@ -1489,6 +1509,7 @@
                 const isFlight = t === "항공편" || t === "flight";
                 const isHotel = t === "호텔" || t === "hotel" || t === "숙소" || t === "stay" || t === "accommodation";
                 const isTicket = t === "티켓" || t === "ticket" || t === "activity";
+                const isTourLikeProduct = isTicket || t === "패키지" || t === "package" || t === "공동구매" || t === "groupbuy" || t === "group buy";
                 if (isFlight) {
                     const priceRaw = String(cardData?.price || "");
                     const digitsOnly = priceRaw.replace(/[^\d.]/g, "");
@@ -1548,12 +1569,18 @@
                     window.location.href = `/gloval-hotel/detail?${detailQs.toString()}`;
                     return;
                 }
-                if (isTicket) {
-                    const title = String(cardData?.name || "").trim();
-                    const locText = String(cardData?.address || "").trim();
-                    const priceDigits = String(cardData?.price || "").replace(/[^\d]/g, "");
-                    const tourId = `${title}__${locText}__${priceDigits}`;
-                    window.location.href = `/tour-detail?tour_id=${encodeURIComponent(tourId)}`;
+                if (isTourLikeProduct) {
+                    const title = String(cardData?.name || "").trim() || "투어 상품";
+                    const locText = String(cardData?.address || cardData?.location || "").trim() || "전세계";
+                    const priceText = String(cardData?.price || "").trim() || "0";
+                    const img = String(cardData?.photo || "").trim();
+                    const qs = new URLSearchParams({
+                        title,
+                        price: priceText,
+                        loc: locText,
+                    });
+                    if (img) qs.set("img", img);
+                    window.location.href = `/tour-detail?${qs.toString()}`;
                     return;
                 }
                 alert("결제 기능은 준비 중입니다. 우선 장바구니에 담아두었습니다.");
