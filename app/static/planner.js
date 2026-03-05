@@ -30,7 +30,6 @@
             <div id="ai-chat-box" class="ai-chat-messages" aria-live="polite"></div>
         </div>
         <button id="ai-cart-fab" class="ai-cart-fab" type="button" aria-expanded="false" aria-controls="ai-cart-drawer" title="장바구니 열기">
-            <span class="ai-cart-fab__icon">🧺</span>
             <span class="ai-cart-fab__label">장바구니</span>
             <span id="ai-cart-count" class="ai-cart-fab__count" hidden>0</span>
         </button>
@@ -436,10 +435,19 @@
         cartDrawer.classList.toggle("is-open", !!open);
         cartDrawer.setAttribute("aria-hidden", open ? "false" : "true");
         cartFab.setAttribute("aria-expanded", open ? "true" : "false");
+        // 버튼에 is-open 클래스 토글 (배경 이미지 변경)
+        cartFab.classList.toggle("is-open", !!open);
     }
 
     function renderCart() {
         if (!cartList || !cartEmpty) return;
+        // 탭 디자인 토글은 항상 실행
+        cartTabs.forEach((btn) => {
+            const active = btn.getAttribute("data-cart-tab") === cartTab;
+            btn.classList.toggle("is-active", active);
+            btn.setAttribute("aria-selected", active ? "true" : "false");
+        });
+
         if (cartTab === "alerts") {
             cartList.innerHTML = "";
             cartEmpty.style.display = alertItems.length ? "none" : "block";
@@ -471,7 +479,7 @@
                         ${
                             status !== "pending"
                                 ? `<div class="ai-cart-item__line">
-                                    <button type="button" data-alert-remove="${Number(item.id)}" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#475569;font-size:12px;font-weight:700;">알림 삭제</button>
+                                    <button type="button" data-alert-remove="${Number(item.id)}" class="ai-cart-alert-remove">알림 삭제</button>
                                 </div>`
                                 : ""
                         }
@@ -486,14 +494,9 @@
         cartList.innerHTML = "";
         cartEmpty.style.display = items.length ? "none" : "block";
         cartEmpty.textContent = cartTab === "wishlist" ? "위시리스트 항목이 없습니다." : "장바구니 항목이 없습니다.";
-        cartTabs.forEach((btn) => {
-            const active = btn.getAttribute("data-cart-tab") === cartTab;
-            btn.classList.toggle("is-active", active);
-            btn.setAttribute("aria-selected", active ? "true" : "false");
-        });
         if (cartCount) {
             const totalCount = (savedItems.cart?.length || 0) + (savedItems.wishlist?.length || 0) + (alertItems?.length || 0);
-            cartCount.hidden = totalCount === 0;
+            cartCount.hidden = false; // 항상 표시
             cartCount.textContent = String(totalCount || 0);
         }
         items.forEach((item) => {
@@ -505,44 +508,29 @@
             const isFlightItem = itemTypeRaw === "flight" || itemTypeRaw === "항공편";
             const kind = `${savedTypeLabel(item.item_type || item.type || item?.payload?.item_type)} · ${item.source || "saved-item"}`;
             const lines = (meta.lines || []).map((line) => `<div class="ai-cart-item__line">${escapeHtml(line)}</div>`).join("");
+            let priceHtml = meta.price ? `<div class="ai-cart-item__line ai-cart-item__price">${escapeHtml(meta.price)}</div>` : "";
+            let extraHtml = "";
             if (isFlightItem) {
                 const f = parseSavedFlightMeta(item);
-                const depLine = f.dep ? `출발 ${f.dep}` : "";
-                const arrLine = f.arr ? `도착 ${f.arr}` : "";
-                const retDepLine = f.retDep ? `오는편 출발 ${f.retDep}` : "";
-                const retArrLine = f.retArr ? `오는편 도착 ${f.retArr}` : "";
-                const displaySource = "airport-search";
-                const displayType = "항공";
-                li.className = "ai-cart-item ai-cart-item--flight";
-                li.innerHTML = `
-                    <div class="ai-cart-item__thumb ai-cart-item__thumb--flight">
-                        ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(f.displayTitle || f.name || "")}" loading="lazy" onerror="this.remove()">` : ""}
-                    </div>
-                    <div class="ai-cart-item__content ai-cart-item__content--flight">
-                        <div class="ai-cart-item__type">${escapeHtml(`${displayType} · ${displaySource}`)}</div>
-                        <div class="ai-cart-item__name">${escapeHtml(f.displayTitle || f.name || "-")}</div>
-                        ${f.price ? `<div class="ai-cart-item__line ai-cart-item__price">${escapeHtml(f.price)}</div>` : ""}
-                        ${depLine ? `<div class="ai-cart-item__line">${escapeHtml(depLine)}</div>` : ""}
-                        ${arrLine ? `<div class="ai-cart-item__line">${escapeHtml(arrLine)}</div>` : ""}
-                        ${f.isRound && retDepLine ? `<div class="ai-cart-item__line">${escapeHtml(retDepLine)}</div>` : ""}
-                        ${f.isRound && retArrLine ? `<div class="ai-cart-item__line">${escapeHtml(retArrLine)}</div>` : ""}
-                    </div>
-                    <button type="button" class="ai-cart-item__remove ai-cart-item__remove--flight" data-cart-remove="${item.id}" title="삭제">×</button>
-                `;
-                cartList.appendChild(li);
-                return;
+                const depLine = f.dep ? `<div class=\"ai-cart-item__line\">출발 ${escapeHtml(f.dep)}</div>` : "";
+                const arrLine = f.arr ? `<div class=\"ai-cart-item__line\">도착 ${escapeHtml(f.arr)}</div>` : "";
+                const retDepLine = f.retDep ? `<div class=\"ai-cart-item__line\">오는편 출발 ${escapeHtml(f.retDep)}</div>` : "";
+                const retArrLine = f.retArr ? `<div class=\"ai-cart-item__line\">오는편 도착 ${escapeHtml(f.retArr)}</div>` : "";
+                priceHtml = f.price ? `<div class=\"ai-cart-item__line ai-cart-item__price\">${escapeHtml(f.price)}</div>` : priceHtml;
+                extraHtml = `${depLine}${arrLine}${f.isRound && retDepLine ? retDepLine : ""}${f.isRound && retArrLine ? retArrLine : ""}`;
             }
             li.innerHTML = `
-                <div class="ai-cart-item__thumb">
+                <div class="ai-cart-item__thumb${isFlightItem ? ' ai-cart-item__thumb--flight' : ''}">
                     ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.name || "")}" loading="lazy" onerror="this.remove()">` : ""}
                 </div>
-                <div class="ai-cart-item__content">
+                <div class="ai-cart-item__content${isFlightItem ? ' ai-cart-item__content--flight' : ''}">
                     <div class="ai-cart-item__type">${escapeHtml(kind)}</div>
                     <div class="ai-cart-item__name">${escapeHtml(item.name || "-")}</div>
-                    ${meta.price ? `<div class="ai-cart-item__line ai-cart-item__price">${escapeHtml(meta.price)}</div>` : ""}
+                    ${priceHtml}
                     ${lines}
+                    ${extraHtml}
                 </div>
-                <button type="button" class="ai-cart-item__remove" data-cart-remove="${item.id}" title="삭제">×</button>
+                <button type="button" class="ai-cart-item__remove${isFlightItem ? ' ai-cart-item__remove--flight' : ''}" data-cart-remove="${item.id}" title="삭제">×</button>
             `;
             cartList.appendChild(li);
         });

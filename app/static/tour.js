@@ -1,5 +1,6 @@
 ﻿(() => {
-  const LOGIN_CONFIRM_MESSAGE = "로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?";
+  const LOGIN_CONFIRM_MESSAGE =
+    "로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?";
   const CART_LABEL = "장바구니";
   const CART_IN_LABEL = "담김";
   const ALERT_EMPTY_LABEL = "도착한 참여 요청 알림이 없습니다.";
@@ -9,7 +10,11 @@
   let tourAlertState = [];
 
   function isLoggedIn() {
-    return typeof window.nickname !== "undefined" && window.nickname !== null && window.nickname !== "";
+    return (
+      typeof window.nickname !== "undefined" &&
+      window.nickname !== null &&
+      window.nickname !== ""
+    );
   }
 
   function requireLoginMessage() {
@@ -38,15 +43,33 @@
   }
 
   function getTourSavedKey(item) {
-    const title = normalizeText(item?.title || item?.name || item?.payload?.title || item?.payload?.name || "");
-    const location = normalizeText(item?.location || item?.payload?.location || "");
-    const price = normalizePrice(item?.price || item?.payload?.price_text || item?.meta || "");
+    const title = normalizeText(
+      item?.title ||
+        item?.name ||
+        item?.payload?.title ||
+        item?.payload?.name ||
+        "",
+    );
+    const location = normalizeText(
+      item?.location || item?.payload?.location || "",
+    );
+    const price = normalizePrice(
+      item?.price || item?.payload?.price_text || item?.meta || "",
+    );
     return `${title}__${location}__${price}`;
   }
 
   function getTourIdentity(item) {
-    const title = normalizeText(item?.title || item?.name || item?.payload?.title || item?.payload?.name || "");
-    const location = normalizeText(item?.location || item?.payload?.location || "");
+    const title = normalizeText(
+      item?.title ||
+        item?.name ||
+        item?.payload?.title ||
+        item?.payload?.name ||
+        "",
+    );
+    const location = normalizeText(
+      item?.location || item?.payload?.location || "",
+    );
     return `${title}__${location}`;
   }
 
@@ -60,8 +83,12 @@
     }
 
     const imageWrap = card.querySelector(".tour-image");
-    const inlineBg = parseBackgroundImageUrl(imageWrap?.style?.backgroundImage || "");
-    const computedBg = parseBackgroundImageUrl(window.getComputedStyle(imageWrap || card).backgroundImage || "");
+    const inlineBg = parseBackgroundImageUrl(
+      imageWrap?.style?.backgroundImage || "",
+    );
+    const computedBg = parseBackgroundImageUrl(
+      window.getComputedStyle(imageWrap || card).backgroundImage || "",
+    );
     const imageTag = imageWrap?.querySelector("img")?.getAttribute("src") || "";
 
     return {
@@ -75,8 +102,16 @@
   }
 
   function updateTourCardButtons() {
-    const wishlistKeys = new Set((tourSavedState.wishlist || []).map((row) => getTourIdentity(row?.payload || row)));
-    const cartKeys = new Set((tourSavedState.cart || []).map((row) => getTourIdentity(row?.payload || row)));
+    const wishlistKeys = new Set(
+      (tourSavedState.wishlist || []).map((row) =>
+        getTourIdentity(row?.payload || row),
+      ),
+    );
+    const cartKeys = new Set(
+      (tourSavedState.cart || []).map((row) =>
+        getTourIdentity(row?.payload || row),
+      ),
+    );
 
     document.querySelectorAll(".tour-card").forEach((card, index) => {
       const data = extractTourData(card, index);
@@ -91,7 +126,9 @@
         wishBtn.setAttribute("aria-pressed", inWishlist ? "true" : "false");
       }
       if (wishIcon) {
-        wishIcon.className = inWishlist ? "fa-solid fa-heart" : "fa-regular fa-heart";
+        wishIcon.className = inWishlist
+          ? "fa-solid fa-heart"
+          : "fa-regular fa-heart";
       }
 
       const cartBtn = card.querySelector(".tour-cart-text-btn");
@@ -124,7 +161,9 @@
     } catch (_e) {}
 
     if (!res.ok) {
-      const err = new Error((data && (data.detail || data.error)) || `HTTP ${res.status}`);
+      const err = new Error(
+        (data && (data.detail || data.error)) || `HTTP ${res.status}`,
+      );
       err.code = "API_ERROR";
       err.payload = data;
       throw err;
@@ -142,7 +181,10 @@
     }
 
     try {
-      const data = await savedItemsApi("/api/saved-items", { method: "GET", headers: {} });
+      const data = await savedItemsApi("/api/saved-items", {
+        method: "GET",
+        headers: {},
+      });
       tourSavedState = {
         cart: Array.isArray(data?.cart) ? data.cart : [],
         wishlist: Array.isArray(data?.wishlist) ? data.wishlist : [],
@@ -161,7 +203,9 @@
       return;
     }
     try {
-      const res = await fetch("/api/group-buy/join-requests/inbox", { credentials: "include" });
+      const res = await fetch("/api/group-buy/join-requests/inbox", {
+        credentials: "include",
+      });
       if (res.status === 401) {
         tourAlertState = [];
         return;
@@ -175,23 +219,31 @@
   }
 
   async function decideTourAlert(requestId, action) {
-    const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}/decision`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
+    const res = await fetch(
+      `/api/group-buy/join-requests/${Number(requestId)}/decision`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      },
+    );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     await loadTourAlerts();
   }
 
   async function removeTourAlert(requestId) {
-    const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
+    const res = await fetch(
+      `/api/group-buy/join-requests/${Number(requestId)}`,
+      {
+        method: "DELETE",
+        credentials: "include",
+      },
+    );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    tourAlertState = (tourAlertState || []).filter((x) => Number(x?.id) !== Number(requestId));
+    tourAlertState = (tourAlertState || []).filter(
+      (x) => Number(x?.id) !== Number(requestId),
+    );
   }
 
   function ensureTourAlertsTab() {
@@ -214,7 +266,9 @@
     const title = String(tourData?.title || "").trim();
     if (!title) return null;
 
-    const meta = [tourData.location, tourData.price].filter(Boolean).join(" | ");
+    const meta = [tourData.location, tourData.price]
+      .filter(Boolean)
+      .join(" | ");
     return {
       list_type: listType,
       item_type: "ticket",
@@ -237,7 +291,9 @@
 
   function findSavedRow(listType, tourData) {
     const targetKey = getTourIdentity(tourData);
-    return (tourSavedState[listType] || []).find((row) => getTourIdentity(row?.payload || row) === targetKey);
+    return (tourSavedState[listType] || []).find(
+      (row) => getTourIdentity(row?.payload || row) === targetKey,
+    );
   }
 
   async function toggleTourSaved(tourData, listType) {
@@ -250,7 +306,10 @@
 
     try {
       if (existing?.id) {
-        await savedItemsApi(`/api/saved-items/${existing.id}`, { method: "DELETE", headers: {} });
+        await savedItemsApi(`/api/saved-items/${existing.id}`, {
+          method: "DELETE",
+          headers: {},
+        });
       } else {
         const payload = buildSavePayload(tourData, listType);
         if (!payload) return;
@@ -280,7 +339,10 @@
     try {
       if (isSaved) {
         if (wishRow?.id) {
-          await savedItemsApi(`/api/saved-items/${wishRow.id}`, { method: "DELETE", headers: {} });
+          await savedItemsApi(`/api/saved-items/${wishRow.id}`, {
+            method: "DELETE",
+            headers: {},
+          });
         }
       } else {
         const payload = buildSavePayload(tourData, "wishlist");
@@ -303,6 +365,7 @@
     const fab = document.getElementById("tourSavedFab");
     if (!drawer || !fab) return;
     drawer.classList.toggle("is-open", !!open);
+    fab.classList.toggle("is-open", !!open);
     drawer.setAttribute("aria-hidden", open ? "false" : "true");
     fab.setAttribute("aria-expanded", open ? "true" : "false");
   }
@@ -315,7 +378,9 @@
     const tabs = Array.from(document.querySelectorAll("[data-tour-saved-tab]"));
     if (!listEl || !emptyEl) return;
 
-    const items = Array.isArray(tourSavedState[tourSavedDrawerTab]) ? tourSavedState[tourSavedDrawerTab] : [];
+    const items = Array.isArray(tourSavedState[tourSavedDrawerTab])
+      ? tourSavedState[tourSavedDrawerTab]
+      : [];
     const total =
       (tourSavedState.cart?.length || 0) +
       (tourSavedState.wishlist?.length || 0) +
@@ -327,7 +392,8 @@
     }
 
     tabs.forEach((btn) => {
-      const active = btn.getAttribute("data-tour-saved-tab") === tourSavedDrawerTab;
+      const active =
+        btn.getAttribute("data-tour-saved-tab") === tourSavedDrawerTab;
       btn.classList.toggle("is-active", active);
       btn.setAttribute("aria-selected", active ? "true" : "false");
     });
@@ -341,7 +407,12 @@
         const li = document.createElement("li");
         li.className = "tour-saved-item";
         const status = String(alert?.status || "pending");
-        const statusLabel = status === "accepted" ? "수락됨" : status === "rejected" ? "거절됨" : "대기중";
+        const statusLabel =
+          status === "accepted"
+            ? "수락됨"
+            : status === "rejected"
+              ? "거절됨"
+              : "대기중";
         const incoming = String(alert?.direction || "incoming") !== "mine";
         li.innerHTML = `
           <div class="tour-saved-item__type">알림</div>
@@ -367,15 +438,30 @@
 
     listEl.innerHTML = "";
     emptyEl.style.display = items.length ? "none" : "block";
-    emptyEl.textContent = tourSavedDrawerTab === "wishlist" ? "위시리스트 항목이 없습니다." : "장바구니 항목이 없습니다.";
+    emptyEl.textContent =
+      tourSavedDrawerTab === "wishlist"
+        ? "위시리스트 항목이 없습니다."
+        : "장바구니 항목이 없습니다.";
 
     items.forEach((item) => {
       const li = document.createElement("li");
       li.className = "tour-saved-item";
+      // home drawer 스타일과 동일하게 썸네일, 이름, 가격, 메타, 삭제 버튼 렌더링
+      const imgSrc =
+        item?.payload?.image || item?.image || "/static/image/noimg.png";
+      const title = item?.name || item?.payload?.title || "-";
+      const price = item?.payload?.price_text || item?.price || "";
+      const meta = item?.meta || "";
       li.innerHTML = `
-        <div class="tour-saved-item__type">${item.item_type || (tourSavedDrawerTab === "cart" ? "ticket" : "wishlist")}</div>
-        <div class="tour-saved-item__name">${item.name || item?.payload?.title || "-"}</div>
-        <div class="tour-saved-item__meta">${item.meta || ""}</div>
+        <div class="tour-saved-thumb">
+          <img src="${imgSrc}" alt="썸네일" />
+        </div>
+        <div class="tour-saved-meta">
+          <div class="tour-saved-kind">${item.item_type || (tourSavedDrawerTab === "cart" ? "ticket" : "wishlist")}</div>
+          <div class="tour-saved-name">${title}</div>
+          <div class="tour-saved-line">${meta}</div>
+          <div class="tour-saved-price">${price}</div>
+        </div>
         <button type="button" class="tour-saved-item__remove" data-tour-saved-remove="${Number(item.id)}" title="remove">&times;</button>
       `;
       listEl.appendChild(li);
@@ -411,7 +497,9 @@
     listEl?.addEventListener("click", async (e) => {
       const decisionBtn = e.target.closest("[data-tour-alert-decision]");
       if (decisionBtn) {
-        const requestId = Number(decisionBtn.getAttribute("data-tour-alert-id"));
+        const requestId = Number(
+          decisionBtn.getAttribute("data-tour-alert-id"),
+        );
         const action = decisionBtn.getAttribute("data-tour-alert-decision");
         if (!requestId || !action) return;
         try {
@@ -423,7 +511,9 @@
 
       const removeAlertBtn = e.target.closest("[data-tour-alert-remove]");
       if (removeAlertBtn) {
-        const requestId = Number(removeAlertBtn.getAttribute("data-tour-alert-remove"));
+        const requestId = Number(
+          removeAlertBtn.getAttribute("data-tour-alert-remove"),
+        );
         if (!requestId) return;
         try {
           await removeTourAlert(requestId);
@@ -443,7 +533,10 @@
       }
 
       try {
-        await savedItemsApi(`/api/saved-items/${itemId}`, { method: "DELETE", headers: {} });
+        await savedItemsApi(`/api/saved-items/${itemId}`, {
+          method: "DELETE",
+          headers: {},
+        });
         await loadTourSavedItems();
       } catch (err) {
         if (err?.code === "LOGIN_REQUIRED") requireLoginMessage();
@@ -457,11 +550,17 @@
     document.addEventListener("click", function (e) {
       const card = e.target.closest(".tour-card");
       if (!card) return;
-      if (e.target.closest(".tour-wishlist-btn") || e.target.closest(".tour-cart-text-btn") || e.target.closest(".tour-pay-text-btn")) {
+      if (
+        e.target.closest(".tour-wishlist-btn") ||
+        e.target.closest(".tour-cart-text-btn") ||
+        e.target.closest(".tour-pay-text-btn")
+      ) {
         return;
       }
 
-      const index = Array.from(document.querySelectorAll(".tour-card")).indexOf(card);
+      const index = Array.from(document.querySelectorAll(".tour-card")).indexOf(
+        card,
+      );
       if (index === -1) return;
       const tourData = extractTourData(card, index);
 
@@ -483,14 +582,17 @@
       e.stopPropagation();
 
       const card = btn.closest(".tour-card");
-      const index = Array.from(document.querySelectorAll(".tour-card")).indexOf(card);
+      const index = Array.from(document.querySelectorAll(".tour-card")).indexOf(
+        card,
+      );
       if (index === -1) return;
       const tourData = extractTourData(card, index);
       const icon = btn.querySelector("i");
       const exists = !!findSavedRow("wishlist", tourData);
 
       // Optimistic UI: fill/unfill heart immediately, then reconcile from server state.
-      if (icon) icon.className = exists ? "fa-regular fa-heart" : "fa-solid fa-heart";
+      if (icon)
+        icon.className = exists ? "fa-regular fa-heart" : "fa-solid fa-heart";
       btn.classList.toggle("is-active", !exists);
       btn.setAttribute("aria-pressed", exists ? "false" : "true");
 
@@ -507,7 +609,9 @@
     const card = btn?.closest?.(".tour-card");
     if (!card) return;
 
-    const index = Array.from(document.querySelectorAll(".tour-card")).indexOf(card);
+    const index = Array.from(document.querySelectorAll(".tour-card")).indexOf(
+      card,
+    );
     if (index === -1) return;
     const tourData = extractTourData(card, index);
 
@@ -527,7 +631,9 @@
 
     const card = btn?.closest?.(".tour-card");
     if (!card) return;
-    const index = Array.from(document.querySelectorAll(".tour-card")).indexOf(card);
+    const index = Array.from(document.querySelectorAll(".tour-card")).indexOf(
+      card,
+    );
     if (index === -1) return;
 
     const tourData = extractTourData(card, index);
@@ -600,11 +706,15 @@
     initTourSavedDrawer();
     setupTourCardNavigation();
     setupWishlistButtonEvents();
-    Promise.all([loadTourSavedItems(), loadTourAlerts()]).then(renderTourSavedDrawer);
+    Promise.all([loadTourSavedItems(), loadTourAlerts()]).then(
+      renderTourSavedDrawer,
+    );
     initSearchWidget();
 
     window.addEventListener("authchange", () => {
-      Promise.all([loadTourSavedItems(), loadTourAlerts()]).then(renderTourSavedDrawer);
+      Promise.all([loadTourSavedItems(), loadTourAlerts()]).then(
+        renderTourSavedDrawer,
+      );
     });
   });
 
