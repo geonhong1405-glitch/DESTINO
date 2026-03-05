@@ -12,6 +12,7 @@ IMG_PKG_DANANG = "https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?q=80
 IMG_PKG_KYOTO = "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=600&auto=format&fit=crop"
 IMG_PKG_BANGKOK = "https://images.unsplash.com/photo-1508009603885-50cf7c579365?q=80&w=600&auto=format&fit=crop"
 IMG_PKG_TAIPEI = "https://images.unsplash.com/photo-1528164344705-47542687000d?q=80&w=600&auto=format&fit=crop"
+IMG_PKG_HAWAII = "https://media.istockphoto.com/id/1192548910/ko/%EC%82%AC%EC%A7%84/%EC%99%80%EC%9D%B4%ED%82%A4%ED%82%A4-%EB%B9%84%EC%B9%98-%ED%98%B8%EB%86%80%EB%A3%B0%EB%A3%A8-%ED%95%98%EC%99%80%EC%9D%B4-%EC%8A%A4%EC%B9%B4%EC%9D%B4%EB%9D%BC%EC%9D%B8.jpg?b=1&s=1024x1024&w=0&k=20&c=pxrfK0mKxhT4xaMHEYy1vFhssW7Pn5GGIRt4G_cpYsE="
 IMG_GROUP_DEFAULT = "https://images.unsplash.com/photo-1527631746610-bca00a040d60?q=80&w=800&auto=format&fit=crop"
 
 IMG_TICKET_TOKYO_DISNEY = "https://images.unsplash.com/photo-1575030194417-9d3f7f5f0b0f?q=80&w=800&auto=format&fit=crop"
@@ -56,6 +57,15 @@ PACKAGE_CATALOG: list[dict[str, Any]] = [
         "location": "\uB300\uB9CC \u00B7 \uD0C0\uC774\uBCA0\uC774",
         "rating": 4.3,
         "photo": IMG_PKG_TAIPEI,
+    },
+    {
+        "type": "\uD328\uD0A4\uC9C0",
+        "name": "\uBBF8\uAD6D \uD558\uC640\uC774 \uD328\uD0A4\uC9C0",
+        "price": 2150000,
+        "currency": "KRW",
+        "location": "\uBBF8\uAD6D \u00B7 \uD558\uC640\uC774",
+        "rating": 4.7,
+        "photo": IMG_PKG_HAWAII,
     },
 ]
 
@@ -208,6 +218,7 @@ def _extract_country_hint(message: str) -> str:
         "\uB124\uB35C\uB780\uB4DC": "\uB124\uB35C\uB780\uB4DC",
         "\uB124\uB35C\uB79C\uB4DC": "\uB124\uB35C\uB780\uB4DC",
         "\uCCB4\uCF54": "\uCCB4\uCF54",
+        "\uD638\uC8FC": "\uD638\uC8FC",
         "japan": "\uC77C\uBCF8",
         "usa": "\uBBF8\uAD6D",
         "united states": "\uBBF8\uAD6D",
@@ -231,6 +242,8 @@ def _extract_country_hint(message: str) -> str:
         "czech": "\uCCB4\uCF54",
         "czechia": "\uCCB4\uCF54",
         "czech republic": "\uCCB4\uCF54",
+        "australia": "\uD638\uC8FC",
+        "australian": "\uD638\uC8FC",
     }
     for k, v in country_map.items():
         if k in msg:
@@ -468,7 +481,11 @@ def recommend_products(message: str, prev_state: dict[str, Any] | None = None, l
     seen_names = set(str(x) for x in (prev_state.get("last_product_names") or []) if str(x).strip())
     seen_type = str(prev_state.get("last_product_type") or "")
 
-    force_ticket_scope = bool(is_activity_query or city_hint or country_hint)
+    # Do not force ticket catalog only because a country/city was mentioned.
+    # Package/groupbuy queries can also include location hints and should keep their own catalog.
+    force_ticket_scope = bool(
+        is_activity_query or (wants_ticket and not wants_package and not wants_groupbuy)
+    )
 
     if force_ticket_scope:
         selected = _get_ticket_items()
