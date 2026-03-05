@@ -181,6 +181,55 @@ def _parse_city_query(message: str, prev_state: dict[str, Any]) -> Optional[str]
     return rs.get("city_query")
 
 
+def _is_broad_city_iata(iata: str) -> bool:
+    return str(iata or "").upper() in {"TYO", "NYC", "LON", "PAR", "ROM", "SEL", "OSA", "SPK"}
+
+
+def _has_specific_pickup_location_in_turn(message: str) -> bool:
+    msg = str(message or "")
+    ml = msg.lower()
+    if re.search(r"\b[A-Z]{3}\b", msg.upper()):
+        code = re.search(r"\b([A-Z]{3})\b", msg.upper())
+        if code and not _is_broad_city_iata(code.group(1)):
+            return True
+    if any(k in ml for k in ["airport", "station", "terminal", "공항", "역", "터미널"]):
+        return True
+    for k, v in LOCATION_ALIASES.items():
+        kk = str(k or "").strip().lower()
+        vv = str(v or "").upper()
+        if kk and kk in ml and (not _is_broad_city_iata(vv)):
+            return True
+    return False
+
+
+def _parse_pickup_query(message: str, prev_state: dict[str, Any]) -> Optional[str]:
+    msg = str(message or "")
+    ml = msg.lower()
+
+    # Prefer explicit place nouns.
+    m = re.search(r"([\uAC00-\uD7A3A-Za-z0-9\s]{1,60}?(?:\uACF5\uD56D|\uC5ED|\uD130\uBBF8\uB110|airport|station|terminal))", msg, re.IGNORECASE)
+    if m:
+        cand = m.group(1).strip(" ,.")
+        if cand:
+            return cand
+
+    # Specific alias match (exclude broad city aliases like TYO/NYC/LON).
+    keys = sorted([str(k) for k in LOCATION_ALIASES.keys() if str(k).strip()], key=len, reverse=True)
+    for k in keys:
+        ks = k.lower()
+        iata = str(LOCATION_ALIASES.get(k) or "").upper()
+        if ks and ks in ml and not _is_broad_city_iata(iata):
+            return k
+
+    # Specific IATA in message.
+    m_iata = re.search(r"\b([A-Z]{3})\b", msg.upper())
+    if m_iata and not _is_broad_city_iata(m_iata.group(1)):
+        return m_iata.group(1)
+
+    rs = (prev_state or {}).get("rental_state") or {}
+    return rs.get("pickup_query")
+
+
 def _parse_date_ymd(text: str, now: Optional[dt.date] = None) -> Optional[str]:
     now = now or dt.datetime.now().date()
     s = str(text or "").strip()
@@ -415,6 +464,8 @@ def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, A
     country_code = _detect_country_code(msg, prev_state) or "KR"
     city_query = _parse_city_query(msg, prev_state)
     city_query_norm = _normalize_city_query_for_rental(city_query) or city_query
+    pickup_query = _parse_pickup_query(msg, prev_state)
+    pickup_query_norm = _normalize_city_query_for_rental(pickup_query) or pickup_query
     pickup_date, dropoff_date = _parse_pickup_dropoff_dates(msg, prev_state)
 
     has_explicit_date_in_turn = bool(
@@ -436,14 +487,15 @@ def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, A
     rental_state = {
         "country_code": country_code,
         "city_query": city_query_norm,
+        "pickup_query": pickup_query_norm,
         "pickup_date": pickup_date,
         "dropoff_date": dropoff_date,
         "driver_age": driver_age,
     }
 
     missing = []
-    if not city_query_norm:
-        missing.append("\uB3C4\uC2DC")
+    if not pickup_query_norm:
+        missing.append("\uD53D\uC5C5\uC9C0\uC810(\uC608: \uB3C4\uCFC4 \uD558\uB124\uB2E4\uACF5\uD56D, \uB098\uB9AC\uD0C0\uACF5\uD56D, \uB274\uC695 JFK\uACF5\uD56D)")
     if not pickup_date:
         missing.append("\uD53D\uC5C5\uC77C")
     if not dropoff_date:
@@ -452,19 +504,19 @@ def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, A
         html = (
             "<div>\uB80C\uD130\uCE74\uB97C \uCC3E\uC73C\uB824\uBA74 "
             + ", ".join(missing)
-            + " \uC815\uBCF4\uB97C \uC54C\uB824\uC8FC\uC138\uC694.<br>\uC608: \uB3C4\uCFC4\uC5D0\uC11C \uD53D\uC5C5\uC77C\uC740 3\uC6D4 2\uC77C, \uBC18\uB0A9\uC77C\uC740 3\uC6D4 3\uC77C, \uC6B4\uC804\uC790 \uB098\uC774 25\uC0B4</div>"
+            + " \uC815\uBCF4\uB97C \uC54C\uB824\uC8FC\uC138\uC694.<br>\uC608: \uB3C4\uCFC4 \uD558\uB124\uB2E4\uACF5\uD56D\uC5D0\uC11C \uD53D\uC5C5, 3\uC6D4 7\uC77C~3\uC6D4 8\uC77C</div>"
         )
         return html, {"rental_context": True, "rental_state": rental_state}
 
-    locs = search_rental_locations(city_query_norm, category="all", limit=5, country_code=country_code)
+    locs = search_rental_locations(pickup_query_norm, category="all", limit=5, country_code=country_code)
     if not locs:
         return (
-            f"<div>{city_query_norm} \uC9C0\uC5ED\uC758 \uB80C\uD130\uCE74 \uD53D\uC5C5 \uC704\uCE58\uB97C \uCC3E\uC9C0 \uBABB\uD588\uC5B4\uC694. \uB3C4\uC2DC\uBA85/\uACF5\uD56D\uBA85\uC73C\uB85C \uB2E4\uC2DC \uC54C\uB824\uC8FC\uC138\uC694.</div>",
+            f"<div>{pickup_query_norm} \uD53D\uC5C5 \uC9C0\uC810\uC744 \uCC3E\uC9C0 \uBABB\uD588\uC5B4\uC694. \uACF5\uD56D/\uC5ED \uB610\uB294 IATA(\uC608: HND, NRT, JFK) \uD615\uC2DD\uC73C\uB85C \uB2E4\uC2DC \uC54C\uB824\uC8FC\uC138\uC694.</div>",
             {"rental_context": True, "rental_state": rental_state},
         )
 
     loc = locs[0]
-    pickup_name = str(loc.get("name") or city_query_norm)
+    pickup_name = str(loc.get("name") or pickup_query_norm)
     pickup_lat = loc.get("lat")
     pickup_lon = loc.get("lon")
     if pickup_lat is None or pickup_lon is None:
@@ -512,7 +564,7 @@ def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, A
                 except Exception:
                     continue
 
-        alt_locs = search_rental_locations(city_query_norm, category="airport", limit=5, country_code=country_code)
+        alt_locs = search_rental_locations(pickup_query_norm, category="airport", limit=5, country_code=country_code)
         for alt in alt_locs:
             try:
                 alt_name = str(alt.get("name") or city_query_norm)
