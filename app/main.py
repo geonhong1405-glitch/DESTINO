@@ -747,6 +747,31 @@ async def _normalize_localhost(request: Request, call_next):
     return await call_next(request)
 
 
+@app.middleware("http")
+async def _refresh_session_cookie(request: Request, call_next):
+    response = await call_next(request)
+    # Keep cookie expiry aligned with rolling server-side session extension.
+    token = request.cookies.get("session_token")
+    if not token:
+        return response
+    if request.url.path == "/logout":
+        return response
+    try:
+        user_id = get_user_id_from_session(token)
+    except Exception:
+        user_id = None
+    if user_id:
+        response.set_cookie(
+            key="session_token",
+            value=token,
+            httponly=True,
+            samesite="lax",
+            max_age=SESSION_EXPIRE_MINUTES * 60,
+            path="/",
+        )
+    return response
+
+
 def get_db():
     db = SessionLocal()
     try:
