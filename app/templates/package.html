@@ -6,7 +6,7 @@
     <title>DESTINO - 패키지 여행 예약</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="/static/package.css?v=20260303c" />
+    <link rel="stylesheet" href="../static/package.css?v=20260303c" />
 </head>
 <body>
     <header class="header">
@@ -39,25 +39,24 @@
             </div>
         </section>
 
-        <button id="packageSavedFab" class="flight-saved-fab" type="button" aria-expanded="false" aria-controls="packageSavedDrawer" title="장바구니 열기">
-            <span class="flight-saved-fab__icon">🧺</span>
-            <span class="flight-saved-fab__label">장바구니</span>
-            <span id="packageSavedFabCount" class="flight-saved-fab__count" hidden>0</span>
+    <button id="packageSavedFab" class="package-saved-fab" type="button" aria-expanded="false" aria-controls="packageSavedDrawer" title="장바구니 열기">
+            <span class="package-saved-fab__label">장바구니</span>
+            <span id="packageSavedFabCount" class="package-saved-fab__count" hidden>0</span>
         </button>
 
-        <div id="packageSavedDrawer" class="flight-saved-drawer" aria-hidden="true">
-            <div class="flight-saved-drawer__backdrop" data-package-saved-close></div>
-            <section class="flight-saved-drawer__panel">
-                <div class="flight-saved-drawer__grab"></div>
-                <div class="flight-saved-drawer__header">
-                    <div class="flight-saved-tabs" role="tablist" aria-label="저장 항목 탭">
-                        <button id="packageSavedTabCart" type="button" class="flight-saved-tab is-active" data-package-saved-tab="cart" aria-selected="true">장바구니</button>
-                        <button id="packageSavedTabWishlist" type="button" class="flight-saved-tab" data-package-saved-tab="wishlist" aria-selected="false">위시리스트</button>
+        <div id="packageSavedDrawer" class="package-saved-drawer" aria-hidden="true">
+            <div class="package-saved-drawer__backdrop" data-package-saved-close></div>
+            <section class="package-saved-drawer__panel">
+                <div class="package-saved-drawer__grab"></div>
+                <div class="package-saved-drawer__header">
+                    <div class="package-saved-tabs" role="tablist" aria-label="저장 항목 탭">
+                        <button id="packageSavedTabCart" type="button" class="package-saved-tab is-active" data-package-saved-tab="cart" aria-selected="true">장바구니</button>
+                        <button id="packageSavedTabWishlist" type="button" class="package-saved-tab" data-package-saved-tab="wishlist" aria-selected="false">위시리스트</button>
                     </div>
-                    <button type="button" class="flight-saved-drawer__close" data-package-saved-close>닫기</button>
+                    <button type="button" class="package-saved-drawer__close" data-package-saved-close>닫기</button>
                 </div>
-                <ul id="packageSavedList" class="flight-saved-list"></ul>
-                <div id="packageSavedEmpty" class="flight-saved-empty">장바구니 항목이 없습니다.</div>
+                <ul id="packageSavedList" class="package-saved-list"></ul>
+                <div id="packageSavedEmpty" class="package-saved-empty">장바구니 항목이 없습니다.</div>
             </section>
         </div>
 
@@ -256,15 +255,20 @@
             <div class="footer-top">
                 <div class="footer-column">
                     <h3>고객센터</h3>
-                    <p>평일 9시 ~ 오후 6시 운영</p>
+                    <p>오전 9시 ~ 새벽 3시 운영</p>
+                    <p>채팅 상담 문의: 24시간 운영</p>
                     <div class="cs-buttons">
                         <a href="tel:1670-0000" class="btn-cs">
-                            <span class="icon">☎</span>
-                            <div class="text"><strong>1670-0000</strong></div>
+                            <span class="icon">📞</span>
+                            <div class="text">
+                                <strong>전화 상담</strong>
+                            </div>
                         </a>
                         <a href="#" class="btn-cs">
-                            <span class="icon">💬</span>
-                            <div class="text"><strong>채팅 상담</strong></div>
+                            <span class="icon">✉️</span>
+                            <div class="text">
+                                <strong>메일 문의</strong>
+                            </div>
                         </a>
                     </div>
                 </div>
@@ -280,22 +284,43 @@
                     <h3>서비스</h3>
                     <ul>
                         <li><a href="#">공지사항</a></li>
-                        <li><a href="#">FAQ</a></li>
+                        <li><a href="#">자주 묻는 질문</a></li>
+                        <li><a href="#">여행 매거진</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>혜택</h3>
+                    <ul>
+                        <li><a href="#">멤버십 안내</a></li>
+                        <li><a href="#">공동예매 가이드</a></li>
+                        <li><a href="#">포인트 정책</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>모든 여행</h3>
+                    <ul>
+                        <li><a href="#">항공</a></li>
+                        <li><a href="#">숙소</a></li>
+                        <li><a href="#">패키지</a></li>
+                        <li><a href="#">티켓</a></li>
+                        <li><a href="#">렌터카</a></li>
                     </ul>
                 </div>
             </div>
             <hr class="footer-divider" />
             <div class="footer-bottom">
                 <div class="company-info">
-                    <p>(주)데스티노 컴퍼니 | 대표이사 김여행 | 사업자등록번호 000-00-00000</p>
+                    <p>(주)데스티노 컴퍼니 | 대표이사: 김여행 | 사업자등록번호: 000-00-00000</p>
+                    <p>주소: 서울특별시 강남구 테헤란로 123 | 이메일: help@destino.com</p>
+                    <p class="disclaimer">
+                        데스티노는 통신판매중개자로서 통신판매의 당사자가 아니며, 상품의 예약, 이용 및 환불 등과
+                        관련한 의무와 책임은 각 판매자에게 있습니다.
+                    </p>
                     <div class="footer-policy">
                         <a href="#">이용약관</a>
                         <a href="#"><strong>개인정보처리방침</strong></a>
+                        <a href="#">소비자 분쟁해결 기준</a>
                     </div>
-                </div>
-                <div class="social-links">
-                    <a href="#">YouTube</a>
-                    <a href="#">Instagram</a>
                 </div>
             </div>
         </div>
@@ -304,6 +329,6 @@
     <script>
         window.__AUTH__ = "{{ nickname|default('') }}";
     </script>
-    <script src="/static/package.js?v=20260303c"></script>
+    <script src="../static/package.js?v=20260303c"></script>
 </body>
 </html>

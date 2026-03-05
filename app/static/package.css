@@ -1,163 +1,24 @@
-.package-image {
-    position: relative;
-}
-.package-wishlist-btn {
-    position: absolute;
-    top: 12px;
-    right: 16px;
-    width: 34px;
-    height: 34px;
-    border-radius: 999px;
-    border: 1px solid #e2e8f0;
-    background: #fff;
-    color: #cbd5e1;
-    font-size: 0;
-    line-height: 1;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2;
-    transition: background 0.2s, border-color 0.2s, color 0.2s;
-    cursor: pointer;
-}
-.package-wishlist-btn:hover {
-    border-color: #fda4af;
-    color: #f43f5e;
-    background: #fff1f2;
-}
-.wishlist-icon {
-    width: 22px;
-    height: 22px;
-    stroke: currentColor;
-    fill: none;
-    transition: fill 0.2s, stroke 0.2s;
-}
-.package-wishlist-btn.in-wishlist {
-    border-color: #fda4af;
-    color: #ef4444;
-    background: #fff1f2;
-}
-.package-wishlist-btn.in-wishlist .wishlist-icon {
-    fill: #ef4444;
-    stroke: #ef4444;
-}
-.package-wishlist-btn.in-wishlist .wishlist-icon {
-    fill: #ff5252;
-    stroke: #ff5252;
-}
-    /* 위시리스트 하트 아이콘 기본 회색, in-wishlist일 때 빨간색 (airport 스타일) */
-    .wishlist-icon {
-        width: 22px;
-        height: 22px;
-        stroke: currentColor;
-        fill: none;
-        transition: fill 0.2s, stroke 0.2s;
-    }
-    .wishlist-btn.in-wishlist .wishlist-icon {
-        color: #ff5252;
-    }
-    .wishlist-btn:not(.in-wishlist) .wishlist-icon {
-        color: #bbb;
-    }
-.flight-saved-tab {
-    height: 28px; padding: 0 10px; border-radius: 8px; font-size: 12px; font-weight: 700;
-    color: #475569; background: transparent; border: none;
-}
-.flight-saved-tab.is-active { background: #eff6ff; color: #1d4ed8; }
-.flight-saved-list { display: flex; flex-direction: column; gap: 8px; }
-.flight-saved-empty { font-size: 12px; color: #64748b; padding: 6px 2px 2px; }
-.flight-saved-item {
-    position: relative; list-style: none; border: 1px solid #e5e7eb; border-radius: 12px; background: #fff;
-    padding: 9px 34px 9px 10px;
-}
-.flight-saved-item__type {
-    display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 999px; background: #eff6ff;
-    color: #1d4ed8; font-size: 11px; font-weight: 700; margin-bottom: 4px;
-}
-.flight-saved-item__name { font-size: 13px; font-weight: 700; color: #111827; line-height: 1.35; }
-.flight-saved-item__meta { margin-top: 3px; font-size: 12px; color: #475569; line-height: 1.35; }
-.flight-saved-item__remove {
-    position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 999px;
-    border: 1px solid #e2e8f0; background: #fff; color: #64748b;
-}
-.flight-saved-item__remove:hover { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
-/* 오른쪽 하단 장바구니 FAB & Drawer 스타일 (airport.css에서 복사) */
-.flight-saved-fab {
-    position: fixed;
-    right: 18px;
-    bottom: 18px;
-    z-index: 1180;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    border: 0;
-    border-radius: 999px;
-    padding: 10px 12px;
-    background: linear-gradient(135deg, #0ea5e9, #2563eb);
-    color: #fff;
-    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.28);
-}
-.flight-saved-fab:hover { filter: brightness(1.04); }
-.flight-saved-fab__icon { font-size: 16px; line-height: 1; }
-.flight-saved-fab__label { font-size: 12px; font-weight: 700; }
-.flight-saved-fab__count {
-    min-width: 18px;
-    height: 18px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.2);
-    border: 1px solid rgba(255,255,255,0.25);
-    color: #fff;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 0 5px;
-}
-.flight-saved-drawer { position: fixed; inset: 0; z-index: 1190; pointer-events: none; }
-.flight-saved-drawer.is-open { pointer-events: auto; }
-.flight-saved-drawer__backdrop {
-    position: absolute; inset: 0; background: rgba(15,23,42,.22); opacity: 0; transition: opacity .2s ease;
-}
-.flight-saved-drawer.is-open .flight-saved-drawer__backdrop { opacity: 1; }
-.flight-saved-drawer__panel {
-    position: absolute; right: 14px; bottom: 72px;
-    width: min(430px, calc(100vw - 28px)); max-height: min(62vh, 560px);
-    overflow: auto; transform: translateY(16px); opacity: 0;
-    transition: transform .22s ease, opacity .22s ease;
-    border: 1px solid rgba(226,232,240,.95); border-radius: 14px; background: rgba(255,255,255,.98);
-    box-shadow: 0 20px 40px rgba(15,23,42,.18); padding: 10px 12px;
-}
-.flight-saved-drawer.is-open .flight-saved-drawer__panel { transform: translateY(0); opacity: 1; }
-.flight-saved-drawer__grab { width: 44px; height: 4px; border-radius: 999px; background: #cbd5e1; margin: 0 auto 10px; }
-.flight-saved-drawer__header {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px;
-}
-.flight-saved-drawer__close {
-    border: 1px solid #dbeafe; background: #eff6ff; color: #1d4ed8; border-radius: 9px;
-    padding: 4px 8px; font-size: 11px; font-weight: 700;
-}
-.flight-saved-tabs {
-    display: inline-flex; align-items: center; gap: 6px; background: #f8fafc;
-    border: 1px solid #e2e8f0; border-radius: 10px; padding: 3px;
-}
+/* 웹폰트 임포트 */
+@import url('https://cdn.jsdelivr.net/gh/fonts-archive/Pretendard/Pretendard.css');
+
 :root {
-    --primary-color: #007bff;
-    --secondary-color: #00aaff;
+    --blue-600: #00aaff;
+    --primary-color: #00aaff;
+    --secondary-color: #008cd2;
     --text-main: #333;
     --text-sub: #666;
     --bg-light: #f8f9fa;
     --white: #ffffff;
     --border-color: #e5e7eb;
     --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    --header-height: 70px;
 }
 
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: "Pretendard", -apple-system, sans-serif;
+    font-family: "Pretendard";
     color: inherit;
     text-decoration: none;
 }
@@ -166,6 +27,7 @@ body {
     background-color: var(--bg-light);
     color: var(--text-main);
     overflow-x: hidden;
+    padding-top: var(--header-height); 
 }
 
 .container {
@@ -180,10 +42,12 @@ body {
     border-bottom: 1px solid #eee;
     display: flex;
     align-items: center;
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
+    width: 100%;
     background: #fff;
-    z-index: 100;
+    z-index: 9999;
 }
 .header-inner {
     display: flex;
@@ -191,10 +55,7 @@ body {
     align-items: center;
     width: 100%;
 }
-.logo {
-    color: #00aaff;
-    font-size: 24px;
-}
+.logo {color: var(--blue-600); font-size: 24px; font-weight: 800;}
 .header-nav a {
     margin-left: 15px;
     font-size: 14px;
@@ -298,7 +159,7 @@ body {
     color: #1d4ed8;
 }
 
-/* --- Footer --- */
+/* Footer */
 .footer {
     background-color: #f9f9f9;
     padding: 60px 0 40px;
@@ -306,11 +167,13 @@ body {
     font-size: 14px;
     border-top: 1px solid #eee;
 }
+
 .footer-container {
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 20px;
 }
+
 .footer-top {
     display: flex;
     justify-content: space-between;
@@ -318,41 +181,48 @@ body {
     gap: 30px;
     margin-bottom: 40px;
 }
+
 .footer-column h3 {
     font-size: 16px;
     font-weight: 700;
     color: #333;
     margin-bottom: 20px;
 }
-.footer-column p {margin-bottom: 8px; line-height: 1.5;}
+
+.footer-column p {margin-bottom: 6px; line-height: 1.5;}
 .footer-column ul {list-style: none; padding: 0;}
-.footer-column ul li {margin-bottom: 10px;}
+.footer-column ul li {margin-bottom: 8px;}
 .footer-column ul li a:hover {text-decoration: underline;}
+
 /* CS 버튼 스타일 */
 .cs-buttons {
     display: flex;
     gap: 10px;
-    margin-top: 15px;
+    margin-top: 16px;
 }
+
 .btn-cs {
     display: flex;
     align-items: center;
     gap: 10px;
     background: #fff;
     border: 1px solid #ddd;
-    padding: 10px 15px;
+    padding: 6px 14px;
     border-radius: 8px;
     text-decoration: none;
     color: #333;
-    min-width: 140px;
+    min-width: 120px;
 }
+
 .btn-cs .icon {font-size: 18px;}
+
 /* 구분선 */
 .footer-divider {
     border: 0;
     border-top: 1px solid #eee;
     margin-bottom: 30px;
 }
+
 /* 하단 섹션 */
 .footer-bottom {
     display: flex;
@@ -361,27 +231,39 @@ body {
     flex-wrap: wrap;
     gap: 20px;
 }
+
 .company-info p {
     font-size: 13px;
     color: #999;
     margin-bottom: 5px;
 }
+
 .company-info .disclaimer {margin: 15px 0; max-width: 800px;}
+
 .footer-policy {
     margin-top: 20px;
     display: flex;
     gap: 20px;
 }
+
 .footer-policy a {color: #333; text-decoration: none;}
-/* 소셜 아이콘 (텍스트로 대체, 이미지 사용 시 img 태그로 변경 가능) */
-.social-links {
-    display: flex;
-    gap: 15px;
-}
-.social-icon {
-    font-size: 12px;
-    color: #999;
-    text-transform: uppercase;
+
+/* 반응형 모바일 대응 */
+@media (max-width: 768px) {
+    .footer-top {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .footer-bottom {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .social-links {
+        order: -1; /* 모바일에서 소셜 링크를 위로 */
+        margin-bottom: 20px;
+    }
 }
 
 @media (max-width: 900px) {
@@ -410,3 +292,254 @@ body {
         margin-bottom: 20px;
     }
 }
+.package-image {
+    position: relative;
+}
+.package-wishlist-btn {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #cbd5e1;
+    font-size: 0;
+    line-height: 1;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    cursor: pointer;
+}
+.package-wishlist-btn:hover {
+    border-color: #fda4af;
+    color: #f43f5e;
+    background: #fff1f2;
+}
+.wishlist-icon {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    fill: none;
+    transition: fill 0.2s, stroke 0.2s;
+}
+.package-wishlist-btn.in-wishlist {
+    border-color: #fda4af;
+    color: #ef4444;
+    background: #fff1f2;
+}
+.package-wishlist-btn.in-wishlist .wishlist-icon {
+    fill: #ef4444;
+    stroke: #ef4444;
+}
+.package-wishlist-btn.in-wishlist .wishlist-icon {
+    fill: #ff5252;
+    stroke: #ff5252;
+}
+    /* 위시리스트 하트 아이콘 기본 회색, in-wishlist일 때 빨간색 (airport 스타일) */
+    .wishlist-icon {
+        width: 22px;
+        height: 22px;
+        stroke: currentColor;
+        fill: none;
+        transition: fill 0.2s, stroke 0.2s;
+    }
+    .wishlist-btn.in-wishlist .wishlist-icon {
+        color: #ff5252;
+    }
+    .wishlist-btn:not(.in-wishlist) .wishlist-icon {
+        color: #bbb;
+    }
+
+/* 오른쪽 하단 장바구니 플로팅 버튼 */
+.package-saved-fab {
+    width: 88px;
+    height: 88px;
+    position: fixed;
+    right: 30px;
+    bottom: 30px;
+    z-index: 1200;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 999px;
+    background: #fff url("../static/image/shopping_cart_1.png") no-repeat center / 160% auto;
+    cursor: pointer;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s;
+}
+.package-saved-fab:hover {
+    background: url("../static/image/shopping_cart_2.png") no-repeat center -6px / 160% auto;
+}
+.package-saved-fab.is-open {
+    background: #fff url("../static/image/shopping_cart_2.png") no-repeat center -6px / 160% auto;
+}
+.package-saved-fab__label {font-size: 0;}
+.package-saved-fab__count {
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background-color: var(--blue-600);
+    color: #fff;
+    display: inline-block;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 0 5px;
+    position: absolute;
+    top: 0px; right: 0px;
+    line-height: 24px;
+    text-align: center;
+}
+
+/* 장바구니 드로어 */
+.package-saved-drawer {
+    position: fixed;
+    right: 48px;
+    bottom: 60px;
+    z-index: 1199;
+    width: min(420px, calc(100vw - 24px));
+    max-height: min(60vh, 560px);
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
+    padding: 10px 12px 12px;
+    display: none;
+    overflow: hidden;
+}
+.package-saved-drawer.is-open {display: block;}
+.package-saved-drawer__grab {
+    width: 46px;
+    height: 4px;
+    border-radius: 999px;
+    background: #d1d5db;
+    margin: 0 auto 10px;
+}
+.package-saved-drawer__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.package-saved-drawer__close {
+    border: 0;
+    background: #eef2ff;
+    color: #274690;
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.package-saved-tabs {
+    display: inline-flex;
+    background: #f3f4f6;
+    padding: 4px;
+    border-radius: 12px;
+    gap: 4px;
+}
+.package-saved-tab {
+    border: 0;
+    background: transparent;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+.package-saved-tab.is-active {
+    background: #fff;
+    color: #0d2b5b;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+.package-saved-list {
+    margin-top: 8px;
+    display: grid;
+    gap: 10px;
+    max-height: calc(min(60vh, 560px) - 92px);
+    overflow: auto;
+    padding-right: 4px;
+}
+.package-saved-empty {
+    color: #64748b;
+    font-size: 13px;
+    padding: 14px 6px 6px;
+}
+.package-saved-item {
+    display: grid;
+    grid-template-columns: 84px 1fr auto;
+    gap: 10px;
+    align-items: start;
+    border: 1px solid #eef2f7;
+    border-radius: 12px;
+    padding: 10px;
+    background: #fff;
+}
+.package-saved-thumb {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #dbeafe, #e5e7eb);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.package-saved-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.package-saved-item__type {
+    font-size: 11px;
+    color: #94a3b8;
+    font-weight: 700;
+    margin-bottom: 3px;
+}
+.package-saved-item__name {
+    font-size: 14px;
+    color: #010101;
+    font-weight: 700;
+    line-height: 1.35;
+    margin-bottom: 4px;
+    word-break: break-word;
+}
+.package-saved-item__meta {
+    min-width: 0;
+}
+.package-saved-line {
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.35;
+    word-break: break-word;
+}
+.package-saved-price {
+    color: var(--blue-600);
+    font-weight: 800;
+}
+.package-saved-item__remove {
+    border: 0;
+    background: #f8fafc;
+    color: #475569;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+}
+.package-saved-item__remove:hover {
+    background: #fee2e2;
+    color: #e11d48;
+}
+/* ====== [공통] 패키지 장바구니 FAB & Drawer 끝 ====== */

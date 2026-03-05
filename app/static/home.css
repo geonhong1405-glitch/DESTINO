@@ -906,18 +906,6 @@ ul {list-style: none;}
 
 .footer-policy a {color: #333; text-decoration: none;}
 
-/* 소셜 아이콘 (텍스트로 대체, 이미지 사용 시 img 태그로 변경 가능) */
-.social-links {
-    display: flex;
-    gap: 15px;
-}
-
-.social-icon {
-    font-size: 12px;
-    color: #999;
-    text-transform: uppercase;
-}
-
 /* 반응형 모바일 대응 */
 @media (max-width: 768px) {
     .footer-top {
@@ -928,11 +916,6 @@ ul {list-style: none;}
     .footer-bottom {
         flex-direction: column;
         align-items: flex-start;
-    }
-
-    .social-links {
-        order: -1; /* 모바일에서 소셜 링크를 위로 */
-        margin-bottom: 20px;
     }
 }
 
@@ -1112,7 +1095,7 @@ ul {list-style: none;}
 
 .home-saved-name {
     font-size: 14px;
-    color: #0f172a;
+    color: #010101;
     font-weight: 700;
     line-height: 1.35;
     margin-bottom: 4px;
@@ -1145,7 +1128,7 @@ ul {list-style: none;}
 
 .home-saved-remove:hover {
     background: #fee2e2;
-    color: #b91c1c;
+    color: #e11d48;
 }
 
 @media (max-width: 768px) {

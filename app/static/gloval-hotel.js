@@ -511,6 +511,7 @@ function setHotelSavedDrawer(open) {
     const fab = document.getElementById('hotelSavedFab');
     if (!drawer || !fab) return;
     drawer.classList.toggle('is-open', !!open);
+    fab.classList.toggle('is-open', !!open); // 버튼에도 is-open 토글
     drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
     fab.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
@@ -553,7 +554,7 @@ function renderHotelSavedDrawer() {
         if (!hotelAlertState.length) {
             listEl.innerHTML = '';
             emptyEl.style.display = 'block';
-            emptyEl.textContent = '알림이 없습니다.';
+            emptyEl.textContent = "도착한 참여 요청 알림이 없습니다.";
             return;
         }
         emptyEl.style.display = 'none';
@@ -590,20 +591,43 @@ function renderHotelSavedDrawer() {
     items.forEach((item) => {
         const payload = item?.payload && typeof item.payload === 'object' ? item.payload : {};
         const imageUrl = String(payload?.image || '');
+        let price = '';
+        let metaLines = [];
+        if (item?.meta) {
+            const parts = item.meta.split('|').map((x) => x.trim());
+            if (parts.length) {
+                price = parts[0];
+                metaLines = parts.slice(1);
+            }
+        }
+        const kind = `${hotelEscapeHtml((item?.item_type || 'item').toUpperCase())} · ${hotelEscapeHtml(item?.source || 'hotel')}`;
         const li = document.createElement('li');
         li.className = 'hotel-saved-item';
         li.innerHTML = `
-            <div class="hotel-saved-item__thumb">${imageUrl ? `<img src="${hotelEscapeHtml(imageUrl)}" alt="">` : ''}</div>
-            <div>
-                <div class="hotel-saved-item__type">${hotelEscapeHtml((item?.item_type || 'item').toUpperCase())} · ${hotelEscapeHtml(item?.source || 'hotel')}</div>
-                <div class="hotel-saved-item__name">${hotelEscapeHtml(item?.name || '-')}</div>
-                ${item?.meta ? `<div class="hotel-saved-item__meta">${hotelEscapeHtml(item.meta).replace(/\|/g, '<br>')}</div>` : ''}
+            <div class="hotel-saved-item__thumb">
+                ${imageUrl ? `<img src="${hotelEscapeHtml(imageUrl)}" alt="${hotelEscapeHtml(item?.name || "")}" loading="lazy" onerror="this.remove()">` : ""}
             </div>
-            <button type="button" class="hotel-saved-item__remove" data-hotel-saved-remove="${Number(item.id)}" title="삭제">×</button>
+            <div class="home-saved-meta">
+                <div class="hotel-saved-item__type">${hotelEscapeHtml((item?.item_type || "item").toUpperCase())} · ${hotelEscapeHtml(item?.source || "hotel")}</div>
+                <div class="hotel-saved-item__name">${hotelEscapeHtml(item?.name || "-")}</div>
+                ${price ? `<div class="hotel-saved-line hotel-saved-price">${hotelEscapeHtml(price)}</div>` : ""}
+                ${metaLines.map((line) => `<div class="hotel-saved-item__meta">${hotelEscapeHtml(line)}</div>`).join("")}
+            </div>
+            <button type="button" class="home-saved-remove" data-hotel-saved-remove="${Number(item.id)}" aria-label="삭제">×</button>
         `;
         listEl.appendChild(li);
     });
 }
+/* 
+<div class="hotel-saved-item__thumb">${imageUrl ? `<img src="${hotelEscapeHtml(imageUrl)}" alt="">` : ""}</div>
+            <div>
+                <div class="hotel-saved-item__type">${hotelEscapeHtml((item?.item_type || "item").toUpperCase())} · ${hotelEscapeHtml(item?.source || "hotel")}</div>
+                <div class="hotel-saved-item__name">${hotelEscapeHtml(item?.name || "-")}</div>
+                ${item?.meta ? `<div class="hotel-saved-item__meta">${hotelEscapeHtml(item.meta).replace(/\|/g, "<br>")}</div>` : ""}
+            </div>
+            <button type="button" class="hotel-saved-item__remove" data-hotel-saved-remove="${Number(item.id)}" title="삭제">×</button>
+
+*/
 
 async function toggleHotelSaved(rawPayload, listType) {
     const payload = buildHotelSavedPayload(rawPayload, listType);

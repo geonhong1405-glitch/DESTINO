@@ -1,5 +1,6 @@
 ﻿(() => {
-  const LOGIN_CONFIRM_MESSAGE = "로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?";
+  const LOGIN_CONFIRM_MESSAGE =
+    "로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?";
   const CART_LABEL = "장바구니";
   const CART_IN_LABEL = "담김";
   const CART_EMPTY_LABEL = "장바구니 항목이 없습니다.";
@@ -46,15 +47,26 @@
   function getCardContext(buttonEl) {
     const card = buttonEl?.closest?.(".package-card");
     if (!card) return {};
-    const title = (card.querySelector(".package-name")?.textContent || "").trim();
-    const location = (card.querySelector(".package-loc")?.textContent || "").trim();
-    const priceText = (card.querySelector(".price-val")?.textContent || "").trim();
+    const title = (
+      card.querySelector(".package-name")?.textContent || ""
+    ).trim();
+    const location = (
+      card.querySelector(".package-loc")?.textContent || ""
+    ).trim();
+    const priceText = (
+      card.querySelector(".price-val")?.textContent || ""
+    ).trim();
     const imageWrap = card.querySelector(".package-image");
     let image = "";
     if (imageWrap) {
-      const inlineBg = parseBackgroundImageUrl(imageWrap.style?.backgroundImage || "");
-      const computedBg = parseBackgroundImageUrl(window.getComputedStyle(imageWrap).backgroundImage || "");
-      const imageTag = imageWrap.querySelector("img")?.getAttribute("src") || "";
+      const inlineBg = parseBackgroundImageUrl(
+        imageWrap.style?.backgroundImage || "",
+      );
+      const computedBg = parseBackgroundImageUrl(
+        window.getComputedStyle(imageWrap).backgroundImage || "",
+      );
+      const imageTag =
+        imageWrap.querySelector("img")?.getAttribute("src") || "";
       image = inlineBg || computedBg || imageTag || "";
     }
     const href = card.getAttribute("href") || "";
@@ -88,7 +100,9 @@
     } catch (_e) {}
 
     if (!res.ok) {
-      const err = new Error((data && (data.detail || data.error)) || `HTTP ${res.status}`);
+      const err = new Error(
+        (data && (data.detail || data.error)) || `HTTP ${res.status}`,
+      );
       err.code = "API_ERROR";
       err.payload = data;
       throw err;
@@ -99,7 +113,10 @@
 
   async function loadPackageSavedItems() {
     try {
-      const data = await savedItemsApi("/api/saved-items", { method: "GET", headers: {} });
+      const data = await savedItemsApi("/api/saved-items", {
+        method: "GET",
+        headers: {},
+      });
       packageSavedState = {
         cart: Array.isArray(data?.cart) ? data.cart : [],
         wishlist: Array.isArray(data?.wishlist) ? data.wishlist : [],
@@ -112,7 +129,9 @@
 
   async function loadPackageAlerts() {
     try {
-      const res = await fetch("/api/group-buy/join-requests/inbox", { credentials: "include" });
+      const res = await fetch("/api/group-buy/join-requests/inbox", {
+        credentials: "include",
+      });
       if (res.status === 401) {
         packageAlertState = [];
         return;
@@ -126,34 +145,42 @@
   }
 
   async function decidePackageAlert(requestId, action) {
-    const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}/decision`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
+    const res = await fetch(
+      `/api/group-buy/join-requests/${Number(requestId)}/decision`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      },
+    );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     await loadPackageAlerts();
   }
 
   async function removePackageAlert(requestId) {
-    const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
+    const res = await fetch(
+      `/api/group-buy/join-requests/${Number(requestId)}`,
+      {
+        method: "DELETE",
+        credentials: "include",
+      },
+    );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    packageAlertState = (packageAlertState || []).filter((x) => Number(x?.id) !== Number(requestId));
+    packageAlertState = (packageAlertState || []).filter(
+      (x) => Number(x?.id) !== Number(requestId),
+    );
   }
 
   function ensurePackageAlertsTab() {
-    const tabsWrap = document.querySelector(".flight-saved-tabs");
+    const tabsWrap = document.querySelector(".package-saved-tabs");
     if (!tabsWrap) return null;
     let alertTab = tabsWrap.querySelector('[data-package-saved-tab="alerts"]');
     if (!alertTab) {
       alertTab = document.createElement("button");
       alertTab.type = "button";
       alertTab.id = "packageSavedTabAlerts";
-      alertTab.className = "flight-saved-tab";
+      alertTab.className = "package-saved-tab";
       alertTab.setAttribute("data-package-saved-tab", "alerts");
       alertTab.setAttribute("aria-selected", "false");
       alertTab.textContent = "알림";
@@ -163,7 +190,9 @@
   }
 
   function updateWishlistButtons() {
-    const wishlistNames = new Set((packageSavedState.wishlist || []).map((item) => item?.name));
+    const wishlistNames = new Set(
+      (packageSavedState.wishlist || []).map((item) => item?.name),
+    );
     document.querySelectorAll(".package-wishlist-btn").forEach((btn) => {
       const payload = parsePayload(btn.dataset.savePayload);
       const inWishlist = !!payload && wishlistNames.has(payload.name);
@@ -177,13 +206,18 @@
       };
       btn.onmouseleave = function () {
         const icon = btn.querySelector(".wishlist-icon");
-        if (icon) icon.style.color = btn.classList.contains("in-wishlist") ? "#ff5252" : "#bbb";
+        if (icon)
+          icon.style.color = btn.classList.contains("in-wishlist")
+            ? "#ff5252"
+            : "#bbb";
       };
     });
   }
 
   function updateCartButtons() {
-    const cartNames = new Set((packageSavedState.cart || []).map((item) => item?.name));
+    const cartNames = new Set(
+      (packageSavedState.cart || []).map((item) => item?.name),
+    );
     document.querySelectorAll(".package-cart-btn").forEach((btn) => {
       const payload = parsePayload(btn.dataset.savePayload);
       const inCart = !!payload && cartNames.has(payload.name);
@@ -198,16 +232,29 @@
     const name = String(payload?.name || ctx.title || "").trim();
     if (!name) return null;
 
-    const payloadBody = payload?.payload && typeof payload.payload === "object" ? payload.payload : {};
+    const payloadBody =
+      payload?.payload && typeof payload.payload === "object"
+        ? payload.payload
+        : {};
     const meta = [ctx.location, ctx.priceText].filter(Boolean).join(" | ");
     const normalizedPayload = {
       ...payloadBody,
       name,
-      image: String(payloadBody?.image || payload?.image || ctx.image || "").trim(),
-      image_url: String(payloadBody?.image_url || payload?.image_url || ctx.image || "").trim(),
-      location: String(payloadBody?.location || payload?.location || ctx.location || "").trim(),
-      price_text: String(payloadBody?.price_text || payload?.price_text || ctx.priceText || "").trim(),
-      detail_url: String(payloadBody?.detail_url || payload?.detail_url || ctx.href || "").trim(),
+      image: String(
+        payloadBody?.image || payload?.image || ctx.image || "",
+      ).trim(),
+      image_url: String(
+        payloadBody?.image_url || payload?.image_url || ctx.image || "",
+      ).trim(),
+      location: String(
+        payloadBody?.location || payload?.location || ctx.location || "",
+      ).trim(),
+      price_text: String(
+        payloadBody?.price_text || payload?.price_text || ctx.priceText || "",
+      ).trim(),
+      detail_url: String(
+        payloadBody?.detail_url || payload?.detail_url || ctx.href || "",
+      ).trim(),
     };
 
     return {
@@ -226,7 +273,9 @@
     const payload = buildSavePayload(rawPayload, "wishlist", buttonEl);
     if (!payload) return;
 
-    const exists = (packageSavedState.wishlist || []).some((item) => item?.name === payload.name);
+    const exists = (packageSavedState.wishlist || []).some(
+      (item) => item?.name === payload.name,
+    );
     if (exists) return;
 
     try {
@@ -245,11 +294,16 @@
   async function removeFromWishlist(rawPayload) {
     if (!isLoggedIn()) return requireLoginMessage();
     const name = payloadName(rawPayload);
-    const row = (packageSavedState.wishlist || []).find((item) => item?.name === name);
+    const row = (packageSavedState.wishlist || []).find(
+      (item) => item?.name === name,
+    );
     if (!row) return;
 
     try {
-      await savedItemsApi(`/api/saved-items/${row.id}`, { method: "DELETE", headers: {} });
+      await savedItemsApi(`/api/saved-items/${row.id}`, {
+        method: "DELETE",
+        headers: {},
+      });
       await loadPackageSavedItems();
       updateWishlistButtons();
       renderPackageSavedDrawer();
@@ -263,7 +317,9 @@
     const payload = buildSavePayload(rawPayload, "cart", buttonEl);
     if (!payload) return;
 
-    const exists = (packageSavedState.cart || []).some((item) => item?.name === payload.name);
+    const exists = (packageSavedState.cart || []).some(
+      (item) => item?.name === payload.name,
+    );
     if (exists) return;
 
     try {
@@ -282,11 +338,16 @@
   async function removeFromCart(rawPayload) {
     if (!isLoggedIn()) return requireLoginMessage();
     const name = payloadName(rawPayload);
-    const row = (packageSavedState.cart || []).find((item) => item?.name === name);
+    const row = (packageSavedState.cart || []).find(
+      (item) => item?.name === name,
+    );
     if (!row) return;
 
     try {
-      await savedItemsApi(`/api/saved-items/${row.id}`, { method: "DELETE", headers: {} });
+      await savedItemsApi(`/api/saved-items/${row.id}`, {
+        method: "DELETE",
+        headers: {},
+      });
       await loadPackageSavedItems();
       updateCartButtons();
       renderPackageSavedDrawer();
@@ -301,7 +362,9 @@
         e.preventDefault();
         const payload = parsePayload(btn.dataset.savePayload);
         if (!payload) return;
-        const inWishlist = (packageSavedState.wishlist || []).some((item) => item?.name === payload.name);
+        const inWishlist = (packageSavedState.wishlist || []).some(
+          (item) => item?.name === payload.name,
+        );
         if (inWishlist) await removeFromWishlist(payload);
         else await addToWishlist(payload, btn);
       };
@@ -314,7 +377,9 @@
         e.preventDefault();
         const payload = parsePayload(btn.dataset.savePayload);
         if (!payload) return;
-        const inCart = (packageSavedState.cart || []).some((item) => item?.name === payload.name);
+        const inCart = (packageSavedState.cart || []).some(
+          (item) => item?.name === payload.name,
+        );
         if (inCart) await removeFromCart(payload);
         else await addToCart(payload, btn);
       };
@@ -326,6 +391,7 @@
     const fab = document.getElementById("packageSavedFab");
     if (!drawer || !fab) return;
     drawer.classList.toggle("is-open", !!open);
+    fab.classList.toggle("is-open", !!open);
     drawer.setAttribute("aria-hidden", open ? "false" : "true");
     fab.setAttribute("aria-expanded", open ? "true" : "false");
   }
@@ -341,12 +407,16 @@
 
     [cartTab, wishlistTab, alertsTab].forEach((tab) => {
       if (!tab) return;
-      const active = tab.getAttribute("data-package-saved-tab") === packageSavedDrawerTab;
+      const active =
+        tab.getAttribute("data-package-saved-tab") === packageSavedDrawerTab;
       tab.classList.toggle("is-active", active);
       tab.setAttribute("aria-selected", active ? "true" : "false");
     });
 
-    const total = (packageSavedState.cart?.length || 0) + (packageSavedState.wishlist?.length || 0) + (packageAlertState?.length || 0);
+    const total =
+      (packageSavedState.cart?.length || 0) +
+      (packageSavedState.wishlist?.length || 0) +
+      (packageAlertState?.length || 0);
     if (countEl) {
       countEl.hidden = total === 0;
       countEl.textContent = String(total || 0);
@@ -359,22 +429,31 @@
 
       packageAlertState.forEach((alert) => {
         const li = document.createElement("li");
-        li.className = "flight-saved-item";
+        li.className = "package-saved-item";
         const status = String(alert?.status || "pending");
-        const statusLabel = status === "accepted" ? "수락됨" : status === "rejected" ? "거절됨" : "대기중";
+        const statusLabel =
+          status === "accepted"
+            ? "수락됨"
+            : status === "rejected"
+              ? "거절됨"
+              : "대기중";
         const incoming = String(alert?.direction || "incoming") !== "mine";
         li.innerHTML = `
-          <div class="flight-saved-item__type">알림</div>
-          <div class="flight-saved-item__name">${alert?.post_title || "공동구매 참여 요청"}</div>
-          <div class="flight-saved-item__meta">${alert?.requester_name || "사용자"} · ${statusLabel}</div>
-          ${alert?.message ? `<div class="flight-saved-item__meta">${alert.message}</div>` : ""}
-          ${incoming && status === "pending" ? `
+          <div class="package-saved-item__type">알림</div>
+          <div class="package-saved-item__name">${alert?.post_title || "공동구매 참여 요청"}</div>
+          <div class="package-saved-item__meta">${alert?.requester_name || "사용자"} · ${statusLabel}</div>
+          ${alert?.message ? `<div class="package-saved-item__meta">${alert.message}</div>` : ""}
+          ${
+            incoming && status === "pending"
+              ? `
             <div style="display:flex;gap:6px;margin-top:8px;">
               <button type="button" data-package-alert-decision="accept" data-package-alert-id="${Number(alert?.id)}" style="padding:4px 8px;border-radius:8px;border:1px solid #a7f3d0;background:#ecfdf5;color:#065f46;font-size:12px;font-weight:700;">수락</button>
               <button type="button" data-package-alert-decision="reject" data-package-alert-id="${Number(alert?.id)}" style="padding:4px 8px;border-radius:8px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;font-size:12px;font-weight:700;">거절</button>
             </div>
-          ` : ""}
-          ${status !== "pending" ? `<button type="button" class="flight-saved-item__remove" data-package-alert-remove="${Number(alert?.id)}" title="삭제">×</button>` : ""}
+          `
+              : ""
+          }
+          ${status !== "pending" ? `<button type="button" class="package-saved-item__remove" data-package-alert-remove="${Number(alert?.id)}" title="삭제">×</button>` : ""}
         `;
         listEl.appendChild(li);
       });
@@ -387,18 +466,31 @@
 
     listEl.innerHTML = "";
     emptyEl.style.display = items.length ? "none" : "block";
-    emptyEl.textContent = packageSavedDrawerTab === "cart" ? CART_EMPTY_LABEL : WISHLIST_EMPTY_LABEL;
+    emptyEl.textContent =
+      packageSavedDrawerTab === "cart"
+        ? CART_EMPTY_LABEL
+        : WISHLIST_EMPTY_LABEL;
 
     items.forEach((item) => {
       const li = document.createElement("li");
-      li.className = "flight-saved-item";
-      const typeText = item.item_type || (packageSavedDrawerTab === "cart" ? "package" : "wishlist");
-      const metaHtml = item.meta ? `<div class=\"flight-saved-item__meta\">${item.meta}</div>` : "";
+      li.className = "package-saved-item";
+      // 썸네일, 가격, 이름, 타입, 삭제 버튼 등 airport.js 스타일로 렌더링
+      const thumb = item?.payload?.thumb_url || item?.image || "";
+      let price = "";
+      if (item.meta) {
+        price = String(item.meta).split("|")[0].trim();
+        if (!/\d/.test(price)) price = "";
+      }
+      const typeText =
+        item.item_type ||
+        (packageSavedDrawerTab === "cart" ? "package" : "wishlist");
       li.innerHTML = `
-        <div class=\"flight-saved-item__type\">${typeText}</div>
-        <div class=\"flight-saved-item__name\">${item.name || "-"}</div>
-        ${metaHtml}
-        <button type=\"button\" class=\"flight-saved-item__remove\" data-package-saved-remove=\"${item.id}\" title=\"삭제\">×</button>
+        ${thumb ? `<div class=\"package-saved-thumb\"><img src=\"${thumb.replace(/"/g, "&quot;")}\" alt=\"썸네일\" loading=\"lazy\"></div>` : ""}
+        <div class=\"package-saved-item__type\">${typeText}</div>
+        <div class=\"package-saved-item__name\">${item.name || "-"}</div>
+        ${price ? `<div class=\"package-saved-line package-saved-price\">${price}</div>` : ""}
+        ${item.meta ? `<div class=\"package-saved-item__meta\">${item.meta.replace(/\|/g, "<br>")}</div>` : ""}
+        <button type=\"button\" class=\"package-saved-item__remove\" data-package-saved-remove=\"${item.id}\" title=\"삭제\">×</button>
       `;
       listEl.appendChild(li);
     });
@@ -438,7 +530,9 @@
     listEl?.addEventListener("click", async (e) => {
       const decisionBtn = e.target.closest("[data-package-alert-decision]");
       if (decisionBtn) {
-        const requestId = Number(decisionBtn.getAttribute("data-package-alert-id"));
+        const requestId = Number(
+          decisionBtn.getAttribute("data-package-alert-id"),
+        );
         const action = decisionBtn.getAttribute("data-package-alert-decision");
         if (!requestId || !action) return;
         try {
@@ -450,7 +544,9 @@
 
       const removeAlertBtn = e.target.closest("[data-package-alert-remove]");
       if (removeAlertBtn) {
-        const requestId = Number(removeAlertBtn.getAttribute("data-package-alert-remove"));
+        const requestId = Number(
+          removeAlertBtn.getAttribute("data-package-alert-remove"),
+        );
         if (!requestId) return;
         try {
           await removePackageAlert(requestId);
@@ -465,7 +561,10 @@
       if (Number.isNaN(itemId)) return;
 
       try {
-        await savedItemsApi(`/api/saved-items/${itemId}`, { method: "DELETE", headers: {} });
+        await savedItemsApi(`/api/saved-items/${itemId}`, {
+          method: "DELETE",
+          headers: {},
+        });
         await loadPackageSavedItems();
         updateCartButtons();
         updateWishlistButtons();
@@ -502,45 +601,50 @@
 })();
 
 // package.js 하단 혹은 적절한 위치에 추가
-document.addEventListener('DOMContentLoaded', () => {
-    // 모든 패키지 카드를 찾습니다.
-    const cards = document.querySelectorAll('.package-card');
+document.addEventListener("DOMContentLoaded", () => {
+  // 모든 패키지 카드를 찾습니다.
+  const cards = document.querySelectorAll(".package-card");
 
-    cards.forEach((card, index) => {
-        card.addEventListener('click', function(e) {
-            // 장바구니나 찜 버튼을 눌렀을 때는 상세페이지로 이동하지 않도록 방지
-            if (e.target.closest('button')) return;
+  cards.forEach((card, index) => {
+    card.addEventListener("click", function (e) {
+      // 장바구니나 찜 버튼을 눌렀을 때는 상세페이지로 이동하지 않도록 방지
+      if (e.target.closest("button")) return;
 
-            // 기본 <a> 태그 이동을 막고 JS로 제어
-            e.preventDefault();
+      // 기본 <a> 태그 이동을 막고 JS로 제어
+      e.preventDefault();
 
-            // 카드 내의 정보를 수집하여 객체로 만듦
-            const product = {
-                id: `pack_${index + 1}`,
-                name: this.querySelector('.package-name').innerText,
-                // "499,000원"에서 숫자만 추출
-                price: this.querySelector('.price-val').innerText.replace(/[^0-9]/g, ''),
-                location: this.querySelector('.package-loc').innerText,
-                // CSS 클래스(pImg1 등)에 설정된 배경 이미지 URL 추출
-                image: getComputedStyle(this.querySelector('.package-image')).backgroundImage.replace(/url\(['"]?(.*?)['"]?\)/i, '$1')
-            };
+      // 카드 내의 정보를 수집하여 객체로 만듦
+      const product = {
+        id: `pack_${index + 1}`,
+        name: this.querySelector(".package-name").innerText,
+        // "499,000원"에서 숫자만 추출
+        price: this.querySelector(".price-val").innerText.replace(
+          /[^0-9]/g,
+          "",
+        ),
+        location: this.querySelector(".package-loc").innerText,
+        // CSS 클래스(pImg1 등)에 설정된 배경 이미지 URL 추출
+        image: getComputedStyle(
+          this.querySelector(".package-image"),
+        ).backgroundImage.replace(/url\(['"]?(.*?)['"]?\)/i, "$1"),
+      };
 
-            // 작성하신 함수 호출
-            goToDetail(product);
-        });
+      // 작성하신 함수 호출
+      goToDetail(product);
     });
+  });
 });
 
 // 기존에 작성하신 함수 (그대로 유지)
 function goToDetail(product) {
-    const params = new URLSearchParams({
-        id: product.id,
-        title: product.name,
-        price: product.price,
-        img: product.image,
-        loc: product.location,
-        category: 'package'
-    });
-    // .html 확장자가 붙어있는지 확인하세요 (파일 구조에 따라 수정)
+  const params = new URLSearchParams({
+    id: product.id,
+    title: product.name,
+    price: product.price,
+    img: product.image,
+    loc: product.location,
+    category: "package",
+  });
+  // .html 확장자가 붙어있는지 확인하세요 (파일 구조에 따라 수정)
   location.href = `/pack-detail?${params.toString()}`;
 }

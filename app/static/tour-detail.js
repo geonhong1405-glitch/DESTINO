@@ -89,11 +89,14 @@ function renderFlightSavedDrawer() {
         const li = document.createElement('li');
         li.className = 'flight-saved-item';
         li.innerHTML = `
-            <div class="flight-saved-item__type">${item.item_type === 'tour' ? 'ticket' : (item.item_type || 'item')}</div>
-            <div class="flight-saved-item__name">${item.name || '-'}</div>
-            <div class="flight-saved-item__meta">${item.meta || ''}${item.price ? `<br><b>${item.price}원</b>` : ''}</div>
+            <div class="flight-saved-thumb">${item.image ? `<img src="${item.image}" alt="${item.name}">` : ''}</div>
+            <div>
+                <div class="flight-saved-item__type">${item.item_type === 'tour' ? 'ticket' : (item.item_type || 'item')}</div>
+                <div class="flight-saved-item__name">${item.name || '-'}</div>
+                ${item.meta ? `<div class="flight-saved-item__meta">${item.meta}</div>` : ''}
+                ${item.price ? `<div class="flight-saved-price">${item.price}원</div>` : ''}
+            </div>
             <button type="button" class="flight-saved-item__remove" data-flight-saved-remove="${item.id}" title="삭제">×</button>
-            ${item.image ? `<img src="${item.image}" alt="${item.name}" style="width:38px;height:38px;object-fit:cover;position:absolute;top:10px;left:10px;border-radius:8px;">` : ''}
         `;
         listEl.appendChild(li);
     });
