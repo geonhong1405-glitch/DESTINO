@@ -349,10 +349,11 @@ function renderDestinationSearchArea(els, state) {
 }
 
 function getDestinationRegionCountryCode(state) {
-  const region =
-    DESTINATION_REGIONS.find((r) => r.key === state.destinationRegionKey) ||
-    DESTINATION_REGIONS[0];
-  return region?.countryCode || "JP";
+  const region = DESTINATION_REGIONS.find((r) => r.key === state.destinationRegionKey) || DESTINATION_REGIONS[0];
+  // Mixed-country regions should not hard-lock country filter during search.
+  const mixedRegionKeys = new Set(['sea', 'cn', 'eu', 'mea']);
+  if (mixedRegionKeys.has(String(region?.key || ''))) return '';
+  return region?.countryCode || 'JP';
 }
 
 async function fetchRentalLocations({ q, category = "all", countryCode = "" }) {
@@ -371,30 +372,93 @@ function inferDestinationCountryCode(cityName, fallbackCode = "JP") {
     .trim()
     .toLowerCase();
   const map = {
-    홍콩: "HK",
-    "hong kong": "HK",
-    hongkong: "HK",
-    hkg: "HK",
-    마카오: "MO",
-    macau: "MO",
-    macao: "MO",
-    mfm: "MO",
-    상하이: "CN",
-    shanghai: "CN",
-    베이징: "CN",
-    beijing: "CN",
-    광저우: "CN",
-    guangzhou: "CN",
-    칭다오: "CN",
-    qingdao: "CN",
-    타이베이: "TW",
-    taipei: "TW",
-    타이중: "TW",
-    taichung: "TW",
-    가오슝: "TW",
-    kaohsiung: "TW",
+    '도쿄': 'JP',
+    'tokyo': 'JP',
+    '오사카': 'JP',
+    'osaka': 'JP',
+    '후쿠오카': 'JP',
+    'fukuoka': 'JP',
+    '삿포로': 'JP',
+    'sapporo': 'JP',
+    '오키나와': 'JP',
+    'okinawa': 'JP',
+    '나고야': 'JP',
+    'nagoya': 'JP',
+    '교토': 'JP',
+    'kyoto': 'JP',
+    '고베': 'JP',
+    'kobe': 'JP',
+    '방콕': 'TH',
+    'bangkok': 'TH',
+    '푸켓': 'TH',
+    'phuket': 'TH',
+    '치앙마이': 'TH',
+    'chiang mai': 'TH',
+    '파타야': 'TH',
+    'pattaya': 'TH',
+    '다낭': 'VN',
+    'da nang': 'VN',
+    'danang': 'VN',
+    '하노이': 'VN',
+    'hanoi': 'VN',
+    '호치민': 'VN',
+    'ho chi minh': 'VN',
+    'hochiminh': 'VN',
+    '싱가포르': 'SG',
+    'singapore': 'SG',
+    '홍콩': 'HK',
+    'hong kong': 'HK',
+    'hongkong': 'HK',
+    'hkg': 'HK',
+    '마카오': 'MO',
+    'macau': 'MO',
+    'macao': 'MO',
+    'mfm': 'MO',
+    '상하이': 'CN',
+    'shanghai': 'CN',
+    '베이징': 'CN',
+    'beijing': 'CN',
+    '광저우': 'CN',
+    'guangzhou': 'CN',
+    '칭다오': 'CN',
+    'qingdao': 'CN',
+    '타이베이': 'TW',
+    'taipei': 'TW',
+    '타이중': 'TW',
+    'taichung': 'TW',
+    '가오슝': 'TW',
+    'kaohsiung': 'TW',
+    '하와이': 'US',
+    'hawaii': 'US',
+    '괌': 'US',
+    'guam': 'US',
+    '사이판': 'US',
+    'saipan': 'US',
+    '뉴욕': 'US',
+    'new york': 'US',
+    '로스앤젤레스': 'US',
+    'los angeles': 'US',
+    '라스베이거스': 'US',
+    'las vegas': 'US',
+    '샌프란시스코': 'US',
+    'san francisco': 'US',
+    '파리': 'FR',
+    'paris': 'FR',
+    '로마': 'IT',
+    'rome': 'IT',
+    '런던': 'GB',
+    'london': 'GB',
+    '바르셀로나': 'ES',
+    'barcelona': 'ES',
+    '두바이': 'AE',
+    'dubai': 'AE',
+    '아부다비': 'AE',
+    'abu dhabi': 'AE',
+    '도하': 'QA',
+    'doha': 'QA',
   };
-  return map[n] || String(fallbackCode || "JP").toUpperCase();
+  const fallback = String(fallbackCode || '').trim().toUpperCase();
+  return map[n] || (/^[A-Z]{2}$/.test(fallback) ? fallback : 'US');
 }
 
 async function triggerDestinationSearch(els, state) {
@@ -438,10 +502,23 @@ async function triggerDestinationSearch(els, state) {
       seen.add(name);
       dedup.push(item);
     }
+    if (!dedup.length) {
+      dedup.push({
+        name: q,
+        sub: '입력한 도시로 계속 진행',
+        category: 'city',
+        country_code: inferDestinationCountryCode(q, countryCode || els.countryCodeHidden?.value || 'US'),
+      });
+    }
     state.destinationSearchItems = dedup;
   } catch (_e) {
     if (seq !== state.destinationSearchSeq) return;
-    state.destinationSearchItems = [];
+    state.destinationSearchItems = [{
+      name: q,
+      sub: '입력한 도시로 계속 진행',
+      category: 'city',
+      country_code: inferDestinationCountryCode(q, els.countryCodeHidden?.value || 'US'),
+    }];
   } finally {
     if (seq !== state.destinationSearchSeq) return;
     state.destinationSearching = false;
@@ -489,8 +566,22 @@ async function selectDestinationCity(els, state, payload) {
   closeAllPopovers(els);
 
   if (!city) return;
-  await triggerLocationSearch(els, state, "pickup", city);
-  await triggerLocationSearch(els, state, "dropoff", city);
+  await triggerLocationSearch(els, state, 'pickup', city);
+  await triggerLocationSearch(els, state, 'dropoff', city);
+  // Auto-apply first suggested locations so stale previous airport does not remain.
+  const pickupFirst = Array.isArray(state.pickup?.items) && state.pickup.items.length ? state.pickup.items[0] : null;
+  const dropoffFirst = Array.isArray(state.dropoff?.items) && state.dropoff.items.length ? state.dropoff.items[0] : null;
+  const cityFallback = fallbackLocationForCity(city, countryCode);
+  if (pickupFirst) {
+    selectLocation(els, 'pickup', pickupFirst, { manual: false, syncDropoff: true });
+  } else if (cityFallback) {
+    selectLocation(els, 'pickup', cityFallback, { manual: false, syncDropoff: true });
+  }
+  if (dropoffFirst) {
+    selectLocation(els, 'dropoff', dropoffFirst, { manual: false });
+  } else if (cityFallback) {
+    selectLocation(els, 'dropoff', cityFallback, { manual: false });
+  }
   if (els.pickupPopover) {
     els.pickupPopover.classList.add("active");
     els.overlay?.classList.add("active");
@@ -663,26 +754,102 @@ function buildLocationQueryVariants(q) {
 
   push(src);
   const map = new Map([
-    ["도쿄", ["Tokyo", "Narita Airport", "Haneda Airport", "NRT", "HND"]],
-    ["방콕", ["Bangkok", "Suvarnabhumi Airport", "BKK"]],
-    ["홍콩", ["Hong Kong", "Hong Kong Intl Airport", "HKG"]],
-    ["두바이", ["Dubai", "Dubai Airport", "DXB"]],
-    ["오사카", ["Osaka", "Kansai Airport", "KIX"]],
-    ["삿포로", ["Sapporo", "CTS"]],
-    ["후쿠오카", ["Fukuoka", "FUK"]],
-    ["싱가포르", ["Singapore", "Changi Airport", "SIN"]],
-    ["뉴욕", ["New York", "JFK Airport", "JFK", "EWR", "LGA"]],
-    ["런던", ["London", "Heathrow Airport", "LHR"]],
-    ["파리", ["Paris", "CDG Airport", "CDG"]],
-    ["로마", ["Rome", "Fiumicino Airport", "FCO"]],
-    ["타이베이", ["Taipei", "Taoyuan Airport", "TPE"]],
-    ["시드니", ["Sydney", "Sydney Airport", "SYD"]],
-    ["서울", ["Seoul", "Incheon Airport", "ICN", "GMP"]],
-    ["부산", ["Busan", "Gimhae Airport", "PUS"]],
+    ['도쿄', ['Tokyo', 'Narita Airport', 'Haneda Airport', 'NRT', 'HND']],
+    ['오키나와', ['Okinawa', 'Naha Airport', 'OKA']],
+    ['나고야', ['Nagoya', 'NGO', 'Chubu Centrair Airport']],
+    ['교토', ['Kyoto', 'KIX', 'Osaka']],
+    ['고베', ['Kobe', 'UKB', 'Osaka']],
+    ['방콕', ['Bangkok', 'Suvarnabhumi Airport', 'BKK']],
+    ['푸켓', ['Phuket', 'HKT', 'Phuket Airport']],
+    ['치앙마이', ['Chiang Mai', 'CNX', 'Chiang Mai Airport']],
+    ['파타야', ['Pattaya', 'UTP', 'U-Tapao Airport']],
+    ['홍콩', ['Hong Kong', 'Hong Kong Intl Airport', 'HKG']],
+    ['두바이', ['Dubai', 'Dubai Airport', 'DXB']],
+    ['오사카', ['Osaka', 'Kansai Airport', 'KIX']],
+    ['삿포로', ['Sapporo', 'CTS']],
+    ['후쿠오카', ['Fukuoka', 'FUK']],
+    ['다낭', ['Da Nang', 'DAD', 'Da Nang Airport']],
+    ['하노이', ['Hanoi', 'HAN', 'Noi Bai Airport']],
+    ['호치민', ['Ho Chi Minh', 'SGN', 'Tan Son Nhat Airport']],
+    ['싱가포르', ['Singapore', 'Changi Airport', 'SIN']],
+    ['뉴욕', ['New York', 'JFK Airport', 'JFK', 'EWR', 'LGA']],
+    ['로스앤젤레스', ['Los Angeles', 'LAX', 'LAX Airport']],
+    ['라스베이거스', ['Las Vegas', 'LAS', 'Harry Reid Airport']],
+    ['샌프란시스코', ['San Francisco', 'SFO', 'SFO Airport']],
+    ['하와이', ['Honolulu', 'HNL', 'Daniel K Inouye Airport']],
+    ['괌', ['Guam', 'GUM', 'Antonio B. Won Pat Airport']],
+    ['사이판', ['Saipan', 'SPN', 'Saipan Airport']],
+    ['런던', ['London', 'Heathrow Airport', 'LHR']],
+    ['파리', ['Paris', 'CDG Airport', 'CDG']],
+    ['로마', ['Rome', 'Fiumicino Airport', 'FCO']],
+    ['바르셀로나', ['Barcelona', 'BCN', 'Barcelona Airport']],
+    ['아부다비', ['Abu Dhabi', 'AUH', 'Abu Dhabi Airport']],
+    ['도하', ['Doha', 'DOH', 'Hamad International Airport']],
+    ['타이베이', ['Taipei', 'Taoyuan Airport', 'TPE']],
+    ['타이중', ['Taichung', 'RMQ', 'Taichung Airport']],
+    ['가오슝', ['Kaohsiung', 'KHH', 'Kaohsiung Airport']],
+    ['상하이', ['Shanghai', 'PVG', 'SHA']],
+    ['마카오', ['Macau', 'MFM', 'Macau Airport']],
+    ['시드니', ['Sydney', 'Sydney Airport', 'SYD']],
+    ['서울', ['Seoul', 'Incheon Airport', 'ICN', 'GMP']],
+    ['부산', ['Busan', 'Gimhae Airport', 'PUS']],
   ]);
   const alias = map.get(src);
   if (Array.isArray(alias)) alias.forEach(push);
   return out;
+}
+
+function fallbackLocationForCity(city, countryCode = 'US') {
+  const n = String(city || '').trim().toLowerCase();
+  if (!n) return null;
+  const map = {
+    '도쿄': { name: 'Tokyo', lat: 35.6762, lon: 139.6503, sub: 'Japan', cc: 'JP' },
+    '오사카': { name: 'Osaka', lat: 34.6937, lon: 135.5023, sub: 'Japan', cc: 'JP' },
+    '후쿠오카': { name: 'Fukuoka', lat: 33.5902, lon: 130.4017, sub: 'Japan', cc: 'JP' },
+    '삿포로': { name: 'Sapporo', lat: 43.0618, lon: 141.3545, sub: 'Japan', cc: 'JP' },
+    '나고야': { name: 'Nagoya', lat: 35.1815, lon: 136.9066, sub: 'Japan', cc: 'JP' },
+    '교토': { name: 'Kyoto', lat: 35.0116, lon: 135.7681, sub: 'Japan', cc: 'JP' },
+    '고베': { name: 'Kobe', lat: 34.6901, lon: 135.1955, sub: 'Japan', cc: 'JP' },
+    '방콕': { name: 'Bangkok', lat: 13.7563, lon: 100.5018, sub: 'Thailand', cc: 'TH' },
+    '다낭': { name: 'Da Nang', lat: 16.0544, lon: 108.2022, sub: 'Vietnam', cc: 'VN' },
+    '하노이': { name: 'Hanoi', lat: 21.0278, lon: 105.8342, sub: 'Vietnam', cc: 'VN' },
+    '호치민': { name: 'Ho Chi Minh City', lat: 10.8231, lon: 106.6297, sub: 'Vietnam', cc: 'VN' },
+    '싱가포르': { name: 'Singapore', lat: 1.3521, lon: 103.8198, sub: 'Singapore', cc: 'SG' },
+    '홍콩': { name: 'Hong Kong', lat: 22.3193, lon: 114.1694, sub: 'Hong Kong', cc: 'HK' },
+    '마카오': { name: 'Macau', lat: 22.1987, lon: 113.5439, sub: 'Macau', cc: 'MO' },
+    '상하이': { name: 'Shanghai', lat: 31.2304, lon: 121.4737, sub: 'China', cc: 'CN' },
+    '타이베이': { name: 'Taipei', lat: 25.0330, lon: 121.5654, sub: 'Taiwan', cc: 'TW' },
+    '런던': { name: 'London', lat: 51.5072, lon: -0.1276, sub: 'United Kingdom', cc: 'GB' },
+    '파리': { name: 'Paris', lat: 48.8566, lon: 2.3522, sub: 'France', cc: 'FR' },
+    '로마': { name: 'Rome', lat: 41.9028, lon: 12.4964, sub: 'Italy', cc: 'IT' },
+    '바르셀로나': { name: 'Barcelona', lat: 41.3874, lon: 2.1686, sub: 'Spain', cc: 'ES' },
+    '뉴욕': { name: 'New York', lat: 40.7128, lon: -74.0060, sub: 'United States', cc: 'US' },
+    '로스앤젤레스': { name: 'Los Angeles', lat: 34.0522, lon: -118.2437, sub: 'United States', cc: 'US' },
+    '라스베이거스': { name: 'Las Vegas', lat: 36.1699, lon: -115.1398, sub: 'United States', cc: 'US' },
+    '샌프란시스코': { name: 'San Francisco', lat: 37.7749, lon: -122.4194, sub: 'United States', cc: 'US' },
+    '두바이': { name: 'Dubai', lat: 25.2048, lon: 55.2708, sub: 'United Arab Emirates', cc: 'AE' },
+    '아부다비': { name: 'Abu Dhabi', lat: 24.4539, lon: 54.3773, sub: 'United Arab Emirates', cc: 'AE' },
+    '도하': { name: 'Doha', lat: 25.2854, lon: 51.5310, sub: 'Qatar', cc: 'QA' },
+  };
+  const row = map[n];
+  if (row) {
+    return {
+      name: row.name,
+      sub: row.sub,
+      lat: row.lat,
+      lon: row.lon,
+      category: 'city',
+      country_code: row.cc,
+    };
+  }
+  return {
+    name: String(city || '').trim(),
+    sub: 'Selected destination city',
+    lat: ({ JP: 35.6762, KR: 37.5665, US: 40.7128, FR: 48.8566, GB: 51.5072, IT: 41.9028, ES: 41.3874, TH: 13.7563, VN: 21.0278, SG: 1.3521, HK: 22.3193, MO: 22.1987, CN: 31.2304, TW: 25.0330, AE: 25.2048, QA: 25.2854 }[String(inferDestinationCountryCode(city, countryCode)).toUpperCase()] ?? 35.6762),
+    lon: ({ JP: 139.6503, KR: 126.9780, US: -74.0060, FR: 2.3522, GB: -0.1276, IT: 12.4964, ES: 2.1686, TH: 100.5018, VN: 105.8342, SG: 103.8198, HK: 114.1694, MO: 113.5439, CN: 121.4737, TW: 121.5654, AE: 55.2708, QA: 51.5310 }[String(inferDestinationCountryCode(city, countryCode)).toUpperCase()] ?? 139.6503),
+    category: 'city',
+    country_code: inferDestinationCountryCode(city, countryCode),
+  };
 }
 
 function renderLocationList(els, target, items, errorMsg) {
@@ -727,9 +894,11 @@ function renderLocationList(els, target, items, errorMsg) {
   });
 }
 
-function selectLocation(els, target, item) {
+function selectLocation(els, target, item, options = {}) {
   if (!item) return;
-  const isPickup = target === "pickup";
+  const manual = options.manual !== false;
+  const syncDropoff = options.syncDropoff === true;
+  const isPickup = target === 'pickup';
   const display = isPickup ? els.pickupDisplay : els.dropoffDisplay;
   const nameHidden = isPickup ? els.pickupNameHidden : els.dropoffNameHidden;
   const latHidden = isPickup ? els.pickupLatHidden : els.dropoffLatHidden;
@@ -741,12 +910,18 @@ function selectLocation(els, target, item) {
   latHidden.value = item.lat ?? "";
   lonHidden.value = item.lon ?? "";
 
-  // Keep classic UX: when dropoff is not selected yet, follow pickup automatically.
-  if (isPickup && !String(els.dropoffNameHidden?.value || "").trim()) {
-    els.dropoffDisplay.textContent = localizedName || "장소 선택";
-    els.dropoffNameHidden.value = localizedName || "";
-    els.dropoffLatHidden.value = item.lat ?? "";
-    els.dropoffLonHidden.value = item.lon ?? "";
+  if (!isPickup) {
+    if (manual) window.__RENTAL_DROPOFF_MANUAL__ = true;
+  }
+
+  const dropoffManual = Boolean(window.__RENTAL_DROPOFF_MANUAL__);
+  // Keep classic UX: dropoff follows pickup until user explicitly chooses dropoff.
+  if (isPickup && (!dropoffManual || syncDropoff)) {
+    els.dropoffDisplay.textContent = localizedName || '장소 선택';
+    els.dropoffNameHidden.value = localizedName || '';
+    els.dropoffLatHidden.value = item.lat ?? '';
+    els.dropoffLonHidden.value = item.lon ?? '';
+    if (syncDropoff) window.__RENTAL_DROPOFF_MANUAL__ = false;
   }
   closeAllPopovers(els);
 }
@@ -806,14 +981,15 @@ function localizeLocationName(name) {
 }
 
 function resetSelectedLocations(els) {
-  els.pickupDisplay.textContent = "대여 장소를 선택하세요";
-  els.dropoffDisplay.textContent = "반납 장소를 선택하세요 (기본: 대여 장소)";
-  els.pickupNameHidden.value = "";
-  els.pickupLatHidden.value = "";
-  els.pickupLonHidden.value = "";
-  els.dropoffNameHidden.value = "";
-  els.dropoffLatHidden.value = "";
-  els.dropoffLonHidden.value = "";
+  window.__RENTAL_DROPOFF_MANUAL__ = false;
+  els.pickupDisplay.textContent = '대여 장소를 선택하세요';
+  els.dropoffDisplay.textContent = '반납 장소를 선택하세요 (기본: 대여 장소)';
+  els.pickupNameHidden.value = '';
+  els.pickupLatHidden.value = '';
+  els.pickupLonHidden.value = '';
+  els.dropoffNameHidden.value = '';
+  els.dropoffLatHidden.value = '';
+  els.dropoffLonHidden.value = '';
 }
 
 function bindFormSubmit(els) {

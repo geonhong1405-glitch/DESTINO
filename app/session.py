@@ -1,11 +1,20 @@
 # app/session.py
+import os
 import secrets
 from datetime import datetime, timedelta
 
 from app.db.db import SessionLocal
 from app.db.models import UserSession
 
-SESSION_EXPIRE_MINUTES = 30000
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(str(os.getenv(name, str(default))).strip())
+    except Exception:
+        return default
+
+
+SESSION_EXPIRE_MINUTES = max(30, _env_int("SESSION_EXPIRE_MINUTES", 30000))
+SESSION_ROLLING_REFRESH = str(os.getenv("SESSION_ROLLING_REFRESH", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def create_session(user_id: int) -> str:
@@ -39,6 +48,10 @@ def get_user_id_from_session(session_token: str) -> int | None:
             db.delete(row)
             db.commit()
             return None
+        if SESSION_ROLLING_REFRESH:
+            # Keep active users logged in by extending the expiry on access.
+            row.expire_at = datetime.utcnow() + timedelta(minutes=SESSION_EXPIRE_MINUTES)
+            db.commit()
         return int(row.user_id)
     finally:
         db.close()

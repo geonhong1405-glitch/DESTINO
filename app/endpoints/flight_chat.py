@@ -990,11 +990,11 @@ def payment_flight_success_page():
                 iconBox.innerHTML = '✅';
                 iconBox.style.fontSize = '32px';
                 title.textContent = '결제가 완료되었습니다!';
-                msg.textContent = '항공권 예약이 완료되었습니다. <br>마이페이지에서 상세 내역을 확인하세요.';
+                msg.textContent = '항공권 예약이 완료되었습니다. 마이페이지에서 상세 내역을 확인하세요.';
                 infoCard.style.display = 'block';
                 document.getElementById('res-orderId').textContent = orderId;
                 document.getElementById('res-amount').textContent = amount.toLocaleString() + '원';
-                document.getElementById('main-btn').textContent = '예약 내역 확인하기';
+                document.getElementById('main-btn').textContent = '항공 상품 페이지로 돌아가기';
             } else {
                 iconBox.innerHTML = '❌';
                 iconBox.style.fontSize = '32px';
@@ -1050,8 +1050,8 @@ body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0
     <div class="amt">KRW {amount:,}</div>
     <div class="row">2초 후 마이페이지로 이동합니다.</div>
     <div class="actions">
-      <a class="btn btn-primary" href="/mypage">마이페이지로</a>
-      <a class="btn btn-ghost" href="/airport">항공 검색으로</a>
+      <a class="btn btn-primary" href="/airport">항공 상품 페이지로 돌아가기</a>
+      <a class="btn btn-ghost" href="/">메인페이지로 돌아가기</a>
     </div>
   </div>
   <script>
