@@ -499,12 +499,9 @@ def delete_join_request_alert(request_id: int, request: Request):
             raise HTTPException(status_code=404, detail="요청을 찾을 수 없습니다.")
 
         is_requester = int(row.requester_user_id or 0) == int(user_id)
-        if not is_requester:
+        is_post_owner = int(row.post_owner_user_id or 0) == int(user_id)
+        if not (is_requester or is_post_owner):
             raise HTTPException(status_code=403, detail="권한이 없습니다.")
-
-        # 진행 중 요청은 실수 방지를 위해 알림 삭제 불가
-        if str(row.status or "pending") == "pending":
-            raise HTTPException(status_code=400, detail="대기중 요청은 삭제할 수 없습니다.")
 
         db.delete(row)
         db.commit()

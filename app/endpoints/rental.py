@@ -599,9 +599,9 @@ def rental_page(
             sky_raw = {}
             booking_raw = {}
 
-            # Default: sequential fallback to reduce Booking 429 accumulation.
-            # Set RENTAL_PARALLEL_PROVIDERS=1 only when API quota is stable.
-            parallel_providers = str(os.getenv("RENTAL_PARALLEL_PROVIDERS", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+            # Default: parallel provider search for better response time.
+            # Set RENTAL_PARALLEL_PROVIDERS=0 only if strict quota-protection is needed.
+            parallel_providers = str(os.getenv("RENTAL_PARALLEL_PROVIDERS", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
             if parallel_providers:
                 with ThreadPoolExecutor(max_workers=2) as ex:
                     sky_future = ex.submit(
@@ -873,30 +873,29 @@ def rental_page(
                     rental_error = "실시간 차량은 조회되었지만 요금이 불안정해 요금을 표시할 수 없습니다."
 
             if not rental_cars:
-                allow_local_fallback = str(os.getenv("RENTAL_ENABLE_LOCAL_FALLBACK", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
-                if allow_local_fallback:
-                    rental_cars = _build_local_fallback_rental_cars(country_code, rental_days)
-                    original_fallback = list(rental_cars)
-                    filtered_fallback = list(rental_cars)
-                    if min_seats_value:
-                        filtered_fallback = [c for c in filtered_fallback if not c.get("seats") or c.get("seats") >= min_seats_value]
-                    if transmission and transmission not in {"", "all"}:
-                        tneedle = str(transmission).lower()
-                        filtered_fallback = [c for c in filtered_fallback if tneedle in str(c.get("transmission") or "").lower()]
-                    rental_cars = filtered_fallback if filtered_fallback else original_fallback
-                    if sort == "price_desc":
-                        rental_cars.sort(key=lambda x: x.get("price") or -1, reverse=True)
-                    elif sort == "name":
-                        rental_cars.sort(key=lambda x: str(x.get("name") or ""))
-                    elif sort == "rating":
-                        rental_cars.sort(key=lambda x: x.get("rating") or 0, reverse=True)
-                    else:
-                        rental_cars.sort(key=lambda x: x.get("price") or 10**12)
+                # Always keep at least fallback inventory visible when provider results are empty.
+                rental_cars = _build_local_fallback_rental_cars(country_code, rental_days)
+                original_fallback = list(rental_cars)
+                filtered_fallback = list(rental_cars)
+                if min_seats_value:
+                    filtered_fallback = [c for c in filtered_fallback if not c.get("seats") or c.get("seats") >= min_seats_value]
+                if transmission and transmission not in {"", "all"}:
+                    tneedle = str(transmission).lower()
+                    filtered_fallback = [c for c in filtered_fallback if tneedle in str(c.get("transmission") or "").lower()]
+                rental_cars = filtered_fallback if filtered_fallback else original_fallback
+                if sort == "price_desc":
+                    rental_cars.sort(key=lambda x: x.get("price") or -1, reverse=True)
+                elif sort == "name":
+                    rental_cars.sort(key=lambda x: str(x.get("name") or ""))
+                elif sort == "rating":
+                    rental_cars.sort(key=lambda x: x.get("rating") or 0, reverse=True)
+                else:
+                    rental_cars.sort(key=lambda x: x.get("price") or 10**12)
 
-                    if rental_cars:
-                        rental_provider = "Local Fallback"
-                        rental_provider_detail = _public_provider_detail(rental_provider, " / ".join(fallback_reasons))
-                        rental_error = None
+                if rental_cars:
+                    rental_provider = "Local Fallback"
+                    rental_provider_detail = _public_provider_detail(rental_provider, " / ".join(fallback_reasons))
+                    rental_error = None
                 else:
                     rental_provider = "API Unavailable"
                     rental_provider_detail = _public_provider_detail(rental_provider, " / ".join(fallback_reasons))
