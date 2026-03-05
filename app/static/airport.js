@@ -325,40 +325,51 @@ function renderFlightSavedDrawer() {
         btn.setAttribute('aria-selected', active ? 'true' : 'false');
     });
     if (flightSavedDrawerTab === 'alerts') {
-        listEl.innerHTML = '';
+        // travel-group 구조를 따르되, 클래스명은 airport 스타일로 유지
+        listEl.className = 'flight-saved-alert-list';
         emptyEl.style.display = flightAlertState.length ? 'none' : 'block';
         emptyEl.textContent = '도착한 참여 요청 알림이 없습니다.';
-        flightAlertState.forEach((item) => {
+        if (!flightAlertState.length) {
+            listEl.innerHTML = '';
+            return;
+        }
+        listEl.innerHTML = flightAlertState.map((item) => {
             const status = String(item.status || 'pending');
             const statusLabel = status === 'accepted' ? '수락됨' : (status === 'rejected' ? '거절됨' : '대기중');
+            const statusChipStyle = status === 'accepted'
+                ? 'display:inline-block;padding:2px 8px;border-radius:999px;background:#dcfce7;color:#166534;font-weight:800;'
+                : (status === 'rejected'
+                    ? 'display:inline-block;padding:2px 8px;border-radius:999px;background:#fee2e2;color:#991b1b;font-weight:800;'
+                    : 'display:inline-block;padding:2px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-weight:800;');
             const incoming = String(item.direction || 'mine') !== 'mine';
             const reqTitle = incoming
-                ? `${escapeHtml(item.requester_name || '-')}님이 요청했습니다`
-                : `${escapeHtml(item.requester_name || '작성자')}님의 응답`;
-            const li = document.createElement('li');
-            li.className = 'flight-saved-item';
-            li.innerHTML = `
-                <div class="flight-saved-item__type">공동구매 · 참여요청</div>
-                <div class="flight-saved-item__name">${escapeHtml(item.post_title || '-')}</div>
-                <div class="flight-saved-item__meta">${reqTitle}<br>${item.requester_email ? `이메일: ${escapeHtml(item.requester_email)}<br>` : ''}${statusLabel}${item.message ? `<br>${escapeHtml(item.message || '')}` : ''}</div>
-                ${
-                    incoming && status === 'pending'
-                        ? `<div class="flight-saved-item__meta">
-                            <button type="button" data-flight-alert-action="accept" data-flight-alert-id="${Number(item.id)}" title="수락" style="margin-right:6px;padding:4px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;">수락</button>
-                            <button type="button" data-flight-alert-action="reject" data-flight-alert-id="${Number(item.id)}" title="거절" style="padding:4px 8px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700;">거절</button>
-                        </div>`
-                        : ''
-                }
-                ${
-                    status !== 'pending'
-                        ? `<div class="flight-saved-item__meta">
-                            <button type="button" data-flight-alert-remove="${Number(item.id)}" title="알림 삭제" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#475569;font-size:12px;font-weight:700;">알림 삭제</button>
-                        </div>`
-                        : ''
-                }
+                ? `${escapeHtml(item.requester_name || '-')}` + '님이 요청했습니다'
+                : `${escapeHtml(item.requester_name || '작성자')}` + '님의 응답';
+            return `
+                <li class="flight-saved-alert-item" style="grid-template-columns:1fr;">
+                    <div class="flight-saved-alert-meta">
+                        <div class="flight-saved-alert-title">공동구매 · 참여요청</div>
+                        <div class="flight-saved-alert-desc">${escapeHtml(item.post_title || '-')}</div>
+                        <div class="flight-saved-alert-desc">${reqTitle}<br>${item.requester_email ? `이메일: ${escapeHtml(item.requester_email)}<br>` : ''}<span style="${statusChipStyle}">${statusLabel}</span>${item.message ? `<br>${escapeHtml(item.message || '')}` : ''}</div>
+                        ${
+                            incoming && status === 'pending'
+                                ? `<div class="flight-saved-alert-actions">
+                                    <button type="button" data-flight-alert-action="accept" data-flight-alert-id="${Number(item.id)}" style="margin-right:6px;padding:4px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;">수락</button>
+                                    <button type="button" data-flight-alert-action="reject" data-flight-alert-id="${Number(item.id)}" style="padding:4px 8px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700;">거절</button>
+                                </div>`
+                                : ''
+                        }
+                        ${
+                            status !== 'pending' && !incoming
+                                ? `<div class="flight-saved-alert-actions" style="margin-top:8px;">
+                                    <button type="button" data-flight-alert-remove="${Number(item.id)}" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#475569;font-size:12px;font-weight:700;">알림 삭제</button>
+                                </div>`
+                                : ''
+                        }
+                    </div>
+                </li>
             `;
-            listEl.appendChild(li);
-        });
+        }).join('');
         return;
     }
 
