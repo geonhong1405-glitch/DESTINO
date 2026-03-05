@@ -698,6 +698,7 @@ function handleBooking() {
                     .tour-checkout-panel{position:relative;width:min(700px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 20px 48px rgba(0,0,0,.24)}
                     .tour-checkout-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
                     .tour-checkout-grid input,.tour-checkout-grid textarea{width:100%;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:14px}
+                    .tour-checkout-grid textarea[name="memo"]{height:80px;min-height:80px;max-height:80px;resize:none;}
                     .tour-checkout-grid label{font-size:12px;font-weight:700;color:#374151;display:block}
                     .tour-checkout-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
                     .tour-checkout-btn{height:40px;padding:0 14px;border-radius:10px;border:1px solid transparent;font-weight:700;cursor:pointer}

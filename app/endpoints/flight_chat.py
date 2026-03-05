@@ -967,8 +967,8 @@ def payment_flight_success_page():
                 <span id="res-amount">-</span>
             </div>
         </div>
-        <a href="/mypage" class="btn btn-primary" id="main-btn">마이페이지로 이동</a>
-        <a href="/airport" class="btn btn-outline">항공 검색으로</a>
+        <a href="/airport" class="btn btn-primary" id="main-btn">항공 상품 페이지로 돌아가기</a>
+        <a href="/" class="btn btn-outline">메인페이지로 이동</a>
     </div>
     <script>
         const qs = new URLSearchParams(location.search);

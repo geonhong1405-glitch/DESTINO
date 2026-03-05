@@ -120,15 +120,11 @@
       const inCart = cartKeys.has(key);
 
       const wishBtn = card.querySelector(".tour-wishlist-btn");
-      const wishIcon = wishBtn?.querySelector("i");
       if (wishBtn) {
-        wishBtn.classList.toggle("is-active", inWishlist);
+        wishBtn.classList.toggle("in-wishlist", inWishlist);
         wishBtn.setAttribute("aria-pressed", inWishlist ? "true" : "false");
-      }
-      if (wishIcon) {
-        wishIcon.className = inWishlist
-          ? "fa-solid fa-heart"
-          : "fa-regular fa-heart";
+        const color = inWishlist ? "#ff5252" : "#bbb";
+        wishBtn.innerHTML = `<span class='wishlist-icon' style='font-size:22px;color:${color};'>&hearts;</span>`;
       }
 
       const cartBtn = card.querySelector(".tour-cart-text-btn");
@@ -587,14 +583,12 @@
       );
       if (index === -1) return;
       const tourData = extractTourData(card, index);
-      const icon = btn.querySelector("i");
       const exists = !!findSavedRow("wishlist", tourData);
 
       // Optimistic UI: fill/unfill heart immediately, then reconcile from server state.
-      if (icon)
-        icon.className = exists ? "fa-regular fa-heart" : "fa-solid fa-heart";
-      btn.classList.toggle("is-active", !exists);
+      btn.classList.toggle("in-wishlist", !exists);
       btn.setAttribute("aria-pressed", exists ? "false" : "true");
+      btn.innerHTML = `<span class='wishlist-icon' style='font-size:22px;color:${!exists ? '#ff5252' : '#bbb'};'>&hearts;</span>`;
 
       await toggleHeartSaved(tourData);
     });

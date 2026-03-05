@@ -406,6 +406,7 @@ body {
     z-index: 1199;
     width: min(420px, calc(100vw - 24px));
     max-height: min(60vh, 560px);
+    min-height: 340px;
     background: #fff;
     border: 1px solid #e5e7eb;
     border-radius: 18px;

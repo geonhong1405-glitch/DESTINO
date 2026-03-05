@@ -1,4 +1,69 @@
-﻿/* 웹폰트 임포트 */
+﻿/* 패키지 상품카드 위시리스트 버튼 스타일을 투어에도 동일하게 적용 */
+.tour-wishlist-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #ff5252;
+  border: 1px solid #eee;
+  transition: box-shadow 0.2s, color 0.2s;
+  z-index: 2;
+}
+.tour-wishlist-btn:hover {
+  color: #e60026;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+}
+/* 패키지 상품카드 버튼 스타일을 투어 상품카드 버튼에 적용 (클래스명 유지) */
+.tour-action-btns {
+  display: flex;
+  gap: 10px;
+}
+.tour-cart-text-btn {
+  display: inline-block;
+  width: 48%;
+  margin-top: 18px;
+  margin-right: 2%;
+  padding: 10px 0;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #2563eb;
+  font-size: 15px;
+  font-weight: 700;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  cursor: pointer;
+}
+.tour-cart-text-btn:hover {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+.tour-pay-btn {
+  display: inline-block;
+  width: 48%;
+  margin-top: 18px;
+  padding: 10px 0;
+  border-radius: 8px;
+  box-sizing: border-box;
+  background: #00aaff;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.tour-pay-btn:hover {
+  background: var(--primary-hover);
+}
+/* 웹폰트 임포트 */
 @import url("https://cdn.jsdelivr.net/gh/fonts-archive/Pretendard/Pretendard.css");
 
 :root {
@@ -40,6 +105,26 @@
     box-shadow 0.2s,
     color 0.2s;
   z-index: 2;
+}
+.tour-wishlist-btn .wishlist-icon {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  fill: #ccc;
+  transition: fill 0.2s, stroke 0.2s;
+}
+.tour-wishlist-btn.in-wishlist {
+  border-color: #fda4af;
+  color: #ff5252;
+  background: #fff1f2;
+}
+.tour-wishlist-btn.in-wishlist .wishlist-icon {
+  fill: #ff5252;
+  stroke: #ff5252;
+}
+.tour-wishlist-btn:hover .wishlist-icon {
+  fill: #ff5252;
+  stroke: #ff5252;
 }
 .tour-wishlist-btn:hover {
   color: #e60026;
@@ -361,6 +446,7 @@ button {
   text-decoration: none;
   color: inherit;
   transition: transform 0.3s;
+  cursor: pointer;
 }
 .tour-card:hover {
   transform: translateY(-5px);
@@ -476,7 +562,7 @@ button {
 .price-val {
   font-size: 19px;
   font-weight: 800;
-  color: #ff5252;
+  color: #00aaff;
 }
 
 /* Footer */

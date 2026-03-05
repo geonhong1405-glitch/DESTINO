@@ -1194,7 +1194,7 @@ def payment_rental_success_page():
                 <span id=\"res-amount\">-</span>
             </div>
         </div>
-        <a href=\"/rental\" class=\"btn btn-primary\" id=\"main-btn\">렌터카 상품 보기</a>
+        <a href=\"/rental\" class=\"btn btn-primary\" id=\"main-btn\">렌터카 상품페이지로 돌아가기</a>
         <a href=\"/\" class=\"btn btn-outline\">메인페이지로 이동</a>
     </div>
     <script>
