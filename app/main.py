@@ -2207,7 +2207,7 @@ def payment_hotel_success_page():
                 infoCard.style.display = 'block';
                 document.getElementById('res-orderId').textContent = orderId;
                 document.getElementById('res-amount').textContent = amount.toLocaleString() + '원';
-                document.getElementById('main-btn').textContent = ' 보러가기';
+                document.getElementById('main-btn').textContent = ' 호텔 상품 페이지로 돌아가기';
             } else {
                 iconBox.innerHTML = '❌';
                 iconBox.style.fontSize = '32px';
@@ -2570,6 +2570,23 @@ def payment_pack_success_page():
             background-color: #0096ce;
             transform: translateY(-2px);
         }
+        .btn-outline {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            background-color: transparent;
+            color: var(--text-muted);
+            border: 1px solid #e2e8f0;
+            margin-top: 12px;
+            }
+            .btn-outline:hover {
+                transform: translateY(-2px);
+                }
         .logo {
             font-weight: 900;
             color: var(--primary-color);
@@ -2595,6 +2612,7 @@ def payment_pack_success_page():
         <p class="description">패키지 상품 결제가 성공적으로 처리되었습니다.<br>아래 버튼을 눌러 상품 페이지로 이동하세요.</p>
                 <p id="msg" class="muted">잠시만 기다려 주세요.</p>
                 <a href="/package" class="btn">패키지 상품 페이지로 돌아가기</a>
+                <a href="/" class="btn-outline">메인 페이지로 이동</a>
         </div>
         <script>
             const qs = new URLSearchParams(location.search);
@@ -2767,6 +2785,12 @@ def payment_pack_fail_page(code: str | None = Query(None), message: str | None =
             color: var(--text-dark);
         }}
 
+        .btn-outline {{
+            border: 1px solid #e2e8f0; 
+            color: var(--text-muted); 
+            margin-top: 12px; font-size: 14px; 
+        }}
+
         .logo {{
             font-weight: 900;
             color: var(--primary-color);
@@ -2801,8 +2825,8 @@ def payment_pack_fail_page(code: str | None = Query(None), message: str | None =
         </div>
 
         <div class="button-group">
-            <a href="/package" class="btn btn-primary">패키지기</a>
-            <a href="/" class="btn btn-secondary">메인페이지로 이동</a>
+            <a href="/package" class="btn btn-primary">패키지</a>
+            <a href="/" class="btn btn-outline">메인페이지로 이동</a>
         </div>
     </div>
 </body>
