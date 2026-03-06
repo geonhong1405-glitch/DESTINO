@@ -54,10 +54,10 @@ def _entity_retry_hints(city_query: str | None, country_code: str | None) -> lis
         if x and x not in hints:
             hints.append(x)
 
-    if cc == "US" and any(k in q for k in ["?댁슃", "newyork", "nyc", "newyorkcity"]):
+    if cc == "US" and any(k in q for k in ["뉴욕", "newyork", "nyc", "newyorkcity"]):
         for x in ["JFK", "EWR", "LGA", "New York"]:
             _add(x)
-    if cc == "JP" and any(k in q for k in ["?꾩퓙", "tokyo", "tyo"]):
+    if cc == "JP" and any(k in q for k in ["도쿄", "tokyo", "tyo"]):
         for x in ["NRT", "HND", "Tokyo"]:
             _add(x)
     if cc == "KR" and any(k in q for k in ["?쒖슱", "seoul", "sel"]):

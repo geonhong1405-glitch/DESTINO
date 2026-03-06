@@ -38,6 +38,27 @@
     }
   }
 
+  function normalizeKrwPriceText(text) {
+    const raw = String(text || "").trim();
+    if (!raw) return "";
+    const m = raw.match(/([\d,]+(?:\.\d+)?)\s*(krw|KRW|원|₩)?/);
+    if (!m) return "";
+    const n = Number(String(m[1]).replace(/,/g, ""));
+    if (!Number.isFinite(n) || n <= 0) return "";
+    return `₩${Math.floor(n).toLocaleString("ko-KR")}`;
+  }
+
+  function savedTypeLabel(itemType) {
+    const type = String(itemType || "").toLowerCase();
+    if (type === "flight") return "FLIGHT";
+    if (type === "hotel" || type === "stay" || type === "accommodation")
+      return "HOTEL";
+    if (type === "ticket" || type === "tour") return "TICKET";
+    if (type === "package") return "PACKAGE";
+    if (type === "groupbuy" || type === "travel-group") return "GROUPBUY";
+    return type ? type.toUpperCase() : "ITEM";
+  }
+
   function parseBackgroundImageUrl(value) {
     const s = String(value || "");
     const m = s.match(/url\((['"]?)(.*?)\1\)/i);
@@ -474,23 +495,52 @@
     items.forEach((item) => {
       const li = document.createElement("li");
       li.className = "package-saved-item";
-      // 썸네일, 가격, 이름, 타입, 삭제 버튼 등 airport.js 스타일로 렌더링
-      const thumb = item?.payload?.thumb_url || item?.image || "";
+      const thumb =
+        item?.payload?.thumb_url ||
+        item?.payload?.image_url ||
+        item?.payload?.image ||
+        item?.image_url ||
+        item?.image ||
+        "";
       let price = "";
+      const metaLines = [];
       if (item.meta) {
-        price = String(item.meta).split("|")[0].trim();
-        if (!/\d/.test(price)) price = "";
+        const parts = String(item.meta)
+          .split("|")
+          .map((x) => x.trim())
+          .filter(Boolean);
+        const detected = parts.find((p) => normalizeKrwPriceText(p));
+        price = normalizeKrwPriceText(detected || "");
+        metaLines.push(
+          ...parts.filter(
+            (p) =>
+              p !== detected &&
+              !/[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(p),
+          ),
+        );
       }
-      const typeText =
-        item.item_type ||
-        (packageSavedDrawerTab === "cart" ? "package" : "wishlist");
+      if (!price) {
+        price = normalizeKrwPriceText(
+          item?.price ||
+          item?.payload?.price_text ||
+          item?.payload?.price ||
+          item?.payload?.amount ||
+          item?.payload?.total_price ||
+          ""
+        );
+      }
+      const typeText = `${savedTypeLabel(item.item_type)} · ${item?.source || "saved-item"}`;
       li.innerHTML = `
-        ${thumb ? `<div class=\"package-saved-thumb\"><img src=\"${thumb.replace(/"/g, "&quot;")}\" alt=\"썸네일\" loading=\"lazy\"></div>` : ""}
-        <div class=\"package-saved-item__type\">${typeText}</div>
-        <div class=\"package-saved-item__name\">${item.name || "-"}</div>
-        ${price ? `<div class=\"package-saved-line package-saved-price\">${price}</div>` : ""}
-        ${item.meta ? `<div class=\"package-saved-item__meta\">${item.meta.replace(/\|/g, "<br>")}</div>` : ""}
-        <button type=\"button\" class=\"package-saved-item__remove\" data-package-saved-remove=\"${item.id}\" title=\"삭제\">×</button>
+        <div class="package-saved-thumb">
+          ${thumb ? `<img src="${thumb.replace(/"/g, "&quot;")}" alt="썸네일" loading="lazy" onerror="this.remove()">` : ""}
+        </div>
+        <div class="package-saved-content">
+          <div class="package-saved-item__type">${typeText}</div>
+          <div class="package-saved-item__name">${item.name || "-"}</div>
+          ${price ? `<div class="package-saved-line package-saved-price">${price}</div>` : ""}
+          ${metaLines.map((line) => `<div class="package-saved-item__meta">${line}</div>`).join("")}
+        </div>
+        <button type="button" class="package-saved-item__remove" data-package-saved-remove="${item.id}" title="삭제">×</button>
       `;
       listEl.appendChild(li);
     });

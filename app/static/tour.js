@@ -59,6 +59,21 @@
     return `${title}__${location}__${price}`;
   }
 
+  function normalizeKrwPriceText(text) {
+    const raw = String(text || "").trim();
+    if (!raw) return "";
+    const m = raw.match(/([\d,]+(?:\.\d+)?)\s*(krw|KRW|원|₩)?/);
+    if (!m) return "";
+    const n = Number(String(m[1]).replace(/,/g, ""));
+    if (!Number.isFinite(n) || n <= 0) return "";
+    return `₩${Math.floor(n).toLocaleString("ko-KR")}`;
+  }
+
+  function savedTypeLabel(itemType) {
+    const type = String(itemType || "").toLowerCase();
+    return type ? type.toUpperCase() : "ITEM";
+  }
+
   function getTourIdentity(item) {
     const title = normalizeText(
       item?.title ||
@@ -444,19 +459,28 @@
       li.className = "tour-saved-item";
       // home drawer 스타일과 동일하게 썸네일, 이름, 가격, 메타, 삭제 버튼 렌더링
       const imgSrc =
-        item?.payload?.image || item?.image || "/static/image/noimg.png";
+        item?.payload?.thumb_url ||
+        item?.payload?.image_url ||
+        item?.payload?.image ||
+        item?.image_url ||
+        item?.image ||
+        "";
       const title = item?.name || item?.payload?.title || "-";
-      const price = item?.payload?.price_text || item?.price || "";
-      const meta = item?.meta || "";
+      const price = normalizeKrwPriceText(item?.payload?.price_text || item?.price || "");
+      const metaLines = String(item?.meta || "")
+        .split("|")
+        .map((x) => x.trim())
+        .filter((x) => x && !/[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(x));
+      const kind = `${savedTypeLabel(item?.item_type)} · ${item?.source || "saved-item"}`;
       li.innerHTML = `
         <div class="tour-saved-thumb">
-          <img src="${imgSrc}" alt="썸네일" />
+          ${imgSrc ? `<img src="${imgSrc}" alt="썸네일" loading="lazy" onerror="this.remove()">` : ""}
         </div>
         <div class="tour-saved-meta">
-          <div class="tour-saved-kind">${item.item_type || (tourSavedDrawerTab === "cart" ? "ticket" : "wishlist")}</div>
+          <div class="tour-saved-kind">${kind}</div>
           <div class="tour-saved-name">${title}</div>
-          <div class="tour-saved-line">${meta}</div>
-          <div class="tour-saved-price">${price}</div>
+          ${price ? `<div class="tour-saved-price">${price}</div>` : ""}
+          ${metaLines.map((line) => `<div class="tour-saved-line">${line}</div>`).join("")}
         </div>
         <button type="button" class="tour-saved-item__remove" data-tour-saved-remove="${Number(item.id)}" title="remove">&times;</button>
       `;

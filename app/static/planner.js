@@ -171,9 +171,17 @@
         const payload = item?.payload || {};
         const type = String(item?.item_type || item?.type || "").toLowerCase();
         if (type === "flight") {
-            return savedAirlineLogo(payload?.airline_code || payload?.airline || "");
+            return payload?.thumb_url || payload?.image_url || payload?.image || savedAirlineLogo(payload?.airline_code || payload?.airline || "");
         }
-        const direct = payload?.image_url || payload?.image || payload?.thumbnail || payload?.photo || (Array.isArray(payload?.images) ? payload.images[0] : "");
+        const direct =
+            payload?.thumb_url ||
+            payload?.image_url ||
+            payload?.image ||
+            payload?.thumbnail ||
+            payload?.photo ||
+            item?.image_url ||
+            item?.image ||
+            (Array.isArray(payload?.images) ? payload.images[0] : "");
         if (direct) return direct;
         if (type === "groupbuy" || type === "travel-group") {
             return SAVED_COUNTRY_IMAGE[savedCountryKey(payload?.country)] || SAVED_COUNTRY_IMAGE.default;
@@ -277,9 +285,13 @@
     function savedMetaParts(item) {
         const raw = String(item?.meta || "").trim();
         const parts = raw.split("|").map((x) => x.trim()).filter(Boolean);
+        const detectedPrice = parts.find((p) => normalizeSavedPrice(p));
+        const price = normalizeSavedPrice(detectedPrice || "");
         return {
-            price: parts[0] || "",
-            lines: parts.slice(1, 3),
+            price,
+            lines: parts
+                .filter((p) => p && p !== detectedPrice && !normalizeSavedPrice(p))
+                .slice(0, 3),
         };
     }
 
@@ -539,17 +551,17 @@
                 extraHtml = `${depLine}${arrLine}${f.isRound && retDepLine ? retDepLine : ""}${f.isRound && retArrLine ? retArrLine : ""}`;
             }
             li.innerHTML = `
-                <div class="ai-cart-item__thumb${isFlightItem ? ' ai-cart-item__thumb--flight' : ''}">
+                <div class="ai-cart-item__thumb">
                     ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.name || "")}" loading="lazy" onerror="this.remove()">` : ""}
                 </div>
-                <div class="ai-cart-item__content${isFlightItem ? ' ai-cart-item__content--flight' : ''}">
+                <div class="ai-cart-item__content">
                     <div class="ai-cart-item__type">${escapeHtml(kind)}</div>
                     <div class="ai-cart-item__name">${escapeHtml(item.name || "-")}</div>
                     ${priceHtml}
                     ${lines}
                     ${extraHtml}
                 </div>
-                <button type="button" class="ai-cart-item__remove${isFlightItem ? ' ai-cart-item__remove--flight' : ''}" data-cart-remove="${item.id}" title="삭제">×</button>
+                <button type="button" class="ai-cart-item__remove" data-cart-remove="${item.id}" title="삭제">×</button>
             `;
             cartList.appendChild(li);
         });
@@ -825,9 +837,11 @@
     function normalizeSavedPrice(value) {
         const txt = String(value || "").trim();
         if (!txt) return "";
-        const mKrw = txt.match(/([\d,]+)\s*KRW/i);
-        if (mKrw) return `₩${mKrw[1]}`;
-        return txt;
+        const m = txt.match(/([\d,]+(?:\.\d+)?)\s*(KRW|krw|원|₩)?/);
+        if (!m) return "";
+        const n = Number(String(m[1]).replace(/,/g, ""));
+        if (!Number.isFinite(n) || n <= 0) return "";
+        return `₩${Math.floor(n).toLocaleString("ko-KR")}`;
     }
 
     function formatKoreanMeridiemTime(hhmm) {

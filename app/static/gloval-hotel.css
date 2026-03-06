@@ -2,11 +2,12 @@
 @import url('https://cdn.jsdelivr.net/gh/fonts-archive/Pretendard/Pretendard.css');
 
 :root {
+    --primary-color: #00aaff;
     --blue-600: #00aaff;
     --primary-hover: #008cd2;/* 0056b3 */
     --bg-color: #f9fafb; 
     --text-main: #333;
-    --text-sub: ##6b7280;
+    --text-sub: #6b7280;
     --border-color: #e0e4e8;
     --white: #ffffff;
     --red-accent: #f43f5e;

@@ -380,16 +380,52 @@ function renderFlightSavedDrawer() {
     emptyEl.textContent = flightSavedDrawerTab === 'wishlist' ? '위시리스트 항목이 없습니다.' : '장바구니 항목이 없습니다.';
     items.forEach((item) => {
         // home.js의 homeSavedItemHtml 구조 참고
-        const thumb = item?.payload?.thumb_url;
+        const itemType = String(item?.item_type || '').toLowerCase();
+        let thumb =
+            item?.payload?.thumb_url ||
+            item?.payload?.image_url ||
+            item?.payload?.image ||
+            item?.payload?.photo_url ||
+            item?.payload?.photo ||
+            item?.payload?.thumbnail ||
+            item?.image_url ||
+            item?.image ||
+            '';
+        if (!thumb) {
+            if (itemType === 'flight') {
+                thumb = getAirlineLogoUrl(item?.payload?.airline_code || '');
+            } else {
+                thumb = '/static/image/noimg.png';
+            }
+        }
         const kind = `${getSavedItemTypeLabel(item?.item_type)} · ${item?.source || 'saved-item'}`;
         // meta: '₩123,000 | 출발 ...' 형태라면
         let price = '';
         let lines = [];
         if (item.meta) {
             const parts = String(item.meta).split('|').map(x => x.trim()).filter(Boolean);
-            price = parts[0] || '';
-            lines = parts.slice(1, 3);
+            const detected = parts.find((p) => /[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(String(p)));
+            price = detected || '';
+            lines = parts.filter((p) => p !== detected).slice(0, 3);
         }
+        if (!price) {
+            price = String(
+                item?.price ||
+                item?.payload?.price_text ||
+                item?.payload?.price ||
+                item?.payload?.amount ||
+                item?.payload?.total_price ||
+                ''
+            ).trim();
+        }
+        const normalizedPrice = (() => {
+            const txt = String(price || '').trim();
+            const mKrw = txt.match(/([\d,]+(?:\.\d+)?)\s*(krw|KRW|원|₩)/);
+            if (!mKrw) return '';
+            const n = Number(String(mKrw[1]).replace(/,/g, ''));
+            if (!Number.isFinite(n) || n <= 0) return '';
+            return `₩${Math.floor(n).toLocaleString('ko-KR')}`;
+        })();
         const li = document.createElement('li');
         li.className = 'flight-saved-item';
         li.innerHTML = `
@@ -399,7 +435,7 @@ function renderFlightSavedDrawer() {
             <div class="flight-saved-item__meta">
                 <div class="flight-saved-item__type">${escapeHtml(kind)}</div>
                 <div class="flight-saved-item__name">${escapeHtml(item.name || '-')}</div>
-                ${price ? `<div class="flight-saved-line flight-saved-price">${escapeHtml(price)}</div>` : ''}
+                ${normalizedPrice ? `<div class="flight-saved-line flight-saved-price">${escapeHtml(normalizedPrice)}</div>` : ''}
                 ${lines.map(line => `<div class="flight-saved-line">${escapeHtml(line)}</div>`).join('')}
             </div>
             <button type="button" class="flight-saved-item__remove" data-flight-saved-remove="${item.id}" title="삭제">×</button>

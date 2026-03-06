@@ -131,6 +131,70 @@ function renderFlightSavedDrawer() {
     });
 }
 
+function renderFlightSavedDrawer() {
+    const listEl = document.getElementById('flightSavedList');
+    const emptyEl = document.getElementById('flightSavedEmpty');
+    const countEl = document.getElementById('flightSavedFabCount');
+    const tabs = Array.from(document.querySelectorAll('[data-flight-saved-tab]'));
+    if (!listEl || !emptyEl) return;
+
+    const total = (savedItemState.cart?.length || 0) + (savedItemState.wishlist?.length || 0);
+    if (countEl) {
+        countEl.hidden = false;
+        countEl.textContent = String(total || 0);
+    }
+
+    tabs.forEach((btn) => {
+        const active = btn.getAttribute('data-flight-saved-tab') === tourSavedDrawerTab;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+
+    if (tourSavedDrawerTab === 'alerts') {
+        listEl.innerHTML = '';
+        emptyEl.style.display = 'block';
+        emptyEl.textContent = '알림 기능이 아직 준비 중입니다.';
+        return;
+    }
+
+    const items = Array.isArray(savedItemState[tourSavedDrawerTab]) ? savedItemState[tourSavedDrawerTab] : [];
+    listEl.innerHTML = '';
+    emptyEl.style.display = items.length ? 'none' : 'block';
+    emptyEl.textContent = tourSavedDrawerTab === 'wishlist' ? '위시리스트 항목이 없습니다.' : '장바구니 항목이 없습니다.';
+
+    const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const toKrw = (value) => {
+        const raw = String(value ?? '').trim();
+        if (!raw) return '';
+        const numeric = Number(raw.replace(/[^\d.]/g, ''));
+        return Number.isFinite(numeric) && numeric > 0 ? `₩${Math.floor(numeric).toLocaleString('ko-KR')}` : raw;
+    };
+
+    items.forEach((item) => {
+        const imageUrl = item?.payload?.image || item?.payload?.image_url || item?.image || '';
+        const kind = `${item.item_type || 'item'} · ${item.source || 'package'}`;
+        const name = item?.name || '-';
+        const meta = item?.meta || '';
+        const priceText = toKrw(item?.price || item?.payload?.price_text || item?.payload?.price || '');
+
+        const li = document.createElement('li');
+        li.className = 'flight-saved-item';
+        li.innerHTML = `
+            <div class="flight-saved-thumb">
+                ${imageUrl ? `<img src="${esc(imageUrl)}" alt="${esc(name)}" loading="lazy" onerror="this.remove()">` : ''}
+            </div>
+            <div class="flight-saved-item__meta">
+                <div class="flight-saved-item__type">${esc(kind)}</div>
+                <div class="flight-saved-item__name">${esc(name)}</div>
+                ${priceText ? `<div class="flight-saved-price">${esc(priceText)}</div>` : ''}
+                ${meta ? `<div class="flight-saved-line">${esc(meta)}</div>` : ''}
+            </div>
+            <button type="button" class="flight-saved-item__remove" data-flight-saved-remove="${item.id}" title="삭제">×</button>
+        `;
+        listEl.appendChild(li);
+    });
+}
+
 function setFlightSavedDrawer(open) {
     const drawer = document.getElementById('flightSavedDrawer');
     const fab = document.getElementById('flightSavedFab');

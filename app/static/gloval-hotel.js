@@ -265,10 +265,23 @@ function hotelSavedRowKey(row) {
 function formatHotelPriceText(payload) {
     const p = payload || {};
     const num = Number(p.price);
-    const cur = String(p.currency || 'KRW').trim();
-    if (Number.isFinite(num) && num > 0) return `${num.toLocaleString()} ${cur}`;
+    const cur = String(p.currency || 'KRW').trim().toUpperCase();
+    if (Number.isFinite(num) && num > 0) {
+        const normalized = cur === 'KRW' ? Math.floor(num) : num;
+        return `${normalized.toLocaleString()} ${cur}`;
+    }
     const raw = String(p.price ?? '').trim();
     return raw ? `${raw} ${cur}` : '';
+}
+
+function normalizeKrwPriceText(text) {
+    const raw = String(text || '').trim();
+    if (!raw) return '';
+    const m = raw.match(/([\d,]+(?:\.\d+)?)\s*(krw|KRW|원|₩)?/);
+    if (!m) return '';
+    const n = Number(String(m[1]).replace(/,/g, ''));
+    if (!Number.isFinite(n) || n <= 0) return '';
+    return `₩${Math.floor(n).toLocaleString('ko-KR')}`;
 }
 
 function buildHotelSavedPayload(raw, listType) {
@@ -590,15 +603,26 @@ function renderHotelSavedDrawer() {
 
     items.forEach((item) => {
         const payload = item?.payload && typeof item.payload === 'object' ? item.payload : {};
-        const imageUrl = String(payload?.image || '');
+        const imageUrl = String(payload?.image || payload?.image_url || payload?.thumb_url || item?.image || item?.image_url || '');
         let price = '';
         let metaLines = [];
         if (item?.meta) {
             const parts = item.meta.split('|').map((x) => x.trim());
             if (parts.length) {
-                price = parts[0];
-                metaLines = parts.slice(1);
+                const detected = parts.find((p) => normalizeKrwPriceText(p));
+                price = normalizeKrwPriceText(detected || '');
+                metaLines = parts.filter((p) => p && p !== detected && !/[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(p));
             }
+        }
+        if (!price) {
+            price = normalizeKrwPriceText(
+                item?.price ||
+                payload?.price_text ||
+                payload?.price ||
+                payload?.amount ||
+                payload?.total_price ||
+                ''
+            );
         }
         const kind = `${hotelEscapeHtml((item?.item_type || 'item').toUpperCase())} · ${hotelEscapeHtml(item?.source || 'hotel')}`;
         const li = document.createElement('li');

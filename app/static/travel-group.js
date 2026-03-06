@@ -166,7 +166,11 @@ function normalizeLinkedFromSaved(row) {
 
 function getGroupSavedImageUrl(item) {
     const payload = item?.payload || {};
+    if (payload?.thumb_url) return String(payload.thumb_url);
     if (payload?.image_url) return String(payload.image_url);
+    if (payload?.image) return String(payload.image);
+    if (item?.image_url) return String(item.image_url);
+    if (item?.image) return String(item.image);
     if (payload?.country) return getDefaultGroupbuyImage(payload.country);
     return '';
 }
@@ -1013,6 +1017,29 @@ function renderGroupSavedDrawer() {
         const imageUrl = getGroupSavedImageUrl(item);
         const source = String(item?.source || 'saved-item');
         const typeLabel = getSavedItemTypeLabel(item.item_type || item.type);
+        const parts = String(item?.meta || '').split('|').map((x) => x.trim()).filter(Boolean);
+        const normalizeKrwPriceText = (text) => {
+            const raw = String(text || '').trim();
+            if (!raw) return '';
+            const m = raw.match(/([\d,]+(?:\.\d+)?)/);
+            if (!m) return '';
+            const n = Number(String(m[1]).replace(/,/g, ''));
+            if (!Number.isFinite(n) || n <= 0) return '';
+            return `₩${Math.floor(n).toLocaleString('ko-KR')}`;
+        };
+        const detectedPriceMeta = parts.find((p) => /[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(String(p)));
+        let priceText = normalizeKrwPriceText(detectedPriceMeta || '');
+        if (!priceText) {
+            priceText = normalizeKrwPriceText(
+                item?.price ||
+                item?.payload?.price_text ||
+                item?.payload?.price ||
+                item?.payload?.amount ||
+                item?.payload?.total_price ||
+                ''
+            );
+        }
+        const metaLines = parts.filter((p) => p && p !== detectedPriceMeta && !/[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(String(p)));
         return `
             <li class="group-saved-item">
                 <div class="group-saved-item__thumb ${imageUrl ? '' : 'no-image'}">
@@ -1021,7 +1048,8 @@ function renderGroupSavedDrawer() {
                 <div class="group-saved-item__content">
                     <div class="group-saved-item__type">${escapeHtml(typeLabel)} · ${escapeHtml(source)}</div>
                     <div class="group-saved-item__name">${escapeHtml(item.name || '-')}</div>
-                    ${item.meta ? `<div class="group-saved-item__meta">${escapeHtml(item.meta).replace(/\|/g, '<br>')}</div>` : ''}
+                    ${priceText ? `<div class="group-saved-item__meta group-saved-price">${escapeHtml(priceText)}</div>` : ''}
+                    ${metaLines.map((line) => `<div class="group-saved-item__meta">${escapeHtml(line)}</div>`).join('')}
                 </div>
                 <button type="button" class="group-saved-item__remove" data-group-saved-remove="${Number(item.id)}" title="삭제">×</button>
             </li>

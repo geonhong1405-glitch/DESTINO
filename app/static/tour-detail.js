@@ -1,6 +1,7 @@
 ﻿// ========== airport drawer logic 1:1 (DB 연동) ========== //
 let savedItemState = { wishlist: [], cart: [] };
 let tourSavedDrawerTab = 'cart';
+let tourDetailAlertState = [];
 
 // 상품명/위치 전역 변수(초기 1회만 세팅, 이후 불변)
 let FIXED_PRODUCT_NAME = '';
@@ -16,13 +17,13 @@ async function loadSavedItems() {
             return;
         }
         const data = await res.json();
-        // name, meta, source를 소문자+trim으로 변환해서 저장
+        // 표시용 텍스트는 원문 그대로 유지
         function normalizeList(list) {
             return (Array.isArray(list) ? list : []).map(item => ({
                 ...item,
-                name: String(item.name || '').trim().toLowerCase(),
-                meta: String(item.meta || '').trim().toLowerCase(),
-                source: String(item.source || '').trim().toLowerCase(),
+                name: String(item.name || '').trim(),
+                meta: String(item.meta || '').trim(),
+                source: String(item.source || '').trim(),
             }));
         }
         savedItemState = {
@@ -38,9 +39,9 @@ async function loadSavedItems() {
 
 function getCurrentProductInfo() {
     // 티켓(목록)페이지처럼, 버튼 클릭 시점에 화면에서 직접 상품명/위치/가격을 읽어옴
-    const name = (document.querySelector('h2.text-2xl.font-black')?.innerText || '').trim().toLowerCase();
+    const name = (document.querySelector('h2.text-2xl.font-black')?.innerText || '').trim();
     // 위치(메타)는 .fa-location-dot 기준으로 추출 (나라+지역 전체)
-    const meta = (document.querySelector('.fa-location-dot')?.parentElement?.innerText || '').trim().toLowerCase();
+    const meta = (document.querySelector('.fa-location-dot')?.parentElement?.innerText || '').trim();
     const price = document.getElementById('productPrice')?.innerText || '';
     const img = document.getElementById('productImg')?.src || '';
     return { item_type: 'tour', name, meta, price, image: img };
@@ -59,13 +60,53 @@ function hasSavedItem(listType, item) {
     return (savedItemState[listType] || []).some((x) => getSavedItemKey(x) === key);
 }
 
+function normalizeKrwPriceText(text) {
+    const raw = String(text || '').trim();
+    if (!raw) return '';
+    const m = raw.match(/([\d,]+(?:\.\d+)?)\s*(krw|KRW|원|₩)?/);
+    if (!m) return '';
+    const n = Number(String(m[1]).replace(/,/g, ''));
+    if (!Number.isFinite(n) || n <= 0) return '';
+    return `₩${Math.floor(n).toLocaleString('ko-KR')}`;
+}
+
+function savedTypeLabel(itemType) {
+    const type = String(itemType || '').toLowerCase();
+    return type ? type.toUpperCase() : 'ITEM';
+}
+
+async function loadTourDetailAlerts() {
+    try {
+        const res = await fetch('/api/group-buy/join-requests/inbox', { credentials: 'include' });
+        if (res.status === 401) {
+            tourDetailAlertState = [];
+            return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        tourDetailAlertState = Array.isArray(data) ? data : [];
+    } catch (_e) {
+        tourDetailAlertState = [];
+    }
+}
+
+async function decideTourDetailAlert(requestId, action) {
+    const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}/decision`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
 function renderFlightSavedDrawer() {
     const listEl = document.getElementById('flightSavedList');
     const emptyEl = document.getElementById('flightSavedEmpty');
     const countEl = document.getElementById('flightSavedFabCount');
     const tabs = Array.from(document.querySelectorAll('[data-flight-saved-tab]'));
     if (!listEl || !emptyEl) return;
-    const total = (savedItemState.cart?.length || 0) + (savedItemState.wishlist?.length || 0);
+    const total = (savedItemState.cart?.length || 0) + (savedItemState.wishlist?.length || 0) + (tourDetailAlertState?.length || 0);
     if (countEl) {
         countEl.hidden = false;
         countEl.textContent = String(total || 0);
@@ -77,8 +118,41 @@ function renderFlightSavedDrawer() {
     });
     if (tourSavedDrawerTab === 'alerts') {
         listEl.innerHTML = '';
-        emptyEl.style.display = 'block';
-        emptyEl.textContent = '알림 기능은 미지원입니다.';
+        emptyEl.style.display = tourDetailAlertState.length ? 'none' : 'block';
+        emptyEl.textContent = '공동구매 참여 요청 알림이 없습니다.';
+        tourDetailAlertState.forEach((item) => {
+            const status = String(item?.status || 'pending');
+            const statusLabel = status === 'accepted' ? '수락됨' : status === 'rejected' ? '거절됨' : '대기중';
+            const incoming = String(item?.direction || 'incoming') !== 'mine';
+            const reqTitle = incoming ? `${item?.requester_name || '-'}님이 요청했습니다` : `${item?.requester_name || '작성자'}님의 응답`;
+
+            const li = document.createElement('li');
+            li.className = 'flight-saved-item';
+            li.style.gridTemplateColumns = '1fr';
+            li.innerHTML = `
+                <div>
+                    <div class="flight-saved-item__type">공동구매 · 참여요청</div>
+                    <div class="flight-saved-item__name">${item?.post_title || '-'}</div>
+                    <div class="flight-saved-item__meta">${reqTitle}<br>${item?.requester_email ? `이메일: ${item.requester_email}<br>` : ''}${statusLabel}${item?.message ? `<br>${item.message}` : ''}</div>
+                    ${
+                        incoming && status === 'pending'
+                            ? `<div class="flight-saved-item__meta" style="margin-top:8px;">
+                                <button type="button" data-tour-detail-alert-action="accept" data-tour-detail-alert-id="${Number(item.id)}" style="margin-right:6px;padding:4px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;">수락</button>
+                                <button type="button" data-tour-detail-alert-action="reject" data-tour-detail-alert-id="${Number(item.id)}" style="padding:4px 8px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700;">거절</button>
+                              </div>`
+                            : ''
+                    }
+                    ${
+                        status !== 'pending'
+                            ? `<div class="flight-saved-item__meta" style="margin-top:8px;">
+                                <button type="button" data-tour-detail-alert-remove="${Number(item.id)}" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#475569;font-size:12px;font-weight:700;">알림 삭제</button>
+                              </div>`
+                            : ''
+                    }
+                </div>
+            `;
+            listEl.appendChild(li);
+        });
         return;
     }
     const items = Array.isArray(savedItemState[tourSavedDrawerTab]) ? savedItemState[tourSavedDrawerTab] : [];
@@ -86,15 +160,21 @@ function renderFlightSavedDrawer() {
     emptyEl.style.display = items.length ? 'none' : 'block';
     emptyEl.textContent = tourSavedDrawerTab === 'wishlist' ? '위시리스트 항목이 없습니다.' : '장바구니 항목이 없습니다.';
     items.forEach((item) => {
+        const priceText = normalizeKrwPriceText(item?.price || item?.payload?.price_text || '');
+        const metaLines = String(item?.meta || '')
+            .split('|')
+            .map((x) => x.trim())
+            .filter((x) => x && !/[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(x));
+        const kind = `${savedTypeLabel(item?.item_type)} · ${item?.source || 'saved-item'}`;
         const li = document.createElement('li');
         li.className = 'flight-saved-item';
         li.innerHTML = `
-            <div class="flight-saved-thumb">${item.image ? `<img src="${item.image}" alt="${item.name}">` : ''}</div>
+            <div class="flight-saved-thumb">${(item?.payload?.image || item?.payload?.image_url || item?.image) ? `<img src="${item?.payload?.image || item?.payload?.image_url || item?.image}" alt="${item.name}">` : ''}</div>
             <div>
-                <div class="flight-saved-item__type">${item.item_type === 'tour' ? 'ticket' : (item.item_type || 'item')}</div>
+                <div class="flight-saved-item__type">${kind}</div>
                 <div class="flight-saved-item__name">${item.name || '-'}</div>
-                ${item.meta ? `<div class="flight-saved-item__meta">${item.meta}</div>` : ''}
-                ${item.price ? `<div class="flight-saved-price">${item.price}원</div>` : ''}
+                ${metaLines.map((line) => `<div class="flight-saved-item__meta">${line}</div>`).join('')}
+                ${priceText ? `<div class="flight-saved-price">${priceText}</div>` : ''}
             </div>
             <button type="button" class="flight-saved-item__remove" data-flight-saved-remove="${item.id}" title="삭제">×</button>
         `;
@@ -119,7 +199,10 @@ function initFlightSavedDrawer() {
     if (!fab || !drawer) return;
     fab.addEventListener('click', () => {
         setFlightSavedDrawer(!drawer.classList.contains('is-open'));
-        if (drawer.classList.contains('is-open')) loadSavedItems();
+        if (drawer.classList.contains('is-open')) {
+            loadSavedItems();
+            loadTourDetailAlerts().then(renderFlightSavedDrawer);
+        }
     });
     document.querySelectorAll('[data-flight-saved-close]').forEach((el) => {
         el.addEventListener('click', () => setFlightSavedDrawer(false));
@@ -127,10 +210,44 @@ function initFlightSavedDrawer() {
     document.querySelectorAll('[data-flight-saved-tab]').forEach((btn) => {
         btn.addEventListener('click', () => {
             tourSavedDrawerTab = btn.getAttribute('data-flight-saved-tab') || 'cart';
+            if (tourSavedDrawerTab === 'alerts') {
+                loadTourDetailAlerts().then(renderFlightSavedDrawer);
+                return;
+            }
             loadSavedItems();
         });
     });
     listEl?.addEventListener('click', async (e) => {
+        const alertBtn = e.target.closest('[data-tour-detail-alert-action]');
+        if (alertBtn) {
+            const requestId = Number(alertBtn.getAttribute('data-tour-detail-alert-id'));
+            const action = String(alertBtn.getAttribute('data-tour-detail-alert-action') || '');
+            if (!requestId || !action) return;
+            try {
+                await decideTourDetailAlert(requestId, action);
+                await loadTourDetailAlerts();
+                renderFlightSavedDrawer();
+            } catch (err) {
+                alert(err?.message || '요청 처리 중 오류가 발생했습니다.');
+            }
+            return;
+        }
+
+        const alertRemoveBtn = e.target.closest('[data-tour-detail-alert-remove]');
+        if (alertRemoveBtn) {
+            const requestId = Number(alertRemoveBtn.getAttribute('data-tour-detail-alert-remove'));
+            if (!requestId) return;
+            try {
+                const res = await fetch(`/api/group-buy/join-requests/${requestId}`, { method: 'DELETE', credentials: 'include' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                await loadTourDetailAlerts();
+                renderFlightSavedDrawer();
+            } catch (err) {
+                alert(err?.message || '알림 삭제 중 오류가 발생했습니다.');
+            }
+            return;
+        }
+
         const btn = e.target.closest('[data-flight-saved-remove]');
         if (!btn) return;
         const itemId = Number(btn.getAttribute('data-flight-saved-remove'));
@@ -218,11 +335,17 @@ function toggleWish() {
     } else {
         // 없으면 추가
         const payload = {
-            ...product,
             list_type: 'wishlist',
-            name: String(product.name || '').trim().toLowerCase(),
-            meta: String(product.meta || '').trim().toLowerCase(),
-            source: String(product.source || '').trim().toLowerCase(),
+            item_type: 'ticket',
+            name: String(product.name || '').trim(),
+            meta: String(product.meta || '').trim(),
+            source: 'tour-detail',
+            payload: {
+                ...product,
+                image: product.image || '',
+                image_url: product.image || '',
+                price_text: product.price || '',
+            },
         };
         fetch('/api/saved-items', {
             method: 'POST',
@@ -275,11 +398,17 @@ function addToCart() {
     } else {
         // 없으면 추가
         const payload = {
-            ...product,
             list_type: 'cart',
-            name: String(product.name || '').trim().toLowerCase(),
-            meta: String(product.meta || '').trim().toLowerCase(),
-            source: String(product.source || '').trim().toLowerCase(),
+            item_type: 'ticket',
+            name: String(product.name || '').trim(),
+            meta: String(product.meta || '').trim(),
+            source: 'tour-detail',
+            payload: {
+                ...product,
+                image: product.image || '',
+                image_url: product.image || '',
+                price_text: product.price || '',
+            },
         };
         fetch('/api/saved-items', {
             method: 'POST',
@@ -301,8 +430,8 @@ function addToCart() {
 
 window.addEventListener('DOMContentLoaded', () => {
     // 상품명/위치 전역 변수 최초 1회만 세팅 (불변)
-    FIXED_PRODUCT_NAME = (document.querySelector('h2.text-2xl.font-black')?.innerText || '').trim().toLowerCase();
-    FIXED_PRODUCT_META = (document.querySelector('.fa-location-dot')?.parentElement?.innerText?.replace(/^\s*\S+\s*/, '') || '').trim().toLowerCase();
+    FIXED_PRODUCT_NAME = (document.querySelector('h2.text-2xl.font-black')?.innerText || '').trim();
+    FIXED_PRODUCT_META = (document.querySelector('.fa-location-dot')?.parentElement?.innerText?.replace(/^\s*\S+\s*/, '') || '').trim();
     // [리뷰] localStorage에서 내 리뷰 불러와서 PRODUCT_DETAILS에 병합
     try {
         const localReviewsRaw = localStorage.getItem('destino_my_reviews');
@@ -621,9 +750,9 @@ function updateProductInfo(title, id) {
     }
 
     // [추가] 상품명/위치 전역 변수 갱신 (항상 최신 선택값으로)
-    window.FIXED_PRODUCT_NAME = (title || '').trim().toLowerCase();
+    window.FIXED_PRODUCT_NAME = (title || '').trim();
     // 위치(메타)는 .fa-location-dot 기준으로 추출
-    const meta = (document.querySelector('.fa-location-dot')?.parentElement?.innerText?.replace(/^\s*\S+\s*/, '') || '').trim().toLowerCase();
+    const meta = (document.querySelector('.fa-location-dot')?.parentElement?.innerText?.replace(/^\s*\S+\s*/, '') || '').trim();
     window.FIXED_PRODUCT_META = meta;
 
     // 스카이다이빙 상품이면 아동 수량 선택 숨김, 아니면 보이기
