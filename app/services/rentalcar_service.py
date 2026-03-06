@@ -1,4 +1,4 @@
-﻿import datetime as dt
+import datetime as dt
 import re
 from typing import Any, Optional
 
@@ -380,7 +380,7 @@ def _parse_pickup_dropoff_dates(message: str, prev_state: dict[str, Any]) -> tup
             d1 = now + dt.timedelta(days=int(n1) * (7 if u1 == "주" else 1))
             pickup = pickup or d1.isoformat()
 
-    # 3) Relative day range fallback (e.g. "?????? ????").
+    # 3) Relative day range fallback (e.g. "내일부터 모레까지").
     compact = re.sub(r"\s+", "", msg)
     has_range_connector = any(k in compact for k in ["\uBD80\uD130", "\uAE4C\uC9C0", "\uC5D0\uC11C", "~", "-"]) or ("from" in compact.lower() and "to" in compact.lower())
     token_offsets = {

@@ -157,8 +157,73 @@ function resetProgressBar() {
 document.getElementById('nextBtn').addEventListener('click', moveNext);
 document.getElementById('prevBtn').addEventListener('click', movePrev);
 
-// 초기 실행
-document.addEventListener('DOMContentLoaded', initSlider);
+function parseBackgroundImageUrl(value) {
+    const s = String(value || '');
+    const m = s.match(/url\((['"]?)(.*?)\1\)/i);
+    return m && m[2] ? m[2] : '';
+}
+
+function parsePriceToDigits(value) {
+    const matches = String(value || '').match(/\d[\d,]*/g) || [];
+    const last = matches.length ? matches[matches.length - 1] : '0';
+    return last.replace(/[^\d]/g, '');
+}
+
+function buildDetailUrl(path, params) {
+    const qs = new URLSearchParams(params);
+    return `${path}?${qs.toString()}`;
+}
+
+function initHotDealNavigation() {
+    const cards = document.querySelectorAll('.grid-4 .product-card');
+    cards.forEach((card, index) => {
+        const title = (card.querySelector('.p-title')?.textContent || '').trim();
+        const loc = (card.querySelector('.p-subtitle')?.textContent || '').trim();
+        const priceText = (card.querySelector('.p-price')?.textContent || '').trim();
+        const price = parsePriceToDigits(priceText);
+        const imgBox = card.querySelector('.img-box');
+        const image = parseBackgroundImageUrl(window.getComputedStyle(imgBox || card).backgroundImage || '');
+        const id = `home_pack_${index + 1}`;
+        const href = buildDetailUrl('/pack-detail', {
+            id,
+            title,
+            price,
+            img: image,
+            loc,
+            category: 'package',
+        });
+        card.setAttribute('href', href);
+    });
+}
+
+function initAiHotplaceNavigation() {
+    const typeLabelMap = {
+        landmark: '랜드마크',
+        activity: '익스트림',
+        unique: '이색체험',
+        photo: '포토존',
+    };
+
+    const cards = document.querySelectorAll('.ai-card');
+    cards.forEach((card, index) => {
+        const title = (card.querySelector('.product-name')?.textContent || '').trim();
+        const type = String(card.getAttribute('data-type') || '').trim();
+        const loc = typeLabelMap[type] || '티켓';
+        const priceText = (card.querySelector('.price')?.textContent || '').trim();
+        const price = parsePriceToDigits(priceText);
+        const image = (card.querySelector('img')?.getAttribute('src') || '').trim();
+        const id = `home_tour_${index + 1}`;
+        const href = buildDetailUrl('/tour-detail', {
+            id,
+            title,
+            price,
+            img: image,
+            loc,
+            category: 'ticket',
+        });
+        card.setAttribute('href', href);
+    });
+}
 
 /* 공동구매 */
 let bookings = [];
@@ -307,6 +372,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initSlider();     // 슬라이더 초기화
     loadLiveGroupBookings(); // 공동구매 리스트 DB 실시간 로드
     initAiTabs();     // AI 탭 초기화 (추가)
+    initHotDealNavigation(); // 패키지 핫딜 상세 연결
+    initAiHotplaceNavigation(); // 티켓 핫플레이스 상세 연결
     initHomeSavedDrawer(); // 공통 장바구니/위시리스트 드로어
 });
 

@@ -605,6 +605,19 @@ document.addEventListener("DOMContentLoaded", () => {
   // 모든 패키지 카드를 찾습니다.
   const cards = document.querySelectorAll(".package-card");
 
+  function extractProduct(card, index) {
+    return {
+      id: `pack_${index + 1}`,
+      name: card.querySelector(".package-name").innerText,
+      price: card.querySelector(".price-val").innerText.replace(/[^0-9]/g, ""),
+      location: card.querySelector(".package-loc").innerText,
+      image: getComputedStyle(card.querySelector(".package-image")).backgroundImage.replace(
+        /url\(['"]?(.*?)['"]?\)/i,
+        "$1",
+      ),
+    };
+  }
+
   cards.forEach((card, index) => {
     card.addEventListener("click", function (e) {
       // 장바구니나 찜 버튼을 눌렀을 때는 상세페이지로 이동하지 않도록 방지
@@ -612,26 +625,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // 기본 <a> 태그 이동을 막고 JS로 제어
       e.preventDefault();
-
-      // 카드 내의 정보를 수집하여 객체로 만듦
-      const product = {
-        id: `pack_${index + 1}`,
-        name: this.querySelector(".package-name").innerText,
-        // "499,000원"에서 숫자만 추출
-        price: this.querySelector(".price-val").innerText.replace(
-          /[^0-9]/g,
-          "",
-        ),
-        location: this.querySelector(".package-loc").innerText,
-        // CSS 클래스(pImg1 등)에 설정된 배경 이미지 URL 추출
-        image: getComputedStyle(
-          this.querySelector(".package-image"),
-        ).backgroundImage.replace(/url\(['"]?(.*?)['"]?\)/i, "$1"),
-      };
-
-      // 작성하신 함수 호출
-      goToDetail(product);
+      goToDetail(extractProduct(this, index));
     });
+
+    // 예약하기 버튼도 동일 파라미터로 상세 이동
+    const payBtn = card.querySelector(".package-pay-btn");
+    if (payBtn) {
+      payBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        goToDetail(extractProduct(card, index));
+      });
+    }
   });
 });
 

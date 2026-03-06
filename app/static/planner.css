@@ -101,7 +101,7 @@ ul {
 
 /* AI Chat UI (travel themed) */
 #ai-chat-shell {
-    animation: chatFadeUp 0.35s ease;
+    animation: chatFadeIn 0.35s ease;
     position: relative;
     width: 100%;
     max-width: 1240px;
@@ -1219,6 +1219,7 @@ ul {
     display: none;
     overflow: hidden;
 }
+
 .ai-cart-drawer.is-open { display: block; }
 
 .ai-cart-drawer__grab {
@@ -1482,9 +1483,9 @@ ul {
     40% { transform: scale(1); opacity: 1; }
 }
 
-@keyframes chatFadeUp {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
+@keyframes chatFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 /* Flight card visual refresh: match commerce-like horizontal layout */

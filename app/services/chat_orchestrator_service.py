@@ -75,8 +75,8 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
     )
     has_explicit_return_in_turn = has_explicit_return_date_in_turn
     has_origin_cue_in_turn = bool(
-        any(k in msg_l for k in ["異쒕컻", "from", "depart", "departure"])
-        or re.search(r"[媛-?즑-zA-Z]{2,}\s*?먯꽌", (req.message or ""))
+        any(k in msg_l for k in ["출발", "from", "depart", "departure"])
+        or re.search(r"[가-힣a-zA-Z]{2,}\s*에서", (req.message or ""))
     )
     origin_same_as_prev = bool(parsed.get("origin")) and str(parsed.get("origin")) == str(prev_state.get("origin") or "")
     destination_present = bool(parsed.get("destination"))
@@ -147,10 +147,10 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
     if not rows and raw.get("amadeus_error"):
         err = raw.get("amadeus_error")
         return {"response": (
-            f"<p>Amadeus \uc9c1\ud56d\ud68c API \uc9c1\ud56d: {err}</p>"
-            "<p>\uc9c1\ud56d\ud68c \uc9c1\ud56d\ud68c \uc9c1\ud56d\ud68c \uc9c1\ud56d\ud68c \uc9c1\ud56d\ud68c \uc9c1\ud56d\uc9c1\ud56d. \uc9c1\ud56d \uc9c1\ud56d\ud68c \uc9c1\ud56d\uc9c1\ud56d .env\ud68c "
+            f"<p>Amadeus 항공 API 오류: {err}</p>"
+            "<p>항공편 결과를 가져오지 못했습니다. .env의 "
             "<code>AMADEUS_BASE_URL=https://api.amadeus.com</code>"
-            " \uc9c1\ud56d \ud68c \uc9c1\ud56d\uc9c1\ud56d \uc9c1\ud56d\ud68c.</p>"
+            " 설정과 API 키를 확인해 주세요.</p>"
         )}
     state.pop("pending_intent", None)
     state["last_intent"] = "flight"
@@ -414,7 +414,7 @@ def handle_chat_request(
         context = _build_context(history)
         prev_state = SESSION_STATE.get(sid, {})
         # Persist last mentioned country so short follow-up turns like
-        # "?≫떚鍮꾪떚 ?쒕룞" can inherit country scope from previous turn.
+        # "Activity recommendation" can inherit country scope from previous turn.
         try:
             country_hint = product_reco_service.infer_country_hint(req.message, prev_state)
         except Exception:
@@ -483,7 +483,7 @@ def handle_chat_request(
             state = dict(prev_state)
             state["last_intent"] = "knowledge"
             SESSION_STATE[sid] = state
-            return {"response": "<div>?ы뻾 愿??吏덈Ц留??듬??????덉뼱??</div>"}
+            return {"response": "<div>여행 관련 질문만 도와드릴 수 있어요.</div>"}
 
         # Persist shared travel dates across intents (not only flight flow).
         # If a user mentions dates in any turn, keep them for later hotel/itinerary follow-ups.
@@ -511,8 +511,8 @@ def handle_chat_request(
             SESSION_STATE[sid] = state
             return {
                 "response": (
-                    "<div>?덈뀞?섏꽭?? DESTINO AI ?ы뻾 ?뚮옒?덉엯?덈떎.<br>"
-                    "??났?? ?숈냼, ?ы뻾吏 ?뺣낫, ?쇱젙 異붿쿇源뚯? ?꾩??쒕┫寃뚯슂.</div>"
+                    "<div>안녕하세요, DESTINO AI 여행 플래너입니다.<br>"
+                    "항공권, 숙소, 여행지 정보, 일정 추천까지 안내해드릴게요.</div>"
                 )
             }
 
@@ -522,8 +522,8 @@ def handle_chat_request(
             SESSION_STATE[sid] = state
             return {
                 "response": (
-                    "<div>?ы뻾 愿??吏덈Ц??吏묒쨷?댁꽌 ?꾩??쒕━怨??덉뼱??<br>"
-                    "??났?? ?숈냼, ?ы뻾吏 ?뺣낫, ?쇱젙, 留쏆쭛/紐낆냼 異붿쿇泥섎읆 ?ы뻾 二쇱젣濡?吏덈Ц??二쇱꽭??</div>"
+                    "<div>여행 관련 질문으로 다시 알려주시면 더 정확히 도와드릴 수 있어요.<br>"
+                    "항공권, 숙소, 여행지 정보, 일정, 맛집/명소 추천처럼 여행 주제로 질문해 주세요.</div>"
                 )
             }
 
@@ -571,7 +571,7 @@ def handle_chat_request(
             )
 
             msg_l2 = (req.message or "").lower()
-            wants_itinerary = _contains(msg_l2, ["?쇱젙", "肄붿뒪", "猷⑦듃", "itinerary", "plan"])
+            wants_itinerary = _contains(msg_l2, ["일정", "코스", "루트", "itinerary", "plan"])
             itinerary_html = ""
             if wants_itinerary:
                 state_after_hotel = dict(SESSION_STATE.get(sid, state_after_flight))
@@ -588,12 +588,12 @@ def handle_chat_request(
 
             return {
                 "response": (
-                    "<div><b>?ы뻾 珥덉븞 異붿쿇</b></div>"
-                    "<div style='margin-top:8px;'><b>??났沅?異붿쿇</b></div>"
+                    "<div><b>여행 통합 추천</b></div>"
+                    "<div style='margin-top:8px;'><b>항공편 추천</b></div>"
                     + str(flight_res.get("response") or "")
-                    + "<div style='margin-top:12px;'><b>?숈냼 異붿쿇</b></div>"
+                    + "<div style='margin-top:12px;'><b>숙소 추천</b></div>"
                     + str(hotel_res.get("response") or "")
-                    + (f"<div style='margin-top:12px;'><b>?쇱젙 異붿쿇</b></div>{itinerary_html}" if itinerary_html else "")
+                    + (f"<div style='margin-top:12px;'><b>일정 추천</b></div>{itinerary_html}" if itinerary_html else "")
                 )
             }
 
@@ -700,9 +700,9 @@ def handle_chat_request(
             SESSION_STATE[sid] = state
             return {
                 "response": (
-                    "<div>醫뗭븘?? 臾댁뾿???꾩??쒕┫吏 ?뺤씤?대낵寃뚯슂.<br>"
-                    "?먰븯?쒕뒗 寃껋? <b>??났??/b> / <b>?숈냼</b> / <b>?뚰꽣移?/b> / <b>?ы뻾 ?쇱젙</b> / "
-                    "<b>?ы뻾 ?뺣낫(臾명솕쨌移섏븞쨌援먰넻)</b> 以??대뒓 寃껋씤媛??</div>"
+                    "<div>좋아요. 무엇을 도와드릴지 확인할게요.<br>"
+                    "원하시는 것은 <b>항공권</b> / <b>숙소</b> / <b>렌터카</b> / <b>여행 일정</b> / "
+                    "<b>여행 정보(문화·치안·교통)</b> 중 어떤 것인가요?</div>"
                 )
             }
 
@@ -733,15 +733,15 @@ def handle_chat_request(
             chat_renderers,
         )
     except NeedMoreInfoError as e:
-        return {"response": f"<p>醫뗭븘?? ?댁뼱??李얠쓣寃뚯슂. {e}</p>"}
+        return {"response": f"<p>좋아요. 필요한 정보를 알려주시면 이어서 도와드릴게요. {e}</p>"}
     except Exception as e:
         sid = (req.session_id or "default").strip() or "default"
         history = SESSION_HISTORY.setdefault(sid, [])
         err_text = str(e)
         if "500 Server Error" in err_text and "amadeus.com/v2/shopping/flight-offers" in err_text:
-            msg = "Amadeus \uc9c1\ud56d\ud68c \uc9c1\ud56d\ud68c \uc9c1\ud56d\uc9c1\ud56d\ud68c \uc9c1\ud56d\uc9c1\ud56d\uc9c1\ud56d. \uc9c1\ud56d\ud68c \uc9c1\ud56d \uc9c1\ud56d\ud68c \uc9c1\ud56d\uc9c1\ud56d \uc9c1\ud56d \ud68c \uc9c1\ud56d \uc9c1\ud56d\ud68c \uc9c1\ud56d\ud68c."
+            msg = "Amadeus 항공 API 호출 중 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
             history.append({"role": "assistant", "text": msg})
             return {"response": f"<div>{msg}</div>"}
-        history.append({"role": "assistant", "text": f"泥섎━ 以??ㅻ쪟: {err_text}"})
-        return {"response": f"<pre>泥섎━ 以??ㅻ쪟: {err_text}</pre>"}
+        history.append({"role": "assistant", "text": f"처리 중 오류: {err_text}"})
+        return {"response": f"<pre>처리 중 오류: {err_text}</pre>"}
 
