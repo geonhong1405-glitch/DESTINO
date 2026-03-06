@@ -2149,6 +2149,30 @@ def payment_chat_pass_fail_page(code: str | None = Query(None), message: str | N
 """
 
 
+@app.get("/api/hotel/photo")
+def api_hotel_photo(name: str = Query(""), address: str = Query("")):
+    query_name = str(name or "").strip()
+    query_address = str(address or "").strip()
+    if not query_name:
+        return {"status": "error", "message": "name is required", "photo_url": ""}
+    try:
+        g = find_hotel_google_place(name=query_name, address=query_address)
+        if not isinstance(g, dict) or g.get("status") != "ok":
+            return {"status": "no_results", "photo_url": ""}
+        photo_urls = g.get("photo_urls") or []
+        photo_url = str(photo_urls[0]).strip() if isinstance(photo_urls, list) and photo_urls else ""
+        cand = g.get("candidate") or {}
+        return {
+            "status": "ok" if photo_url else "no_photo",
+            "photo_url": photo_url,
+            "address": str(cand.get("address") or ""),
+            "rating": cand.get("rating"),
+            "place_id": str(cand.get("place_id") or ""),
+        }
+    except Exception:
+        return {"status": "error", "photo_url": ""}
+
+
 @app.post("/api/hotel/checkout")
 async def api_hotel_checkout(request: Request):
     session_token = request.cookies.get("session_token")

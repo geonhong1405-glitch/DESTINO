@@ -91,6 +91,101 @@
             .replace(/'/g, "&#39;");
     }
 
+    function isIsoDateString(value) {
+        const v = String(value || "").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+        const d = new Date(`${v}T00:00:00`);
+        return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+    }
+
+    function addDaysIso(value, days) {
+        const d = new Date(`${String(value || "").trim()}T00:00:00`);
+        if (Number.isNaN(d.getTime())) return "";
+        d.setDate(d.getDate() + Number(days || 0));
+        return d.toISOString().slice(0, 10);
+    }
+
+    function resolveHotelStayDates(cardData) {
+        let checkin = String(cardData?.checkin || "").trim();
+        let checkout = String(cardData?.checkout || "").trim();
+        const meta = String(cardData?.meta || "");
+        const dates = meta.match(/\b20\d{2}-\d{2}-\d{2}\b/g) || [];
+
+        if (!isIsoDateString(checkin) && dates[0]) checkin = dates[0];
+        if (!isIsoDateString(checkout) && dates[1]) checkout = dates[1];
+
+        if (!isIsoDateString(checkin) && isIsoDateString(checkout)) checkin = addDaysIso(checkout, -1);
+        if (!isIsoDateString(checkout) && isIsoDateString(checkin)) checkout = addDaysIso(checkin, 1);
+
+        if (!isIsoDateString(checkin) || !isIsoDateString(checkout)) {
+            const today = new Date();
+            const inDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+            const outDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 2);
+            checkin = isIsoDateString(checkin) ? checkin : inDate.toISOString().slice(0, 10);
+            checkout = isIsoDateString(checkout) ? checkout : outDate.toISOString().slice(0, 10);
+        }
+
+        if (checkout <= checkin) checkout = addDaysIso(checkin, 1);
+        return { checkin, checkout };
+    }
+
+    const hotelPhotoCache = new Map();
+
+    function looksLikeHotelName(text) {
+        const t = String(text || "").toLowerCase();
+        if (!t) return false;
+        return /(호텔|숙소|hotel|inn|ryokan|resort|hostel|guesthouse|mystays|toyoko|apa|hilton|marriott|hyatt|sheraton)/i.test(t);
+    }
+
+    function looksLikeHotelCard(cardData) {
+        const name = String(cardData?.name || "");
+        const meta = String(cardData?.meta || "");
+        const hasHotelField = Boolean(
+            String(cardData?.hotel_id || "").trim() ||
+            String(cardData?.checkin || "").trim() ||
+            String(cardData?.checkout || "").trim() ||
+            String(cardData?.address || "").trim() ||
+            String(cardData?.area || "").trim() ||
+            String(cardData?.stars || "").trim() ||
+            String(cardData?.distance || "").trim()
+        );
+        const hasHotelMeta = /(거리\s*[:：]|등급\s*[:：]|성급\s*[:：]|체크인\s*[:：]|체크아웃\s*[:：])/i.test(meta);
+        return hasHotelField || hasHotelMeta || looksLikeHotelName(name);
+    }
+
+    async function fetchHotelPhotoFromApi(name, address) {
+        const nm = String(name || "").trim();
+        const addr = String(address || "").trim();
+        const key = `${nm}||${addr}`;
+        if (!nm) return "";
+        if (hotelPhotoCache.has(key)) return hotelPhotoCache.get(key) || "";
+        try {
+            const qs = new URLSearchParams({ name: nm });
+            if (addr) qs.set("address", addr);
+            const resp = await fetch(`/api/hotel/photo?${qs.toString()}`);
+            const data = await resp.json().catch(() => ({}));
+            const photo = String(data?.photo_url || "").trim();
+            hotelPhotoCache.set(key, photo);
+            return photo;
+        } catch (_) {
+            hotelPhotoCache.set(key, "");
+            return "";
+        }
+    }
+
+    async function hydrateHotelCardPhoto(card, cardData) {
+        if (!card || !cardData) return;
+        if (String(cardData.photo || "").trim()) return;
+        const wrap = card.querySelector(".ai-hotel-card__thumb-wrap");
+        if (!wrap) return;
+        const address = String(cardData.address || cardData.area || cardData.name || "").trim();
+        const photoUrl = await fetchHotelPhotoFromApi(cardData.name, address);
+        if (!photoUrl) return;
+        cardData.photo = photoUrl;
+        wrap.classList.remove("ai-hotel-card__thumb-wrap--placeholder");
+        wrap.innerHTML = `<img class="ai-hotel-card__thumb" src="${escapeHtml(photoUrl)}" alt="${escapeHtml(cardData.name || "Hotel")}" loading="lazy" onerror="this.onerror=null; const w=this.closest('.ai-hotel-card__thumb-wrap'); if(w){w.classList.add('ai-hotel-card__thumb-wrap--placeholder'); w.innerHTML='<div class=\\'ai-hotel-card__thumb-fallback\\'>HOTEL</div>'; }">`;
+    }
+
     const SAVED_COUNTRY_IMAGE = {
         japan: "https://images.unsplash.com/photo-1492571350019-22de08371fd3?auto=format&fit=crop&w=400&q=80",
         vietnam: "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=400&q=80",
@@ -1037,6 +1132,7 @@
             photo: ["사진", "이미지", "photo", "image", "imageurl", "thumbnail"],
             address: ["주소", "위치", "address", "location"],
             area: ["지역", "구역", "district", "area", "neighborhood"],
+            distance: ["거리", "distance", "dist"],
             checkin: ["체크인", "checkin"],
             checkout: ["체크아웃", "checkout"],
             maps: ["지도", "maps", "map"],
@@ -1065,10 +1161,13 @@
                 pickField(fields, "checkin") ||
                 pickField(fields, "checkout") ||
                 pickField(fields, "hotelId") ||
-                pickField(fields, "maps")
+                pickField(fields, "maps") ||
+                pickField(fields, "stars") ||
+                pickField(fields, "distance") ||
+                pickField(fields, "area")
             );
             if (hasRentalField || /(렌터카|렌트카|rental)/i.test(line)) return "렌터카";
-            if (hasHotelField || /(호텔|숙소|hotel)/i.test(line)) return "호텔";
+            if (hasHotelField || /(호텔|숙소|hotel|inn|ryokan|resort|hostel|guesthouse|mystays|toyoko|apa)/i.test(line)) return "호텔";
             return "상품";
         };
 
@@ -1139,6 +1238,7 @@
                 photo: pickField(fields, "photo"),
                 address: pickField(fields, "address"),
                 area: pickField(fields, "area"),
+                distance: pickField(fields, "distance"),
                 checkin: pickField(fields, "checkin"),
                 checkout: pickField(fields, "checkout"),
                 maps: pickField(fields, "maps"),
@@ -1485,6 +1585,39 @@
                         </div>
                     </div>
                 `;
+            } else if (cardData.type === "호텔" || (cardData.type === "상품" && looksLikeHotelCard(cardData))) {
+                const metaBits = [];
+                if (cardData.rating) metaBits.push(`평점 ${cardData.rating}`);
+                if (cardData.stars) metaBits.push(`${cardData.stars}성급`);
+                if (cardData.distance) metaBits.push(`거리 ${cardData.distance}`);
+                const priceText = cardData.price || "";
+                const stayText = [cardData.checkin ? `체크인 ${cardData.checkin}` : "", cardData.checkout ? `체크아웃 ${cardData.checkout}` : ""]
+                    .filter(Boolean)
+                    .join(" · ");
+                const locationText = cardData.address || "";
+                const areaText = String(cardData.area || inferHotelArea(`${cardData.name || ""} ${locationText}`) || "").trim();
+                const locationLine = [locationText, areaText].filter(Boolean).join(" · ");
+                card.classList.add("ai-commerce-card--hotel");
+                card.innerHTML = `
+                    ${cardData.photo ? `<div class="ai-hotel-card__thumb-wrap"><img class="ai-hotel-card__thumb" src="${escapeHtml(cardData.photo)}" alt="${escapeHtml(cardData.name)}" loading="lazy" onerror="this.onerror=null; const w=this.closest('.ai-hotel-card__thumb-wrap'); if(w){w.classList.add('ai-hotel-card__thumb-wrap--placeholder'); w.innerHTML='<div class=\\'ai-hotel-card__thumb-fallback\\'>HOTEL</div>'; }"></div>` : `<div class="ai-hotel-card__thumb-wrap ai-hotel-card__thumb-wrap--placeholder"><div class="ai-hotel-card__thumb-fallback">HOTEL</div></div>`}
+                    <div class="ai-hotel-card__body">
+                        <div class="ai-commerce-card__type">호텔</div>
+                        <div class="ai-commerce-card__name">${escapeHtml(cardData.name)}</div>
+                        ${metaBits.length ? `<div class="ai-hotel-card__chips">${metaBits.map((t) => `<span class="ai-hotel-card__chip">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
+                        ${stayText ? `<div class="ai-hotel-card__note">${escapeHtml(stayText)}</div>` : ""}
+                        ${locationLine ? `<div class="ai-hotel-card__note">${escapeHtml(locationLine)}</div>` : ""}
+                    </div>
+                    <div class="ai-hotel-card__fare">
+                        <button type="button" class="ai-commerce-card__wish" aria-pressed="false" title="위시리스트 저장">♡</button>
+                        <div class="ai-flight-card__fare-label">숙박 총액(참고)</div>
+                        <div class="ai-hotel-card__price">${escapeHtml(priceText || "-")}</div>
+                        <div class="ai-commerce-card__actions">
+                            <button type="button" class="ai-commerce-card__add">장바구니</button>
+                            <button type="button" class="ai-commerce-card__pay">예약하기</button>
+                        </div>
+                    </div>
+                `;
+                hydrateHotelCardPhoto(card, cardData);
             } else if (["패키지", "공동구매", "티켓"].includes(cardData.type)) {
                 const priceText = cardData.price || "";
                 const metaText = String(cardData.meta || "");
@@ -1514,37 +1647,6 @@
                     <div class="ai-hotel-card__fare">
                         <button type="button" class="ai-commerce-card__wish" aria-pressed="false" title="위시리스트 저장">♡</button>
                         <div class="ai-flight-card__fare-label">${escapeHtml(typeLabel === "공동구매" ? "예상 금액(참고)" : "상품가(참고)")}</div>
-                        <div class="ai-hotel-card__price">${escapeHtml(priceText || "-")}</div>
-                        <div class="ai-commerce-card__actions">
-                            <button type="button" class="ai-commerce-card__add">장바구니</button>
-                            <button type="button" class="ai-commerce-card__pay">예약하기</button>
-                        </div>
-                    </div>
-                `;
-            } else if (cardData.type === "호텔") {
-                const metaBits = [];
-                if (cardData.rating) metaBits.push(`평점 ${cardData.rating}`);
-                if (cardData.stars) metaBits.push(`${cardData.stars}성급`);
-                const priceText = cardData.price || "";
-                const stayText = [cardData.checkin ? `체크인 ${cardData.checkin}` : "", cardData.checkout ? `체크아웃 ${cardData.checkout}` : ""]
-                    .filter(Boolean)
-                    .join(" · ");
-                const locationText = cardData.address || "";
-                const areaText = String(cardData.area || inferHotelArea(`${cardData.name || ""} ${locationText}`) || "").trim();
-                const locationLine = [locationText, areaText].filter(Boolean).join(" · ");
-                card.classList.add("ai-commerce-card--hotel");
-                card.innerHTML = `
-                    ${cardData.photo ? `<div class="ai-hotel-card__thumb-wrap"><img class="ai-hotel-card__thumb" src="${escapeHtml(cardData.photo)}" alt="${escapeHtml(cardData.name)}" loading="lazy" onerror="this.onerror=null; const w=this.closest('.ai-hotel-card__thumb-wrap'); if(w){w.classList.add('ai-hotel-card__thumb-wrap--placeholder'); w.innerHTML='<div class=\\'ai-hotel-card__thumb-fallback\\'>HOTEL</div>'; }"></div>` : `<div class="ai-hotel-card__thumb-wrap ai-hotel-card__thumb-wrap--placeholder"><div class="ai-hotel-card__thumb-fallback">HOTEL</div></div>`}
-                    <div class="ai-hotel-card__body">
-                        <div class="ai-commerce-card__type">${escapeHtml(cardData.type)}</div>
-                        <div class="ai-commerce-card__name">${escapeHtml(cardData.name)}</div>
-                        ${metaBits.length ? `<div class="ai-hotel-card__chips">${metaBits.map((t) => `<span class="ai-hotel-card__chip">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
-                        ${stayText ? `<div class="ai-hotel-card__note">${escapeHtml(stayText)}</div>` : ""}
-                        ${locationLine ? `<div class="ai-hotel-card__note">${escapeHtml(locationLine)}</div>` : ""}
-                    </div>
-                    <div class="ai-hotel-card__fare">
-                        <button type="button" class="ai-commerce-card__wish" aria-pressed="false" title="위시리스트 저장">♡</button>
-                        <div class="ai-flight-card__fare-label">숙박 총액(참고)</div>
                         <div class="ai-hotel-card__price">${escapeHtml(priceText || "-")}</div>
                         <div class="ai-commerce-card__actions">
                             <button type="button" class="ai-commerce-card__add">장바구니</button>
@@ -1633,8 +1735,7 @@
                 }
                 if (isHotel) {
                     let hotelId = String(cardData?.hotel_id || cardData?.hotelId || "").trim();
-                    const checkin = String(cardData?.checkin || "").trim();
-                    const checkout = String(cardData?.checkout || "").trim();
+                    const { checkin, checkout } = resolveHotelStayDates(cardData);
                     const city = String(cardData?.address || cardData?.name || "").trim();
                     if (!hotelId) {
                         const base = `${String(cardData?.name || "hotel")}|${city}|${checkin}|${checkout}`;
