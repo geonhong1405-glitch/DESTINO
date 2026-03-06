@@ -417,6 +417,20 @@
         }
     }
 
+    function promptChatPassPurchase(code) {
+        const reasonMap = {
+            NO_PASS: "챗봇 이용권이 없습니다. 이용권 구매 페이지로 이동할까요?",
+            PASS_EXPIRED: "이용권이 만료되었습니다. 새 이용권을 구매할까요?",
+            PASS_EXHAUSTED: "이용권 사용 횟수를 모두 소진했습니다. 새 이용권을 구매할까요?",
+            PASS_REQUIRED: "챗봇 이용권이 필요합니다. 구매 페이지로 이동할까요?",
+        };
+        const msg = reasonMap[String(code || "PASS_REQUIRED")] || reasonMap.PASS_REQUIRED;
+        if (confirm(msg)) {
+            const next = encodeURIComponent(location.pathname + location.search + location.hash);
+            location.href = `/chat-pass/purchase?next=${next}`;
+        }
+    }
+
     async function refreshSavedItems() {
         try {
             const data = await savedItemsApi("/api/saved-items", { method: "GET", headers: {} });
@@ -1742,6 +1756,13 @@
             if (res.status === 401) {
                 loadingItem.remove();
                 promptLoginForChat();
+                return;
+            }
+            if (res.status === 402) {
+                const errData = await res.json().catch(() => ({}));
+                const code = errData?.detail?.code || "PASS_REQUIRED";
+                loadingItem.remove();
+                promptChatPassPurchase(code);
                 return;
             }
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
