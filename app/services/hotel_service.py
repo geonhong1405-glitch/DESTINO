@@ -34,6 +34,54 @@ def _fmt_price(value: Any, currency: str) -> str:
         return f"{value} {currency or '-'}"
 
 
+def _coarse_area_label(address: Any, name: Any = None) -> str:
+    text = f"{str(address or '')} {str(name or '')}".lower()
+    if not text.strip():
+        return ""
+    area_map = [
+        ("shinjuku", "신주쿠"), ("신주쿠", "신주쿠"),
+        ("shibuya", "시부야"), ("시부야", "시부야"),
+        ("ginza", "긴자"), ("긴자", "긴자"),
+        ("ueno", "우에노"), ("우에노", "우에노"),
+        ("asakusa", "아사쿠사"), ("아사쿠사", "아사쿠사"),
+        ("ikebukuro", "이케부쿠로"), ("이케부쿠로", "이케부쿠로"),
+        ("roppongi", "롯폰기"), ("롯폰기", "롯폰기"),
+    ]
+    for k, v in area_map:
+        if k in text:
+            return v
+    return ""
+
+
+def _pick_hotel_photo(row: dict[str, Any]) -> str:
+    cands = [
+        row.get("photo_url"),
+        row.get("main_photo_url"),
+        row.get("image"),
+        row.get("thumbnail"),
+    ]
+    photos = row.get("photos")
+    if isinstance(photos, list):
+        for p in photos:
+            if isinstance(p, str):
+                cands.append(p)
+            elif isinstance(p, dict):
+                cands.extend([p.get("url"), p.get("image"), p.get("photo_url")])
+    for c in cands:
+        if not isinstance(c, str):
+            continue
+        u = c.strip()
+        if not u:
+            continue
+        if u.startswith("//"):
+            u = f"https:{u}"
+        elif u.startswith("http://"):
+            u = "https://" + u[len("http://"):]
+        if u.startswith("https://"):
+            return u
+    return ""
+
+
 def _rate_limit_response(query: str, checkin: str, checkout: str, adults: int, destination_phase: bool):
     if destination_phase:
         html = (
@@ -60,27 +108,7 @@ def _link_fallback_response(query: str, checkin: str, checkout: str, adults: int
     q = str(query or "").strip()
     if not q:
         return None
-    try:
-        q_enc = requests.utils.quote(q)
-    except Exception:
-        q_enc = q
-
     adults_n = max(1, int(adults or 2))
-    booking_url = (
-        "https://www.booking.com/searchresults.ko.html"
-        f"?ss={q_enc}"
-        f"&checkin={checkin or ''}"
-        f"&checkout={checkout or ''}"
-        f"&group_adults={adults_n}"
-        "&no_rooms=1&group_children=0"
-    )
-    maps_url = f"https://www.google.com/maps/search/?api=1&query={q_enc}%20%ED%98%B8%ED%85%94"
-    local_hotel_url = (
-        "/gloval-hotel"
-        f"?city={q_enc}"
-        f"&checkin={checkin or ''}"
-        f"&checkout={checkout or ''}"
-    )
     fallback_photo = (
         "https://images.unsplash.com/photo-1566073771259-6a8506099945"
         "?auto=format&fit=crop&w=1200&q=80"
@@ -97,22 +125,21 @@ def _link_fallback_response(query: str, checkin: str, checkout: str, adults: int
 
     # 429 fallback: still render recommendation-like hotel cards with KRW totals.
     seeds = [
-        (f"{q} 센트럴 호텔", 8.8, 83000),
-        (f"{q} 프라임 스테이", 8.5, 76000),
-        (f"{q} 비즈니스 호텔", 8.2, 69000),
-        (f"{q} 시티 인", 8.0, 64000),
-        (f"{q} 레지던스", 8.6, 81000),
+        (f"{q} 센트럴 호텔", 8.8, 83000, "신주쿠"),
+        (f"{q} 프라임 스테이", 8.5, 76000, "시부야"),
+        (f"{q} 비즈니스 호텔", 8.2, 69000, "긴자"),
+        (f"{q} 시티 인", 8.0, 64000, "우에노"),
+        (f"{q} 레지던스", 8.6, 81000, "이케부쿠로"),
     ]
     google_enabled = bool((os.getenv("GOOGLE_PLACES_API_KEY") or "").strip())
     lines: list[str] = []
-    for idx, (name, score, nightly_base) in enumerate(seeds[:5], 1):
+    for idx, (name, score, nightly_base, area) in enumerate(seeds[:5], 1):
         per_night = int(nightly_base * max(1.0, min(1.6, adults_n / 2)))
         total = per_night * nights
         try:
             name_q = requests.utils.quote(name)
         except Exception:
             name_q = name
-        item_maps = f"https://www.google.com/maps/search/?api=1&query={name_q}"
         item_photo = fallback_photo
         item_addr = q
         item_score = score
@@ -126,12 +153,12 @@ def _link_fallback_response(query: str, checkin: str, checkout: str, adults: int
                     if isinstance(photos, list) and photos and str(photos[0]).strip():
                         item_photo = str(photos[0]).strip()
                     item_addr = str(cand.get("address") or item_addr)
-                    item_maps = str(details.get("url") or item_maps)
                     gp_rating = cand.get("rating")
                     if isinstance(gp_rating, (int, float)):
                         item_score = round(float(gp_rating), 1)
             except Exception:
                 pass
+        area_label = _coarse_area_label(item_addr, name) or area
         lines.append(
             " | ".join(
                 [
@@ -142,40 +169,12 @@ def _link_fallback_response(query: str, checkin: str, checkout: str, adults: int
                     f"체크인: {checkin or '-'}",
                     f"체크아웃: {checkout or '-'}",
                     f"주소: {item_addr}",
-                    f"지도: {local_hotel_url if idx == 1 else item_maps}",
+                    f"지역: {area_label}",
                     f"사진: {item_photo}",
                 ]
             )
         )
 
-    lines.append(
-        " | ".join(
-            [
-                f"{len(lines)+1}) {q} Booking 실시간 검색",
-                "타입: 호텔",
-                "가격: Booking에서 확인",
-                f"체크인: {checkin or '-'}",
-                f"체크아웃: {checkout or '-'}",
-                f"주소: {q}",
-                f"지도: {booking_url}",
-                f"사진: {fallback_photo}",
-            ]
-        )
-    )
-    lines.append(
-        " | ".join(
-            [
-                f"{len(lines)+1}) {q} 주변 호텔 지도",
-                "타입: 호텔",
-                "가격: 지도에서 확인",
-                f"체크인: {checkin or '-'}",
-                f"체크아웃: {checkout or '-'}",
-                f"주소: {q}",
-                f"지도: {maps_url}",
-                f"사진: {fallback_photo}",
-            ]
-        )
-    )
     html = f"<div><b>{q} 호텔 추천 (대체 결과) {len(lines)}개</b><br>{'<br>'.join(lines)}</div>"
     return html, {
         "hotel_context": True,
@@ -210,9 +209,6 @@ def _google_hotel_fallback_response(query: str, checkin: str, checkout: str, top
             name = str(row.get("name") or "-")
             addr = str(row.get("formatted_address") or row.get("vicinity") or "-")
             rating = row.get("rating")
-            place_id = str(row.get("place_id") or "")
-            maps_url = f"https://www.google.com/maps/place/?q=place_id:{place_id}" if place_id else ""
-
             photo_url = ""
             photos = row.get("photos") if isinstance(row.get("photos"), list) else []
             if photos:
@@ -226,8 +222,9 @@ def _google_hotel_fallback_response(query: str, checkin: str, checkout: str, top
             parts = [f"{i}) {name}", f"주소: {addr}", "출처: Google Places"]
             if isinstance(rating, (int, float)):
                 parts.append(f"평점: {float(rating):.1f}")
-            if maps_url:
-                parts.append(f"지도: {maps_url}")
+            area_label = _coarse_area_label(addr, name)
+            if area_label:
+                parts.append(f"지역: {area_label}")
             if photo_url:
                 parts.append(f"사진: {photo_url}")
             if checkin:
@@ -403,9 +400,6 @@ def answer_hotel_from_parsed(parsed: dict[str, Any], prev_state: dict[str, Any])
                 fallback = _google_hotel_fallback_response(query, checkin, checkout, top_k=top_k)
                 if fallback:
                     return fallback
-                link_fallback = _link_fallback_response(query, checkin, checkout, adults)
-                if link_fallback:
-                    return link_fallback
                 return _rate_limit_response(query, checkin, checkout, adults, destination_phase=True)
             continue
 
@@ -414,9 +408,6 @@ def answer_hotel_from_parsed(parsed: dict[str, Any], prev_state: dict[str, Any])
             fallback = _google_hotel_fallback_response(query, checkin, checkout, top_k=top_k)
             if fallback:
                 return fallback
-            link_fallback = _link_fallback_response(query, checkin, checkout, adults)
-            if link_fallback:
-                return link_fallback
         return f"<pre>호텔 목적지 검색 실패: {last_error}</pre>", {"hotel_context": True}
 
     if not cands:
@@ -440,9 +431,6 @@ def answer_hotel_from_parsed(parsed: dict[str, Any], prev_state: dict[str, Any])
             fallback = _google_hotel_fallback_response(query, checkin, checkout, top_k=top_k)
             if fallback:
                 return fallback
-            link_fallback = _link_fallback_response(query, checkin, checkout, adults)
-            if link_fallback:
-                return link_fallback
             return _rate_limit_response(query, checkin, checkout, adults, destination_phase=False)
         return f"<pre>호텔 검색 실패: {e}</pre>", {"hotel_context": True}
 
@@ -452,9 +440,6 @@ def answer_hotel_from_parsed(parsed: dict[str, Any], prev_state: dict[str, Any])
             fallback = _google_hotel_fallback_response(query, checkin, checkout, top_k=top_k)
             if fallback:
                 return fallback
-            link_fallback = _link_fallback_response(query, checkin, checkout, adults)
-            if link_fallback:
-                return link_fallback
         return f"<pre>호텔 검색 실패: {msg}</pre>", {"hotel_context": True}
 
     center = (
@@ -499,13 +484,7 @@ def answer_hotel_from_parsed(parsed: dict[str, Any], prev_state: dict[str, Any])
         if score is not None:
             parts.append(f"평점: {score}")
 
-        photo_url = h.get("photo_url")
-        if isinstance(photo_url, str):
-            photo_url = photo_url.strip()
-            if photo_url.startswith("//"):
-                photo_url = f"https:{photo_url}"
-            elif photo_url.startswith("http://"):
-                photo_url = "https://" + photo_url[len("http://"):]
+        photo_url = _pick_hotel_photo(h)
 
         maps_url = ""
         address_text = ""
@@ -525,8 +504,9 @@ def answer_hotel_from_parsed(parsed: dict[str, Any], prev_state: dict[str, Any])
 
         if address_text:
             parts.append(f"주소: {address_text}")
-        if maps_url:
-            parts.append(f"지도: {maps_url}")
+        area_label = _coarse_area_label(address_text or query, name)
+        if area_label:
+            parts.append(f"지역: {area_label}")
         if photo_url:
             parts.append(f"사진: {photo_url}")
 

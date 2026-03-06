@@ -125,6 +125,12 @@ def parse_flight_slots(
     if parsed.get("return_date"):
         parsed["trip_type"] = parsed.get("trip_type") or "round"
 
+    # "편도" is an explicit hard constraint. Even if a date range was parsed,
+    # keep one-way semantics and drop return_date to prevent round-trip search.
+    if has_oneway_signal:
+        parsed["trip_type"] = "oneway"
+        parsed["return_date"] = None
+
     # passenger count heuristics
     msg = message or ""
     m_adult = re.search(r"(?:성인|어른)\s*(\d+)\s*(?:명|인)?", msg)

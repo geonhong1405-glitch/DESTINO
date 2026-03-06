@@ -1,8 +1,10 @@
 from typing import Any
+import html
 import re
 
 from app.services import rentalcar_service
 from app.services import product_reco_service
+from app.services.location_alias_service import LOCATION_ALIASES, COUNTRY_ALIASES
 
 
 def _extract_iso_date_range_quick(message: str) -> tuple[str | None, str | None]:
@@ -11,6 +13,56 @@ def _extract_iso_date_range_quick(message: str) -> tuple[str | None, str | None]
     if not m:
         return None, None
     return m.group(1), m.group(2)
+
+
+def _parse_party_size(message: str) -> int | None:
+    msg = str(message or "")
+    if not msg.strip():
+        return None
+
+    native_map = {
+        "혼자": 1,
+        "둘이서": 2,
+        "셋이서": 3,
+        "넷이서": 4,
+        "다섯이서": 5,
+        "여섯이서": 6,
+        "일곱이서": 7,
+        "여덟이서": 8,
+        "아홉이서": 9,
+        "열이서": 10,
+    }
+    for k, v in native_map.items():
+        if k in msg:
+            return v
+
+    m_friend = re.search(r"친구\s*(\d+)\s*명\s*(?:이랑|랑|하고|와|과)", msg)
+    if m_friend:
+        try:
+            n = int(m_friend.group(1))
+            if n >= 0:
+                return n + 1
+        except Exception:
+            pass
+
+    m_total = re.search(r"(?:총\s*)?(\d+)\s*명(?:이서|에서|끼리|이\s*함께|이\s*같이)?", msg)
+    if m_total:
+        try:
+            n = int(m_total.group(1))
+            if n > 0:
+                return n
+        except Exception:
+            pass
+
+    m_people = re.search(r"(?:총인원|성인)?\s*(\d+)\s*(?:명|인|people|pax)", msg, re.IGNORECASE)
+    if m_people:
+        try:
+            n = int(m_people.group(1))
+            if n > 0:
+                return n
+        except Exception:
+            pass
+    return None
 
 
 def _is_bundle_reco_query(message: str, contains_fn) -> bool:
@@ -50,6 +102,7 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
     msg_raw = (req.message or "")
     msg_compact = re.sub(r"\s+", "", msg_raw)
     has_round_signal_in_turn = any(k in msg_l for k in ["왕복", "복귀", "돌아", "round trip", "roundtrip"])
+    has_oneway_signal_in_turn = any(k in msg_l for k in ["편도", "oneway", "one-way"])
     has_stay_nights_signal_in_turn = bool(
         re.search(r"\d+\s*박\s*\d+\s*일", msg_raw)
         or re.search(r"\d+\s*일\s*(?:동안|간)", msg_raw)
@@ -102,7 +155,10 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
     if mentioned_destination_without_origin or origin_likely_carried_from_prev:
         state.pop("origin", None)
 
-    if has_round_signal_in_turn:
+    if has_oneway_signal_in_turn:
+        state["trip_type"] = "oneway"
+        state.pop("return_date", None)
+    elif has_round_signal_in_turn:
         state["trip_type"] = "round"
 
     # If user did not explicitly provide return-date semantics in this turn,
@@ -190,7 +246,19 @@ def _handle_product_intent(req: Any, prev_state: dict, SESSION_STATE: dict, sid:
     return {"response": html}
 
 
-def _handle_itinerary_intent(req: Any, prev_state: dict, context: str, SESSION_STATE: dict, sid: str, client, _strip_markdown_decorations):
+def _handle_itinerary_intent(
+    req: Any,
+    prev_state: dict,
+    context: str,
+    SESSION_STATE: dict,
+    sid: str,
+    client,
+    _strip_markdown_decorations,
+    flight_search_service,
+    chat_renderers,
+    hotel_service,
+    place_search_service,
+):
     msg = str(req.message or "")
     ml = msg.lower()
     state = dict(prev_state)
@@ -200,9 +268,9 @@ def _handle_itinerary_intent(req: Any, prev_state: dict, context: str, SESSION_S
     end_date = ret or state.get("travel_checkout") or state.get("return_date")
 
     adults = int(state.get("adults") or 0)
-    m_people = re.search(r"(?:총|인원|성인)?\s*(\d+)\s*(?:명|인|people|pax)", msg, re.IGNORECASE)
-    if m_people:
-        adults = max(1, int(m_people.group(1)))
+    parsed_party = _parse_party_size(msg)
+    if parsed_party is not None:
+        adults = max(1, int(parsed_party))
 
     budget_krw = None
     if state.get("max_price") is not None:
@@ -226,17 +294,32 @@ def _handle_itinerary_intent(req: Any, prev_state: dict, context: str, SESSION_S
                 budget_krw = None
 
     destination = (
-        str(state.get("destination_city") or "").strip()
+        str(state.get("itinerary_destination") or "").strip()
+        or str(state.get("destination_city") or "").strip()
         or str(state.get("destination") or "").strip()
         or str(state.get("hotel_query") or "").strip()
     )
-    if not destination:
+    msg_compact = re.sub(r"\s+", "", msg).lower()
+    alias_destination = ""
+    if msg_compact:
+        loc_keys = {str(k).strip() for k in list(LOCATION_ALIASES.keys()) + list(COUNTRY_ALIASES.keys()) if str(k).strip()}
+        for k in sorted(loc_keys, key=len, reverse=True):
+            kc = re.sub(r"\s+", "", k).lower()
+            if not kc:
+                continue
+            if msg_compact == kc or kc in msg_compact:
+                alias_destination = k
+                break
+    if alias_destination:
+        destination = alias_destination
+    elif not destination:
         m_dest = re.search(r"([가-힣A-Za-z\s]+?)\s*(?:여행|일정|코스|플랜|trip|travel)", msg, re.IGNORECASE)
         if m_dest:
             destination = m_dest.group(1).strip()
     destination = destination[:60]
 
-    style = None
+    carried_style = state.get("itinerary_style") if str(state.get("pending_intent") or "") == "itinerary" else None
+    style = str(carried_style or "").strip() or None
     if any(k in ml for k in ["미식", "맛집", "food", "먹"]):
         style = "미식 중심"
     elif any(k in ml for k in ["자연", "힐링", "휴양", "relax"]):
@@ -295,6 +378,10 @@ def _handle_itinerary_intent(req: Any, prev_state: dict, context: str, SESSION_S
             state["adults"] = adults
         if budget_krw is not None:
             state["max_price"] = budget_krw
+        if destination:
+            state["itinerary_destination"] = destination
+        if style:
+            state["itinerary_style"] = style
         SESSION_STATE[sid] = state
         return {"response": q}
 
@@ -306,6 +393,10 @@ def _handle_itinerary_intent(req: Any, prev_state: dict, context: str, SESSION_S
         state["adults"] = adults
     if budget_krw is not None:
         state["max_price"] = budget_krw
+    if destination:
+        state["itinerary_destination"] = destination
+    if style:
+        state["itinerary_style"] = style
 
     p = (
         "아래 조건으로 한국어 존댓말 여행 일정안을 HTML로 작성하세요.\n"
@@ -313,7 +404,7 @@ def _handle_itinerary_intent(req: Any, prev_state: dict, context: str, SESSION_S
         "1) <div> 기반으로 가독성 있게 구성하고, 마크다운/코드블록은 금지.\n"
         "2) 섹션은 반드시 다음 순서로: 여행 성향 요약, 예산 배분, 계절 추천 명소, Day별 일정.\n"
         "3) Day별 일정은 실제 여행일 수(입력 날짜 기준)로 만들고, 각 Day마다 오전/오후/저녁 추천 포함.\n"
-        "4) 이동 동선이 비효율적이지 않게 같은 권역끼리 묶고, 각 일정 항목에 예상 이동시간(대중교통 기준 범위)을 짧게 표기.\n"
+        "4) 이동 동선이 비효율적이지 않게 같은 권역끼리 묶어 일정 효율을 높이세요.\n"
         "5) 예산은 총 예산을 절대 초과하지 않게 제안하고, 과소/과대 금액 추천은 금지.\n"
         f"6) 계절({season}) 특성을 반영한 추천 명소/주의사항(날씨, 혼잡도)을 포함.\n"
         "입력 조건:\n"
@@ -331,6 +422,150 @@ def _handle_itinerary_intent(req: Any, prev_state: dict, context: str, SESSION_S
         temperature=0.3,
     )
     content = _strip_markdown_decorations((r.choices[0].message.content or "").strip())
+    # User requested itinerary text without movement-time labels.
+    content = re.sub(r"\(\s*이동\s*시간\s*[:：][^)]+\)", "", content, flags=re.IGNORECASE)
+    content = re.sub(r"이동\s*시간\s*[:：]\s*[0-9]+(?:\s*시간)?(?:\s*[0-9]+\s*분)?", "", content, flags=re.IGNORECASE)
+    content = re.sub(r"\s{2,}", " ", content)
+
+    def _safe(v: Any) -> str:
+        return html.escape(str(v or "-"))
+
+    api_blocks: list[str] = []
+    flight_added = False
+    hotel_added = False
+    place_added = False
+
+    try:
+        if destination:
+            food_res = place_search_service.search_local_places(
+                city_name=destination,
+                category="restaurant",
+                keyword="맛집",
+                location_query=destination,
+                top_k=3,
+                radius_m=5000,
+            )
+            attraction_res = place_search_service.search_local_places(
+                city_name=destination,
+                category="attraction",
+                keyword="관광명소",
+                location_query=destination,
+                top_k=3,
+                radius_m=5000,
+            )
+            shopping_res = place_search_service.search_local_places(
+                city_name=destination,
+                category="shopping",
+                keyword="쇼핑",
+                location_query=destination,
+                top_k=3,
+                radius_m=7000,
+            )
+
+            def _place_block(title: str, rows: list[dict[str, Any]]) -> str:
+                if not rows:
+                    return ""
+                lines: list[str] = [f"<div style='margin-top:10px;'><b>{_safe(title)}</b></div>"]
+                for i, x in enumerate(rows[:3], 1):
+                    name = _safe(x.get("name"))
+                    rating = _safe(x.get("rating"))
+                    addr = _safe(x.get("address"))
+                    src = _safe(x.get("source"))
+                    photo = _safe(x.get("photo_url"))
+                    maps = str(x.get("maps_url") or "").strip()
+                    card = [
+                        "<div style='margin:10px 0 14px 0;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;'>",
+                        f"<div><b>{i}. {name}</b></div>",
+                    ]
+                    if photo and photo != "-":
+                        card.append(
+                            f"<div style='margin-top:8px;'><img src=\"{photo}\" alt=\"\" style='width:100%;max-width:360px;height:160px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;'></div>"
+                        )
+                    card.append(f"<div style='margin-top:6px;color:#374151;'>평점: {rating}</div>")
+                    card.append(f"<div style='margin-top:6px;color:#4b5563;'>주소: {addr}</div>")
+                    card.append(f"<div style='color:#6b7280;font-size:12px;'>출처: {src}</div>")
+                    if maps:
+                        card.append(f"<div style='font-size:12px;'><a href=\"{_safe(maps)}\" target='_blank' rel='noopener'>지도 보기</a></div>")
+                    card.append("</div>")
+                    lines.append("".join(card))
+                return "".join(lines)
+
+            places_html = (
+                _place_block("맛집 추천 (Google/Geoapify)", list((food_res or {}).get("items") or []))
+                + _place_block("관광명소 추천 (Google/Geoapify)", list((attraction_res or {}).get("items") or []))
+                + _place_block("쇼핑 스팟 추천 (Google/Geoapify)", list((shopping_res or {}).get("items") or []))
+            )
+            if places_html:
+                api_blocks.append(places_html)
+                place_added = True
+    except Exception:
+        pass
+
+    try:
+        if start_date and destination:
+            flight_state = {
+                "origin": str(state.get("origin") or "ICN"),
+                "destination": destination,
+                "departure_date": start_date,
+                "return_date": end_date,
+                "adults": max(1, adults),
+                "children": 0,
+                "infants": 0,
+                "max_price": None,
+            }
+            raw_flight = flight_search_service._search_flights(
+                origin=flight_state["origin"],
+                destination=flight_state["destination"],
+                departure_date=flight_state["departure_date"],
+                return_date=flight_state["return_date"],
+                adults=flight_state["adults"],
+                children=0,
+                infants=0,
+                max_price=None,
+                max_results=12,
+            )
+            flight_search_service._attach_krw(raw_flight)
+            rows = flight_search_service._simplify(raw_flight)
+            rows = flight_search_service._filter_pref(rows, flight_state)
+            rows = flight_search_service._sort_flights_for_recommendation(rows, flight_state)[:3]
+            if rows:
+                api_blocks.append(
+                    "<div style='margin-top:12px;'><b>항공편 추천 (실시간 API)</b></div>"
+                    + chat_renderers.flight_html_intro(flight_state, rows)
+                    + chat_renderers.flight_html_table(rows, raw_flight.get("meta_query", {}))
+                )
+                flight_added = True
+    except Exception:
+        pass
+
+    try:
+        if destination and start_date and end_date:
+            hotel_html, _ = hotel_service.answer_hotel_from_parsed(
+                {
+                    "query": destination,
+                    "checkin_date": start_date,
+                    "checkout_date": end_date,
+                    "adults": max(1, adults),
+                    "top_k": 3,
+                    "bucket": "value_top",
+                    "max_price": None if budget_krw is None else int(float(budget_krw) * 0.5),
+                    "__date_explicit": True,
+                },
+                state,
+            )
+            if hotel_html:
+                api_blocks.append(f"<div style='margin-top:12px;'><b>호텔 추천 (실시간 API)</b></div>{hotel_html}")
+                hotel_added = True
+    except Exception:
+        pass
+
+    if api_blocks:
+        content = (
+            content
+            + "<div style='margin-top:14px;padding-top:10px;border-top:1px solid #e5e7eb;'><b>실제 API 추천</b></div>"
+            + "".join(api_blocks)
+        )
+
     state.pop("pending_intent", None)
     state["last_intent"] = "itinerary"
     SESSION_STATE[sid] = state
@@ -379,6 +614,147 @@ def _should_return_intent_clarification(req: Any, prev_state: dict, intent: str,
     )
 
 
+def _is_country_reco_query(message: str, _contains) -> bool:
+    m = (message or "").lower()
+    has_country_prompt = _contains(
+        m,
+        [
+            "어디 나라",
+            "어느 나라",
+            "어디로",
+            "나라 추천",
+            "해외 추천",
+            "가볼까",
+            "갈까",
+            "여행지 추천",
+        ],
+    )
+    has_travelish = _contains(m, ["여행", "trip", "travel"]) or has_country_prompt
+    return bool(has_travelish and has_country_prompt)
+
+
+def _is_country_reco_followup(message: str, prev_state: dict, _contains) -> bool:
+    m = (message or "").lower()
+    if not prev_state.get("country_reco_context"):
+        return False
+    return _contains(
+        m,
+        [
+            "다른",
+            "다른곳",
+            "다른 곳",
+            "또 다른",
+            "또 추천",
+            "another",
+            "other",
+            "다음 후보",
+        ],
+    )
+
+
+def _html_to_plain_text(value: str) -> str:
+    t = re.sub(r"<[^>]+>", " ", str(value or ""))
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def _clip_sentence(value: str, max_len: int = 72) -> str:
+    t = (value or "").strip()
+    if not t:
+        return ""
+    if len(t) <= max_len:
+        return t
+    cut = t[:max_len].rstrip()
+    for sep in [". ", "。", "!", "?", " ", ","]:
+        idx = cut.rfind(sep)
+        if idx >= max_len // 2:
+            cut = cut[:idx].rstrip()
+            break
+    return f"{cut}..."
+
+
+def _country_rag_blurb(country_name_ko: str, context: str, prev_state: dict, _answer_knowledge) -> str:
+    try:
+        q = f"{country_name_ko} 여행의 핵심 매력과 초행자 주의점을 1~2문장으로 알려줘."
+        html_ans, _ = _answer_knowledge(q, context, prev_state)
+        text = _html_to_plain_text(html_ans)
+        text = re.sub(r"^(네[, ]*)?", "", text).strip()
+        text = re.sub(r"(관련 문서|제공된 문맥|문맥에).*", "", text).strip()
+        return _clip_sentence(text, max_len=78) or ""
+    except Exception:
+        return ""
+
+
+def _country_reco_html(context: str, prev_state: dict, _answer_knowledge) -> str:
+    variant = int(prev_state.get("country_reco_variant") or 0) % 2
+    cards_set = [
+        [
+            {
+                "name": "일본 (도쿄/오사카)",
+                "country": "일본",
+                "budget": "3박4일 1인 약 60~100만원",
+                "summary": "비행시간이 짧고 쇼핑·미식·도시관광을 균형 있게 즐기기 좋습니다.",
+                "photo": "https://images.unsplash.com/photo-1492571350019-22de08371fd3?auto=format&fit=crop&w=1200&q=80",
+            },
+            {
+                "name": "대만 (타이베이)",
+                "country": "대만",
+                "budget": "3박4일 1인 약 55~90만원",
+                "summary": "야시장과 로컬 미식 중심 여행에 강하고 대중교통 이용이 편리합니다.",
+                "photo": "https://images.unsplash.com/photo-1464979681340-bdd28a61699e?auto=format&fit=crop&w=1200&q=80",
+            },
+            {
+                "name": "베트남 (다낭/호치민)",
+                "country": "베트남",
+                "budget": "3박4일 1인 약 50~85만원",
+                "summary": "숙소·식비 효율이 좋아 예산을 아끼면서도 일정 밀도를 높이기 좋습니다.",
+                "photo": "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=1200&q=80",
+            },
+        ],
+        [
+            {
+                "name": "홍콩",
+                "country": "홍콩",
+                "budget": "3박4일 1인 약 70~110만원",
+                "summary": "도심 동선이 짧고 야경·쇼핑·미식 조합이 좋아 짧은 일정에 효율적입니다.",
+                "photo": "https://images.unsplash.com/photo-1536599018102-9f803c140fc1?auto=format&fit=crop&w=1200&q=80",
+            },
+            {
+                "name": "태국 (방콕)",
+                "country": "태국",
+                "budget": "3박4일 1인 약 55~95만원",
+                "summary": "쇼핑몰·야시장·로컬푸드를 함께 즐기기 좋고 선택지가 다양합니다.",
+                "photo": "https://images.unsplash.com/photo-1508009603885-50cf7c579365?auto=format&fit=crop&w=1200&q=80",
+            },
+            {
+                "name": "싱가포르",
+                "country": "싱가포르",
+                "budget": "3박4일 1인 약 80~130만원",
+                "summary": "치안과 교통이 안정적이라 첫 해외여행이나 친구 여행에 부담이 적습니다.",
+                "photo": "https://images.unsplash.com/photo-1525625293386-3f8f99389edd?auto=format&fit=crop&w=1200&q=80",
+            },
+        ],
+    ]
+    cards = cards_set[variant]
+    lines = [
+        "<div><b>나라 추천 카드 (3개)</b></div>",
+        "<div style='margin-top:8px;'>예산/이동시간/여행난이도를 같이 보고 고르기 쉬운 후보만 추렸습니다.</div>",
+    ]
+    for i, c in enumerate(cards, 1):
+        rag_blurb = _country_rag_blurb(c["country"], context, prev_state, _answer_knowledge) or c["summary"]
+        lines.append(
+            "<div style='margin:10px 0 14px 0;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;'>"
+            f"<div><b>{i}. {html.escape(c['name'])}</b></div>"
+            f"<div style='margin-top:8px;'><img src=\"{html.escape(c['photo'])}\" alt=\"{html.escape(c['name'])}\" style='width:100%;max-width:360px;height:160px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;'></div>"
+            f"<div style='margin-top:6px;color:#374151;'>예상 예산: {html.escape(c['budget'])}</div>"
+            f"<div style='margin-top:6px;color:#4b5563;'>{html.escape(rag_blurb)}</div>"
+            "<div style='color:#6b7280;font-size:12px;'>출처: DESTINO RAG 요약</div>"
+            "</div>"
+        )
+    lines.append("<div style='margin-top:10px;'>원하시면 이 중 한 나라로 항공권/호텔/일정을 바로 이어서 추천해드릴게요.</div>")
+    return "".join(lines)
+
+
 def handle_chat_request(
     req: Any,
     *,
@@ -406,6 +782,7 @@ def handle_chat_request(
     _missing_questions,
     flight_search_service,
     chat_renderers,
+    place_search_service,
 ):
     try:
         sid = (req.session_id or "default").strip() or "default"
@@ -424,6 +801,15 @@ def handle_chat_request(
             seeded_state["country_hint"] = country_hint
             prev_state = seeded_state
             SESSION_STATE[sid] = seeded_state
+
+        # Fast-path: country recommendation (including short follow-up like "다른곳은?")
+        if _is_country_reco_query(req.message, _contains) or _is_country_reco_followup(req.message, prev_state, _contains):
+            state = dict(prev_state)
+            state["last_intent"] = "knowledge"
+            state["country_reco_context"] = True
+            state["country_reco_variant"] = (int(prev_state.get("country_reco_variant") or 0) + (1 if _is_country_reco_followup(req.message, prev_state, _contains) else 0)) % 2
+            SESSION_STATE[sid] = state
+            return {"response": _country_reco_html(context, state, _answer_knowledge)}
 
         # Hard gate: ignore non-travel queries unless we are clearly in an active travel slot-filling flow.
         msg_l = (req.message or "").lower()
@@ -583,6 +969,10 @@ def handle_chat_request(
                     sid,
                     client,
                     _strip_markdown_decorations,
+                    flight_search_service,
+                    chat_renderers,
+                    hotel_service,
+                    place_search_service,
                 )
                 itinerary_html = str(itinerary_res.get("response") or "")
 
@@ -698,6 +1088,8 @@ def handle_chat_request(
             state = dict(prev_state)
             state["last_intent"] = "knowledge"
             SESSION_STATE[sid] = state
+            if _is_country_reco_query(req.message, _contains):
+                return {"response": _country_reco_html(context, prev_state, _answer_knowledge)}
             return {
                 "response": (
                     "<div>좋아요. 무엇을 도와드릴지 확인할게요.<br>"
@@ -714,7 +1106,19 @@ def handle_chat_request(
         if intent == "rentalcar":
             return _handle_rentalcar_intent(req, prev_state, SESSION_STATE, sid)
         if intent == "itinerary":
-            return _handle_itinerary_intent(req, prev_state, context, SESSION_STATE, sid, client, _strip_markdown_decorations)
+            return _handle_itinerary_intent(
+                req,
+                prev_state,
+                context,
+                SESSION_STATE,
+                sid,
+                client,
+                _strip_markdown_decorations,
+                flight_search_service,
+                chat_renderers,
+                hotel_service,
+                place_search_service,
+            )
         if intent == "product":
             return _handle_product_intent(req, prev_state, SESSION_STATE, sid, chat_renderers)
 
@@ -744,4 +1148,3 @@ def handle_chat_request(
             return {"response": f"<div>{msg}</div>"}
         history.append({"role": "assistant", "text": f"처리 중 오류: {err_text}"})
         return {"response": f"<pre>처리 중 오류: {err_text}</pre>"}
-

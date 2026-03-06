@@ -1151,4 +1151,5 @@ def chat(req: ChatRequest, request: Request):
         _missing_questions=_missing_questions,
         flight_search_service=flight_search_service,
         chat_renderers=chat_renderers,
+        place_search_service=place_search_service,
     )
