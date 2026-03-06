@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DESTINO - 챗봇 이용권 구매</title>
+    <style>
+        body { margin: 0; font-family: Pretendard, 'Noto Sans KR', sans-serif; background: #f8fafc; color: #0f172a; }
+        .wrap { max-width: 980px; margin: 42px auto; padding: 0 16px; }
+        .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+        .title { font-size: 30px; font-weight: 900; margin: 0; }
+        .sub { color: #64748b; margin: 6px 0 0; }
+        .active { background: #ecfeff; border: 1px solid #bae6fd; border-radius: 12px; padding: 12px; margin-bottom: 14px; }
+        .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+        .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px; box-shadow: 0 8px 18px rgba(15,23,42,.04); }
+        .name { font-size: 20px; font-weight: 900; margin: 0 0 8px; }
+        .price { color: #0284c7; font-size: 26px; font-weight: 900; margin: 0 0 10px; }
+        .desc { color: #475569; margin: 0 0 14px; min-height: 42px; }
+        .buy { width: 100%; height: 44px; border: 0; border-radius: 10px; background: #0ea5e9; color: #fff; font-weight: 800; cursor: pointer; }
+        .buy:hover { background: #0284c7; }
+        .home { display: inline-block; margin-top: 14px; color: #334155; }
+        @media (max-width: 920px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="head">
+        <div>
+            <h1 class="title">챗봇 이용권 구매</h1>
+            <p class="sub">로그인한 상태에서 이용권이 있어야 AI 채팅을 사용할 수 있습니다.</p>
+        </div>
+        <a href="/planner">챗봇으로 돌아가기</a>
+    </div>
+
+    {% if active_pass %}
+    <div class="active">
+        현재 활성 이용권: <strong>{{ active_pass.plan_name }}</strong>
+        {% if active_pass.remaining_uses is not none %} · 남은 횟수 {{ active_pass.remaining_uses }}회{% endif %}
+        {% if active_pass.expires_at %} · 만료 {{ active_pass.expires_at[:10] }}{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="grid" id="planGrid">
+        {% for p in plans %}
+        <article class="card">
+            <h2 class="name">{{ p.name }}</h2>
+            <p class="price">₩{{ "{:,}".format(p.amount|int) }}</p>
+            <p class="desc">
+                {% if p.total_uses is not none %}
+                총 {{ p.total_uses }}회 사용 · {{ p.duration_days }}일 유효
+                {% else %}
+                기간형 이용권 · {{ p.duration_days }}일 유효
+                {% endif %}
+            </p>
+            <button type="button" class="buy" data-plan-code="{{ p.code }}">결제하고 시작하기</button>
+        </article>
+        {% endfor %}
+    </div>
+    <a href="/mypage?tab=vouchers" class="home">마이페이지 이용권 탭 보기</a>
+</div>
+
+<script>
+const loadTossPaymentsScript = () => {
+    if (window.TossPayments) return Promise.resolve(window.TossPayments);
+    return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://js.tosspayments.com/v1/payment';
+        s.async = true;
+        s.onload = () => resolve(window.TossPayments);
+        s.onerror = () => reject(new Error('토스 스크립트 로드 실패'));
+        document.head.appendChild(s);
+    });
+};
+
+async function startCheckout(planCode) {
+    const res = await fetch('/api/chat-pass/checkout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_code: planCode }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.detail || '결제 준비 실패');
+    if (data.payment_mode !== 'toss' || !data.toss_client_key) {
+        alert('결제가 완료되었습니다.');
+        location.href = data.redirect_url || '/mypage?tab=vouchers';
+        return;
+    }
+    const TossPayments = await loadTossPaymentsScript();
+    const toss = TossPayments(data.toss_client_key);
+    await toss.requestPayment('카드', {
+        amount: Number(data.amount || 0),
+        orderId: String(data.order_id || ''),
+        orderName: String(data.order_name || 'DESTINO 이용권'),
+        customerName: '{{ nickname or "회원" }}',
+        successUrl: String(data.success_url || `${location.origin}/payment/chat-pass/success`),
+        failUrl: String(data.fail_url || `${location.origin}/payment/chat-pass/fail`),
+    });
+}
+
+document.querySelectorAll('[data-plan-code]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+        const code = btn.getAttribute('data-plan-code');
+        if (!code) return;
+        btn.disabled = true;
+        const old = btn.textContent;
+        btn.textContent = '결제 준비 중...';
+        try {
+            await startCheckout(code);
+        } catch (e) {
+            alert(e?.message || '결제 처리 중 오류가 발생했습니다.');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = old;
+        }
+    });
+});
+</script>
+</body>
+</html>

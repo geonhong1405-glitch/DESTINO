@@ -91,6 +91,7 @@ _TRANSLATE_CACHE_PATH = None
 PENDING_HOTEL_ORDERS: dict[str, dict] = {}
 PENDING_TOUR_ORDERS: dict[str, dict] = {}
 PENDING_PACK_ORDERS: dict[str, dict] = {}
+PENDING_CHAT_PASS_ORDERS: dict[str, dict] = {}
 
 
 def _env_int(name: str, default: int) -> int:
@@ -1809,6 +1810,8 @@ def api_update_profile(request: Request, payload: dict, db: Session = Depends(ge
 
 @app.get("/api/me")
 def api_me(request: Request, db: Session = Depends(get_db)):
+    from app.services.chat_pass_service import get_active_pass
+
     session_token = request.cookies.get("session_token")
     user_id = get_user_id_from_session(session_token) if session_token else None
     if not user_id:
@@ -1816,6 +1819,7 @@ def api_me(request: Request, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == int(user_id)).first()
     if not user:
         return {"ok": False, "user": None}
+    active_chat_pass = get_active_pass(int(user_id))
     return {
         "ok": True,
         "user": {
@@ -1824,6 +1828,10 @@ def api_me(request: Request, db: Session = Depends(get_db)):
             "nickname": user.nickname or "",
             "email": user.email or "",
             "phone": user.phone or "",
+        },
+        "chat_pass": {
+            "has_active": bool(active_chat_pass),
+            "active": active_chat_pass,
         },
     }
 
@@ -1835,6 +1843,310 @@ def api_bookings(request: Request, limit: int = Query(100, ge=1, le=200)):
     if not user_id:
         raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
     return {"bookings": get_user_bookings(int(user_id), limit=limit)}
+
+
+@app.get("/chat-pass/purchase", response_class=HTMLResponse)
+def chat_pass_purchase_page(request: Request):
+    from app.services.chat_pass_service import get_plan_catalog, get_active_pass
+
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        next_url = quote("/chat-pass/purchase", safe="")
+        return RedirectResponse(url=f"/signin?next={next_url}", status_code=302)
+
+    nickname = get_nickname_from_request(request)
+    plans = get_plan_catalog()
+    active = get_active_pass(int(user_id))
+    return templates.TemplateResponse(
+        "chat-pass-purchase.html",
+        {"request": request, "nickname": nickname, "plans": plans, "active_pass": active},
+    )
+
+
+@app.get("/api/chat-pass/status")
+def api_chat_pass_status(request: Request):
+    from app.services.chat_pass_service import get_plan_catalog, get_active_pass
+
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+
+    active = get_active_pass(int(user_id))
+    return {"ok": True, "has_active": bool(active), "active_pass": active, "plans": get_plan_catalog()}
+
+
+@app.get("/api/chat-passes")
+def api_chat_passes(request: Request):
+    from app.services.chat_pass_service import list_user_passes
+
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+    return {"ok": True, "passes": list_user_passes(int(user_id))}
+
+
+@app.delete("/api/chat-passes/{pass_id}")
+def api_delete_chat_pass(pass_id: int, request: Request):
+    from app.services.chat_pass_service import delete_user_pass
+
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+    ok = delete_user_pass(int(user_id), int(pass_id))
+    if not ok:
+        raise HTTPException(status_code=400, detail="ACTIVE_PASS_DELETE_FORBIDDEN")
+    return {"ok": True}
+
+
+@app.post("/api/chat-pass/checkout")
+async def api_chat_pass_checkout(request: Request):
+    from app.services.chat_pass_service import PLAN_CATALOG, grant_chat_pass
+
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="잘못된 요청입니다.")
+    plan_code = str(body.get("plan_code") or "").strip()
+    plan = PLAN_CATALOG.get(plan_code)
+    if not plan:
+        raise HTTPException(status_code=400, detail="INVALID_PLAN")
+
+    order_id = f"CHATPASS-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{os.urandom(4).hex()}"
+    order_name = _fit_toss_order_name(f"DESTINO {plan['name']}")
+    amount = int(plan["amount"])
+    toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
+
+    if not toss_client_key:
+        granted = grant_chat_pass(int(user_id), plan_code, order_id=order_id, payment_key="MOCK")
+        return {
+            "payment_mode": "mock",
+            "status": "confirmed",
+            "order_id": order_id,
+            "order_name": order_name,
+            "amount": amount,
+            "granted_pass": granted,
+            "redirect_url": "/mypage?tab=vouchers",
+        }
+
+    base_url = str(request.base_url).rstrip("/")
+    PENDING_CHAT_PASS_ORDERS[order_id] = {
+        "user_id": int(user_id),
+        "plan_code": plan_code,
+        "amount": amount,
+        "order_name": order_name,
+        "created_at": datetime.datetime.utcnow().isoformat(),
+    }
+    return {
+        "payment_mode": "toss",
+        "order_id": order_id,
+        "order_name": order_name,
+        "amount": amount,
+        "toss_client_key": toss_client_key,
+        "success_url": f"{base_url}/payment/chat-pass/success",
+        "fail_url": f"{base_url}/payment/chat-pass/fail",
+    }
+
+
+@app.post("/api/payments/toss/chat-pass/confirm")
+async def api_toss_chat_pass_confirm(request: Request):
+    from app.services.chat_pass_service import grant_chat_pass
+
+    body = await request.json()
+    payment_key = str(body.get("paymentKey") or "").strip()
+    order_id = str(body.get("orderId") or "").strip()
+    amount = int(body.get("amount") or 0)
+    if not payment_key or not order_id or amount <= 0:
+        raise HTTPException(status_code=400, detail="필수 결제 파라미터가 누락되었습니다.")
+
+    pending = PENDING_CHAT_PASS_ORDERS.get(order_id)
+    if not pending:
+        raise HTTPException(status_code=404, detail="주문 정보를 찾을 수 없습니다.")
+    if int(pending.get("amount") or 0) != int(amount):
+        raise HTTPException(status_code=400, detail="결제 금액이 주문 정보와 일치하지 않습니다.")
+
+    secret_key = (os.getenv("TOSS_PAYMENTS_SECRET_KEY") or os.getenv("TOSS_SECRET_KEY") or "").strip()
+    if not secret_key:
+        raise HTTPException(status_code=500, detail="토스 시크릿 키가 설정되지 않았습니다.")
+
+    auth = base64.b64encode(f"{secret_key}:".encode("utf-8")).decode("ascii")
+    resp = requests.post(
+        "https://api.tosspayments.com/v1/payments/confirm",
+        headers={"Authorization": f"Basic {auth}", "Content-Type": "application/json"},
+        json={"paymentKey": payment_key, "orderId": order_id, "amount": amount},
+        timeout=20,
+    )
+    data = resp.json() if resp.content else {}
+    if resp.status_code // 100 != 2:
+        msg = data.get("message") if isinstance(data, dict) else None
+        raise HTTPException(status_code=400, detail=msg or "결제 승인에 실패했습니다.")
+
+    granted = grant_chat_pass(
+        int(pending["user_id"]),
+        str(pending["plan_code"]),
+        order_id=order_id,
+        payment_key=payment_key,
+    )
+    PENDING_CHAT_PASS_ORDERS.pop(order_id, None)
+    return {"status": "confirmed", "order_id": order_id, "amount": amount, "granted_pass": granted}
+
+
+@app.get("/payment/chat-pass/success", response_class=HTMLResponse)
+def payment_chat_pass_success_page():
+    return """
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>DESTINO | 결제 확인</title>
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+    <style>
+        :root {
+            --primary-blue: #00AEEF;
+            --dark-navy: #1A202C;
+            --bg-gray: #F8F9FA;
+            --text-muted: #718096;
+        }
+        * { box-sizing: border-box; font-family: 'Pretendard', -apple-system, sans-serif; }
+        body {
+            background-color: var(--bg-gray);
+            display: flex; align-items: center; justify-content: center;
+            height: 100vh; margin: 0; color: var(--dark-navy);
+        }
+        .container {
+            background: #fff;
+            width: 100%;
+            max-width: 480px;
+            padding: 40px 24px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        .status-icon {
+            width: 64px; height: 64px;
+            background: #f0f9ff;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 24px;
+        }
+        .spinner {
+            width: 24px; height: 24px;
+            border: 3px solid #e2e8f0;
+            border-top-color: var(--primary-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        h2 { font-size: 24px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.5px; }
+        p { color: var(--text-muted); line-height: 1.6; margin-bottom: 32px; }
+        .info-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 32px;
+            text-align: left;
+            display: none;
+        }
+        .info-row {
+            display: flex; justify-content: space-between; margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .info-row span:first-child { color: var(--text-muted); }
+        .info-row span:last-child { font-weight: 600; }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-primary { background-color: var(--primary-blue); color: white; }
+        .btn-primary:hover { background-color: #0096ce; }
+        .btn-outline { border: 1px solid #e2e8f0; color: var(--text-muted); margin-top: 12px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status-icon" id="icon-box">
+            <div class="spinner" id="spinner"></div>
+        </div>
+        <h2 id="title">결제 확인 중</h2>
+        <p id="msg">안전한 결제 승인을 위해 잠시만 기다려 주세요.</p>
+        <div class="info-card" id="info-card">
+            <div class="info-row">
+                <span>주문번호</span>
+                <span id="res-orderId">-</span>
+            </div>
+            <div class="info-row">
+                <span>결제금액</span>
+                <span id="res-amount">-</span>
+            </div>
+        </div>
+        <a href="/mypage?tab=vouchers" class="btn btn-primary" id="main-btn">마이페이지 이용권으로 이동</a>
+        <a href="/" class="btn btn-outline">메인페이지로 이동</a>
+    </div>
+    <script>
+        const qs = new URLSearchParams(location.search);
+        const orderId = qs.get('orderId');
+        const amount = Number(qs.get('amount') || 0);
+        const body = { paymentKey: qs.get('paymentKey'), orderId: orderId, amount: amount };
+        fetch('/api/payments/toss/chat-pass/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        })
+        .then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))
+        .then(x => {
+            const iconBox = document.getElementById('icon-box');
+            const title = document.getElementById('title');
+            const msg = document.getElementById('msg');
+            const infoCard = document.getElementById('info-card');
+            if (x.ok) {
+                iconBox.innerHTML = '✅';
+                iconBox.style.fontSize = '32px';
+                title.textContent = '결제가 완료되었습니다!';
+                msg.textContent = '이용권이 등록되었습니다. 마이페이지 > 이용권 탭에서 확인하세요.';
+                infoCard.style.display = 'block';
+                document.getElementById('res-orderId').textContent = orderId;
+                document.getElementById('res-amount').textContent = amount.toLocaleString() + '원';
+            } else {
+                iconBox.innerHTML = '❌';
+                iconBox.style.fontSize = '32px';
+                title.textContent = '결제에 실패했습니다';
+                msg.textContent = x.data?.detail || x.data?.message || '알 수 없는 오류가 발생했습니다.';
+            }
+        })
+        .catch(() => {
+            document.getElementById('title').textContent = '오류 발생';
+            document.getElementById('msg').textContent = '서버와의 통신 중 문제가 발생했습니다.';
+        });
+    </script>
+</body>
+</html>
+"""
+
+
+@app.get("/payment/chat-pass/fail", response_class=HTMLResponse)
+def payment_chat_pass_fail_page(code: str | None = Query(None), message: str | None = Query(None)):
+    c = (code or "").strip()
+    m = (message or "").strip()
+    return f"""
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>이용권 결제 실패</title>
+<style>body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a}} .box{{max-width:560px;margin:24px auto;background:#fff;border:1px solid #fecaca;border-radius:12px;padding:18px}} .muted{{color:#64748b;font-size:14px}}</style>
+</head><body><div class="box"><h2>결제가 완료되지 않았습니다.</h2><p class="muted">코드: {c or '-'}</p><p class="muted">메시지: {m or '-'}</p><a href="/chat-pass/purchase">이용권 다시 결제하기</a></div></body></html>
+"""
 
 
 @app.post("/api/hotel/checkout")
@@ -3134,9 +3446,18 @@ def join(request: Request):
     return templates.TemplateResponse("join.html", {"request": request})
 
 
+def _safe_next_path(next_path: str | None) -> str:
+    s = str(next_path or "").strip()
+    if not s.startswith("/") or s.startswith("//"):
+        return "/"
+    if s.startswith("/signin") or s.startswith("/login"):
+        return "/"
+    return s
+
+
 @app.get("/signin", response_class=HTMLResponse)
-def signin_get(request: Request):
-    return templates.TemplateResponse("signin.html", {"request": request})
+def signin_get(request: Request, next: str | None = Query(None)):
+    return templates.TemplateResponse("signin.html", {"request": request, "next": _safe_next_path(next)})
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     session_token = request.cookies.get("session_token")
@@ -3149,13 +3470,16 @@ def home(request: Request):
             nickname = user.nickname
     return templates.TemplateResponse("home.html", {"request": request, "nickname": nickname})
 @app.get("/login", response_class=HTMLResponse)
-def login(request: Request):
+def login(request: Request, next: str | None = Query(None)):
+    safe_next = _safe_next_path(next)
+    if safe_next and safe_next != "/":
+        return RedirectResponse(url=f"/signin?next={quote(safe_next, safe='')}", status_code=302)
     return templates.TemplateResponse("login.html", {"request": request})
 
 
 @app.get("/signin", response_class=HTMLResponse)
-def signin_get(request: Request):
-    return templates.TemplateResponse("signin.html", {"request": request})
+def signin_get(request: Request, next: str | None = Query(None)):
+    return templates.TemplateResponse("signin.html", {"request": request, "next": _safe_next_path(next)})
 
 
 @app.post("/signin", response_class=HTMLResponse)
@@ -3163,6 +3487,7 @@ def signin_post(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    next: str = Form("/"),
     db: Session = Depends(get_db),
 ):
     users = (
@@ -3172,7 +3497,10 @@ def signin_post(
         .all()
     )
     if not users:
-        return templates.TemplateResponse("signin.html", {"request": request, "error": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해 주세요."})
+        return templates.TemplateResponse(
+            "signin.html",
+            {"request": request, "error": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해 주세요.", "next": _safe_next_path(next)},
+        )
 
     matched_user = None
     needs_upgrade = False
@@ -3184,14 +3512,17 @@ def signin_post(
             break
 
     if not matched_user:
-        return templates.TemplateResponse("signin.html", {"request": request, "error": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해 주세요."})
+        return templates.TemplateResponse(
+            "signin.html",
+            {"request": request, "error": "아이디 또는 비밀번호가 올바르지 않습니다. 다시 입력해 주세요.", "next": _safe_next_path(next)},
+        )
 
     if needs_upgrade:
         matched_user.password = _hash_password(password)
         db.commit()
 
     session_token = create_session(matched_user.id)
-    response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    response = RedirectResponse(url=_safe_next_path(next), status_code=status.HTTP_302_FOUND)
     response.set_cookie(
         key="session_token",
         value=session_token,

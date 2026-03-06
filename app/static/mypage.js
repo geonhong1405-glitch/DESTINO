@@ -41,6 +41,7 @@ let cartSubTab = 'cart';
 let myTripPostsState = [];
 let joinAlertInitialized = false;
 let seenJoinDecisionKeys = new Set();
+let chatPassState = [];
 
 function showMypageToast(message) {
     let toast = document.getElementById('mypageToast');
@@ -96,6 +97,9 @@ function switchTab(tabId) {
     }
     if (tabId === 'post') {
         loadMyTripPosts();
+    }
+    if (tabId === 'vouchers') {
+        loadChatPasses();
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1080,6 +1084,90 @@ async function deleteMyPost(postId) {
     }
 }
 
+async function loadChatPasses() {
+    try {
+        const res = await fetch('/api/chat-passes', { credentials: 'include', cache: 'no-store' });
+        if (res.status === 401) {
+            chatPassState = [];
+            renderChatPasses();
+            return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json().catch(() => ({}));
+        chatPassState = Array.isArray(data?.passes) ? data.passes : [];
+    } catch (_e) {
+        chatPassState = [];
+    }
+    renderChatPasses();
+}
+
+async function removeChatPass(passId) {
+    try {
+        const res = await fetch(`/api/chat-passes/${Number(passId)}`, { method: 'DELETE', credentials: 'include' });
+        if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            throw new Error(d?.detail || '삭제 실패');
+        }
+        await loadChatPasses();
+    } catch (e) {
+        alert(e?.message || '삭제에 실패했습니다.');
+    }
+}
+
+function renderChatPasses() {
+    const container = document.getElementById('mypage-voucher-list');
+    const title = document.getElementById('mypage-voucher-title');
+    if (!container) return;
+    if (title) title.innerText = `이용권 (${chatPassState.length})`;
+
+    if (!chatPassState.length) {
+        container.innerHTML = `
+            <div class="col-span-full flex flex-col items-center justify-center py-12">
+                <p class="text-gray-400 text-sm">보유한 이용권이 없습니다.</p>
+            </div>
+        `;
+        return;
+    }
+
+    const statusLabel = (s) => {
+        if (s === 'active') return '사용중';
+        if (s === 'expired') return '만료';
+        if (s === 'used_up') return '횟수 소진';
+        return s || '-';
+    };
+    const statusClass = (s) => {
+        if (s === 'active') return 'text-emerald-600';
+        if (s === 'expired') return 'text-rose-600';
+        if (s === 'used_up') return 'text-amber-600';
+        return 'text-gray-500';
+    };
+    const dateText = (s) => {
+        const d = new Date(String(s || ''));
+        if (Number.isNaN(d.getTime())) return '-';
+        return d.toLocaleDateString();
+    };
+
+    container.innerHTML = chatPassState.map((row) => `
+        <div class="p-4 rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-[11px] font-bold text-gray-400">챗봇 이용권</p>
+                    <p class="text-sm font-bold text-gray-800 mt-0.5">${escapeHtml(row.plan_name || '-')}</p>
+                    <p class="text-xs text-gray-500 mt-1">결제금액: ₩${Number(row.amount || 0).toLocaleString('ko-KR')}</p>
+                    <p class="text-xs text-gray-500 mt-1">유효기간: ${dateText(row.started_at)} ~ ${dateText(row.expires_at)}</p>
+                    <p class="text-xs text-gray-500 mt-1">남은 횟수: ${row.remaining_uses == null ? '무제한' : `${Number(row.remaining_uses)}회`}</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs font-bold ${statusClass(row.status)}">${statusLabel(row.status)}</p>
+                    ${(row.status === 'expired' || row.status === 'used_up')
+                        ? `<button onclick="removeChatPass(${Number(row.id)})" class="mt-2 px-2 py-1 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold">삭제</button>`
+                        : ''}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
 /*페이지 로드 시 실행*/
 window.onload = () => {
     if (!SERVER_USER.isLoggedIn) {
@@ -1093,6 +1181,7 @@ window.onload = () => {
     loadSavedItems();
     loadMyTripPosts();
     loadJoinRequestInbox();
+    loadChatPasses();
     renderCartSubTab();
     setInterval(() => {
         loadSavedItems();
@@ -1108,6 +1197,11 @@ window.onload = () => {
     }
 
     lucide.createIcons();
+
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (tab && document.getElementById(`content-${tab}`)) {
+        switchTab(tab);
+    }
 };
 
 window.addEventListener('focus', () => {
@@ -1115,4 +1209,5 @@ window.addEventListener('focus', () => {
     loadSavedItems();
     loadMyTripPosts();
     loadJoinRequestInbox();
+    loadChatPasses();
 });

@@ -55,6 +55,10 @@
                 <i data-lucide="shopping-cart" size="20"></i>
                 <span class="font-medium">장바구니</span>
             </button>
+            <button onclick="switchTab('vouchers')" id="tab-btn-vouchers" class="sidebar-item">
+                <i data-lucide="ticket" size="20"></i>
+                <span class="font-medium">이용권</span>
+            </button>
             <button onclick="switchTab('post')" id="tab-btn-post" class="sidebar-item">
                 <i data-lucide="sticky-note" size="20"></i>
                 <span class="font-medium">내 게시물</span>
@@ -183,6 +187,17 @@
                     </div>
                     <div id="mypage-cart-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4"></div>
                     <div id="mypage-cart-alerts-list" class="grid grid-cols-1 gap-3 mt-4 hidden"></div>
+                </div>
+            </div>
+
+            <!-- TAB: Vouchers -->
+            <div id="content-vouchers" class="tab-content">
+                <div class="card-container min-h-card">
+                    <div class="section-header">
+                        <h4 id="mypage-voucher-title" class="card-title mb-0">이용권 (0)</h4>
+                        <a href="/chat-pass/purchase" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#00AEEF] text-white">이용권 구매</a>
+                    </div>
+                    <div id="mypage-voucher-list" class="grid grid-cols-1 gap-3 mt-4"></div>
                 </div>
             </div>
 
@@ -338,6 +353,6 @@
     </footer>
 
     <!-- Custom Script -->
-    <script src="/static/mypage.js?v=20260304c"></script>
+    <script src="/static/mypage.js?v=20260306d"></script>
 </body>
 </html>

@@ -399,33 +399,34 @@ function renderFlightSavedDrawer() {
             }
         }
         const kind = `${getSavedItemTypeLabel(item?.item_type)} · ${item?.source || 'saved-item'}`;
-        // meta: '₩123,000 | 출발 ...' 형태라면
-        let price = '';
+        // meta: '₩123,000 | 출발 ...' 또는 '35,000~ | 체코 · 프라하' 형태 지원
+        const normalizeKrwPriceText = (raw) => {
+            const txt = String(raw || '').trim();
+            if (!txt) return '';
+            const m = txt.match(/([\d,]+(?:\.\d+)?)/);
+            if (!m) return '';
+            const n = Number(String(m[1]).replace(/,/g, ''));
+            if (!Number.isFinite(n) || n <= 0) return '';
+            return `₩${Math.floor(n).toLocaleString('ko-KR')}`;
+        };
+        let normalizedPrice = '';
         let lines = [];
         if (item.meta) {
-            const parts = String(item.meta).split('|').map(x => x.trim()).filter(Boolean);
-            const detected = parts.find((p) => /[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(String(p)));
-            price = detected || '';
+            const parts = String(item.meta).split('|').map((x) => x.trim()).filter(Boolean);
+            const detected = parts.find((p) => normalizeKrwPriceText(p));
+            normalizedPrice = normalizeKrwPriceText(detected || '');
             lines = parts.filter((p) => p !== detected).slice(0, 3);
         }
-        if (!price) {
-            price = String(
+        if (!normalizedPrice) {
+            normalizedPrice = normalizeKrwPriceText(
                 item?.price ||
                 item?.payload?.price_text ||
                 item?.payload?.price ||
                 item?.payload?.amount ||
                 item?.payload?.total_price ||
                 ''
-            ).trim();
+            );
         }
-        const normalizedPrice = (() => {
-            const txt = String(price || '').trim();
-            const mKrw = txt.match(/([\d,]+(?:\.\d+)?)\s*(krw|KRW|원|₩)/);
-            if (!mKrw) return '';
-            const n = Number(String(mKrw[1]).replace(/,/g, ''));
-            if (!Number.isFinite(n) || n <= 0) return '';
-            return `₩${Math.floor(n).toLocaleString('ko-KR')}`;
-        })();
         const li = document.createElement('li');
         li.className = 'flight-saved-item';
         li.innerHTML = `

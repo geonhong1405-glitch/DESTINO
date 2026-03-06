@@ -29,6 +29,7 @@ from app.services import chat_heuristics_service
 from app.endpoints.rag_api import answer_rag_question
 from app.session import get_user_id_from_session
 from app.services.booking_history_service import save_booking, get_user_bookings
+from app.services.chat_pass_service import consume_for_chat
 
 try:
     from pinecone import Pinecone
@@ -1124,8 +1125,19 @@ def chat(req: ChatRequest, request: Request):
     user_id = get_user_id_from_session(session_token) if session_token else None
     if not user_id:
         raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+    pass_state = consume_for_chat(int(user_id), commit=False)
+    if not pass_state.get("ok"):
+        detail_code = pass_state.get("reason") or "PASS_REQUIRED"
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": detail_code,
+                "message": "챗봇 이용권이 필요합니다.",
+                "purchase_url": "/chat-pass/purchase",
+            },
+        )
 
-    return chat_orchestrator_service.handle_chat_request(
+    result = chat_orchestrator_service.handle_chat_request(
         req,
         SESSION_HISTORY=SESSION_HISTORY,
         SESSION_STATE=SESSION_STATE,
@@ -1153,3 +1165,5 @@ def chat(req: ChatRequest, request: Request):
         chat_renderers=chat_renderers,
         place_search_service=place_search_service,
     )
+    consume_for_chat(int(user_id), commit=True)
+    return result

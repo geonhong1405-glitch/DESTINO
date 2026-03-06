@@ -107,3 +107,24 @@ class UserBooking(Base):
     created_at = Column(DateTime, server_default=func.now())
     confirmed_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, onupdate=func.now(), server_default=func.now())
+
+
+class UserChatPass(Base):
+    __tablename__ = "user_chat_passes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, nullable=False)
+    plan_code = Column(String(40), index=True, nullable=False)  # count_30 | day_1 | month_1
+    plan_name = Column(String(80), nullable=False)
+    status = Column(String(20), index=True, nullable=False, default="active")  # active | expired | used_up | cancelled
+    amount = Column(Integer, nullable=False, default=0)
+    currency = Column(String(10), nullable=False, default="KRW")
+    total_uses = Column(Integer, nullable=True)       # None means unlimited
+    remaining_uses = Column(Integer, nullable=True)   # None means unlimited
+    duration_days = Column(Integer, nullable=True)
+    started_at = Column(DateTime, nullable=False, server_default=func.now())
+    expires_at = Column(DateTime, nullable=True)
+    order_id = Column(String(80), index=True, nullable=True)
+    payment_key = Column(String(255), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now(), server_default=func.now())
