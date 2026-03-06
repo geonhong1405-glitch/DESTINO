@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DESTINO - 투어 상세</title>
+    <title>DESTINO - 티켓 상세</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../static/tour-detail.css">
@@ -44,8 +44,10 @@
             <h1 class="logo"><a href="/">DESTINO</a></h1>
             <nav class="header-nav">
                 {% if nickname %}
-                <a href="/mypage"><span style="font-weight:700;color:#00aaff">{{ nickname }}</span></a>
-                <a href="/logout" style="margin-left:15px;color:#ff5555;font-weight:700">로그아웃</a>
+                <a href="/mypage">
+                    <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                </a>
+                <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
                 {% else %}
                 <a href="/login">로그인</a>
                 {% endif %}
@@ -82,10 +84,10 @@
                     <div id="reviewSection" class="bg-white border border-gray-100 p-8 rounded-3xl mt-12 shadow-sm">
                         <div class="flex justify-between items-start mb-8">
                             <div>
-                                <h3 class="text-2xl font-bold text-gray-900">후기 <span id="reviewCount" class="text-blue-600 ml-1">0</span></h3>
+                                <h3 class="text-2xl font-bold text-gray-900">후기 <span id="reviewCount" class="ml-1" style="color:#00aaff">0</span></h3>
                                 <p class="text-sm text-gray-400 mt-1">상품 이용 고객 리뷰</p>
                             </div>
-                            <button onclick="openReviewModal()" class="bg-blue-50 text-blue-600 px-6 py-3 rounded-xl text-sm font-bold hover:bg-blue-100 transition-colors">
+                            <button onclick="openReviewModal()" class="px-6 py-3 rounded-xl text-sm font-bold transition-colors" style="background:#e6f7ff;color:#00aaff;">
                                 <i class="fa-solid fa-pencil mr-1"></i> 리뷰 작성
                             </button>
                         </div>
@@ -149,7 +151,10 @@
                                 <label class="block text-xs font-bold text-gray-700 mb-3 uppercase tracking-wider">인원 선택</label>
                                 <div class="border border-gray-100 bg-gray-50/50 rounded-2xl p-6 space-y-6">
                                     <div class="flex items-center justify-between">
-                                        <div><p class="text-[15px] font-bold text-gray-800">성인</p></div>
+                                        <div>
+                                            <p class="text-[15px] font-bold text-gray-800">성인</p>
+                                            <p id="adultPriceText" class="text-xs text-gray-500 mt-1">0원</p>
+                                        </div>
                                         <div class="flex items-center gap-5 bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm">
                                             <button onclick="changeQty('adult', -1)" class="w-6 h-6">-</button>
                                             <span id="adultQty" class="text-[15px] font-black w-4 text-center">1</span>
@@ -157,7 +162,10 @@
                                         </div>
                                     </div>
                                     <div class="flex items-center justify-between pt-5 border-t border-gray-200/50">
-                                        <div><p class="text-[15px] font-bold text-gray-800">아동</p></div>
+                                        <div>
+                                            <p class="text-[15px] font-bold text-gray-800">아동</p>
+                                            <p id="childPriceText" class="text-xs text-gray-500 mt-1">0원</p>
+                                        </div>
                                         <div class="flex items-center gap-5 bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm">
                                             <button onclick="changeQty('child', -1)" class="w-6 h-6">-</button>
                                             <span id="childQty" class="text-[15px] font-black w-4 text-center">0</span>
@@ -173,8 +181,8 @@
                             <span id="totalPriceDisplay" class="text-3xl font-black text-blue-600 tracking-tight">0원</span>
                         </div>
 
-                        <button onclick="handleBooking()" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-black py-5 rounded-2xl transition-all shadow-xl shadow-blue-200 active:scale-[0.97]">
-                            지금 바로 예약하기
+                        <button onclick="handleBooking()" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold py-[12px] rounded-lg transition-all shadow-xl shadow-blue-200 active:scale-[0.97]">
+                            지금 바로 예매하기
                         </button>
                     </div>
                 </div>
@@ -212,10 +220,79 @@
         메시지
     </div>
 
-    <footer class="bg-white border-t border-gray-100 py-20 mt-20">
-        <div class="max-w-6xl mx-auto px-4 text-center">
-            <h2 class="text-2xl font-black italic text-gray-200 mb-6 tracking-tighter">DESTINO</h2>
-            <p class="text-xs text-gray-400 leading-relaxed">© 2024 DESTINO All Rights Reserved.</p>
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-top">
+                <div class="footer-column">
+                    <h3>고객센터</h3>
+                    <p>오전 9시 ~ 새벽 3시 운영</p>
+                    <p>채팅 상담 문의: 24시간 운영</p>
+                    <div class="cs-buttons">
+                        <a href="tel:1670-0000" class="btn-cs">
+                            <span class="icon">📞</span>
+                            <div class="text">
+                                <strong>전화 상담</strong>
+                            </div>
+                        </a>
+                        <a href="#" class="btn-cs">
+                            <span class="icon">✉️</span>
+                            <div class="text">
+                                <strong>메일 문의</strong>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <div class="footer-column">
+                    <h3>회사</h3>
+                    <ul>
+                        <li><a href="#">회사소개</a></li>
+                        <li><a href="#">채용정보</a></li>
+                        <li><a href="#">제휴문의</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>서비스</h3>
+                    <ul>
+                        <li><a href="#">공지사항</a></li>
+                        <li><a href="#">자주 묻는 질문</a></li>
+                        <li><a href="#">여행 매거진</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>혜택</h3>
+                    <ul>
+                        <li><a href="#">멤버십 안내</a></li>
+                        <li><a href="#">공동예매 가이드</a></li>
+                        <li><a href="#">포인트 정책</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>모든 여행</h3>
+                    <ul>
+                        <li><a href="#">항공</a></li>
+                        <li><a href="#">숙소</a></li>
+                        <li><a href="#">패키지</a></li>
+                        <li><a href="#">티켓</a></li>
+                        <li><a href="#">렌터카</a></li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="footer-divider" />
+            <div class="footer-bottom">
+                <div class="company-info">
+                    <p>(주)데스티노 컴퍼니 | 대표이사: 김여행 | 사업자등록번호: 000-00-00000</p>
+                    <p>주소: 서울특별시 강남구 테헤란로 123 | 이메일: help@destino.com</p>
+                    <p class="disclaimer">
+                        데스티노는 통신판매중개자로서 통신판매의 당사자가 아니며, 상품의 예약, 이용 및환불 등과
+                        관련한 의무와 책임은 각 판매자에게 있습니다.
+                    </p>
+                    <div class="footer-policy">
+                        <a href="#">이용약관</a>
+                        <a href="#"><strong>개인정보처리방침</strong></a>
+                        <a href="#">소비자 분쟁해결 기준</a>
+                    </div>
+                </div>
+            </div>
         </div>
     </footer>
 

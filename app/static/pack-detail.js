@@ -979,17 +979,7 @@ function renderInitialReviews(productKey) {
                 reviewList.appendChild(spacer);
             }
             const btn = document.createElement('button');
-            btn.style.width = '100%';
-            btn.style.display = 'block';
-            btn.style.margin = '0 auto 16px auto';
-            btn.style.background = '#efefef';
-            btn.style.color = '#333';
-            btn.style.fontWeight = '700';
-            btn.style.fontSize = '15px';
-            btn.style.border = 'none';
-            btn.style.borderRadius = '12px';
-            btn.style.padding = '16px 0';
-            btn.style.cursor = 'pointer';
+            btn.className = 'block w-full mt-2 mb-4 px-6 py-2 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-blue-50 hover:text-blue-600 transition-all';
 
             if (currentShow < reviews.length) {
                 // 더보기

@@ -700,9 +700,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // 화면상의 단가 텍스트 업데이트 (수량 선택 영역)
     document.getElementById('productPrice').innerText = purePrice.toLocaleString();
-    const adultPriceText = document.querySelector('#adultQty')?.parentElement?.previousElementSibling?.querySelector('p.text-gray-400');
-    const childPriceText = document.querySelector('#childQty')?.parentElement?.previousElementSibling?.querySelector('p.text-gray-400');
-    
+    const adultPriceText = document.getElementById('adultPriceText');
+    const childPriceText = document.getElementById('childPriceText');
     if (adultPriceText) adultPriceText.innerText = `${PRICES.adult.toLocaleString()}원`;
     if (childPriceText) childPriceText.innerText = `${PRICES.child.toLocaleString()}원`;
 
@@ -791,6 +790,11 @@ function changeQty(type, diff) {
     const qtyDisplay = document.getElementById(`${type}Qty`);
     if (qtyDisplay) qtyDisplay.innerText = newQty;
     updateTotalPrice();
+    // 가격 텍스트도 함께 갱신
+    const adultPriceText = document.getElementById('adultPriceText');
+    const childPriceText = document.getElementById('childPriceText');
+    if (adultPriceText) adultPriceText.innerText = `${PRICES.adult.toLocaleString()}원`;
+    if (childPriceText) childPriceText.innerText = `${PRICES.child.toLocaleString()}원`;
 }
 
 function updateTotalPrice() {
@@ -1168,7 +1172,7 @@ function renderInitialReviews(productKey) {
 
     const showMoreBtn = document.createElement('button');
     showMoreBtn.id = 'showMoreReviewsBtn';
-    showMoreBtn.className = 'block mx-auto mt-2 mb-4 px-6 py-2 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-blue-50 hover:text-blue-600 transition-all';
+    showMoreBtn.className = 'block w-full mt-2 mb-4 px-6 py-2 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-blue-50 hover:text-blue-600 transition-all';
     showMoreBtn.textContent = '더보기';
     showMoreBtn.onclick = function() {
         expanded = !expanded;
