@@ -957,6 +957,24 @@
         });
     }
 
+    function inferHotelArea(text) {
+        const t = String(text || "").toLowerCase();
+        if (!t) return "";
+        const areaMap = [
+            ["shinjuku", "신주쿠"], ["신주쿠", "신주쿠"],
+            ["shibuya", "시부야"], ["시부야", "시부야"],
+            ["ginza", "긴자"], ["긴자", "긴자"],
+            ["ueno", "우에노"], ["우에노", "우에노"],
+            ["asakusa", "아사쿠사"], ["아사쿠사", "아사쿠사"],
+            ["ikebukuro", "이케부쿠로"], ["이케부쿠로", "이케부쿠로"],
+            ["roppongi", "롯폰기"], ["롯폰기", "롯폰기"],
+        ];
+        for (const [k, v] of areaMap) {
+            if (t.includes(k)) return v;
+        }
+        return "";
+    }
+
     function parseListCards(rawHtml) {
         const html = String(rawHtml || "");
         const commerceRx = /(호텔|숙소|렌터카|렌트카|rental|hotel|패키지|공동구매|group\s*buy|groupbuy|티켓|ticket)/i;
@@ -990,6 +1008,7 @@
             dropoff: ["반납", "dropoff", "returndate"],
             photo: ["사진", "이미지", "photo", "image", "imageurl", "thumbnail"],
             address: ["주소", "위치", "address", "location"],
+            area: ["지역", "구역", "district", "area", "neighborhood"],
             checkin: ["체크인", "checkin"],
             checkout: ["체크아웃", "checkout"],
             maps: ["지도", "maps", "map"],
@@ -1074,12 +1093,15 @@
             );
             if (!hasKnownField) continue;
             if (/^(항공권\s*추천|숙소\s*추천|여행\s*초안\s*추천)$/i.test(name)) continue;
+            if (/(booking\s*실시간\s*검색|주변\s*호텔\s*지도)/i.test(name)) continue;
+            const priceField = String(pickField(fields, "price") || "").trim();
+            if (/(Booking에서 확인|지도에서 확인)/i.test(priceField)) continue;
 
             cards.push({
                 type: resolvedType,
                 name: displayName,
                 meta: parts.slice(1).filter((p) => !/^사진\s*[:：]/i.test(p)).join(" | "),
-                price: pickField(fields, "price"),
+                price: priceField,
                 rating: pickField(fields, "rating"),
                 stars: pickField(fields, "stars"),
                 supplier,
@@ -1088,6 +1110,7 @@
                 dropoff: pickField(fields, "dropoff"),
                 photo: pickField(fields, "photo"),
                 address: pickField(fields, "address"),
+                area: pickField(fields, "area"),
                 checkin: pickField(fields, "checkin"),
                 checkout: pickField(fields, "checkout"),
                 maps: pickField(fields, "maps"),
@@ -1184,7 +1207,7 @@
                 return {
                     title,
                     subtitle: "추천 후보를 보기 쉽게 정리했어요.",
-                    items: items.slice(0, 5),
+                    items: items.slice(0, 9),
                 };
             }
             return null;
@@ -1193,7 +1216,7 @@
         return {
             title,
             subtitle: "후보별 핵심 정보와 이미지를 보기 쉽게 정리했어요.",
-            items: blocks.slice(0, 5),
+            items: blocks.slice(0, 9),
         };
     }
 
@@ -1252,7 +1275,8 @@
             <div class="ai-place-reco__list">${itemsHtml}</div>
         `;
 
-        content.innerHTML = "";
+        const prevPlaceSection = content.querySelector(".ai-place-reco");
+        if (prevPlaceSection) prevPlaceSection.remove();
         content.appendChild(section);
         return true;
     }
@@ -1282,6 +1306,12 @@
 
         const content = botBubble.querySelector(".ai-msg__content");
         if (!content) return;
+
+        // Keep itinerary narrative, but remove verbose API dump section once cards are available.
+        content.innerHTML = String(content.innerHTML || "").replace(
+            /<div[^>]*>\s*<b>\s*실제\s*API\s*추천\s*<\/b>\s*<\/div>[\s\S]*$/i,
+            ""
+        );
 
         const section = document.createElement("section");
         section.className = "ai-commerce-cards";
@@ -1472,6 +1502,8 @@
                     .filter(Boolean)
                     .join(" · ");
                 const locationText = cardData.address || "";
+                const areaText = String(cardData.area || inferHotelArea(`${cardData.name || ""} ${locationText}`) || "").trim();
+                const locationLine = [locationText, areaText].filter(Boolean).join(" · ");
                 card.classList.add("ai-commerce-card--hotel");
                 card.innerHTML = `
                     ${cardData.photo ? `<div class="ai-hotel-card__thumb-wrap"><img class="ai-hotel-card__thumb" src="${escapeHtml(cardData.photo)}" alt="${escapeHtml(cardData.name)}" loading="lazy" onerror="this.onerror=null; const w=this.closest('.ai-hotel-card__thumb-wrap'); if(w){w.classList.add('ai-hotel-card__thumb-wrap--placeholder'); w.innerHTML='<div class=\\'ai-hotel-card__thumb-fallback\\'>HOTEL</div>'; }"></div>` : `<div class="ai-hotel-card__thumb-wrap ai-hotel-card__thumb-wrap--placeholder"><div class="ai-hotel-card__thumb-fallback">HOTEL</div></div>`}
@@ -1480,8 +1512,7 @@
                         <div class="ai-commerce-card__name">${escapeHtml(cardData.name)}</div>
                         ${metaBits.length ? `<div class="ai-hotel-card__chips">${metaBits.map((t) => `<span class="ai-hotel-card__chip">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
                         ${stayText ? `<div class="ai-hotel-card__note">${escapeHtml(stayText)}</div>` : ""}
-                        ${locationText ? `<div class="ai-hotel-card__note">${escapeHtml(locationText)}</div>` : ""}
-                        ${cardData.maps ? `<a class="ai-hotel-card__map" href="${escapeHtml(cardData.maps)}" target="_blank" rel="noopener noreferrer">지도 보기</a>` : ""}
+                        ${locationLine ? `<div class="ai-hotel-card__note">${escapeHtml(locationLine)}</div>` : ""}
                     </div>
                     <div class="ai-hotel-card__fare">
                         <button type="button" class="ai-commerce-card__wish" aria-pressed="false" title="위시리스트 저장">♡</button>
@@ -1662,7 +1693,8 @@
             grid.appendChild(card);
         });
         section.appendChild(grid);
-        content.innerHTML = "";
+        const prevCommerceSection = content.querySelector(".ai-commerce-cards");
+        if (prevCommerceSection) prevCommerceSection.remove();
         content.appendChild(section);
         syncCommerceCardStates();
     }
