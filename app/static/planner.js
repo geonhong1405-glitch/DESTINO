@@ -1,266 +1,86 @@
 ﻿document.addEventListener("DOMContentLoaded", function () {
-    // planner.html class/id(ai-cart-fab, ai-cart-drawer 등)에 맞춘 drawer 기능 (airport/home.js와 동일하게, shell 참조 없이 동작)
-    if (!window._plannerCartDrawerInit) {
-        window._plannerCartDrawerInit = true;
-        const cartFab = document.getElementById('ai-cart-fab');
-        const cartDrawer = document.getElementById('ai-cart-drawer');
-        const cartList = document.getElementById('ai-cart-list');
-        const cartEmpty = document.getElementById('ai-cart-empty');
-        const cartCount = document.getElementById('ai-cart-count');
-        const cartTabs = Array.from(document.querySelectorAll('[data-cart-tab]'));
-        const cartDrawerClose = cartDrawer?.querySelector('.ai-cart-drawer__close');
-        let cartTab = 'cart';
-        let savedItems = { cart: [], wishlist: [] };
-        let alertItems = [];
+    const promptInput = document.getElementById("ai-prompt");
+    if (!promptInput) return;
 
-        function setCartDrawer(open) {
-            if (!cartDrawer || !cartFab) return;
-            cartDrawer.classList.toggle('is-open', !!open);
-            cartDrawer.setAttribute('aria-hidden', open ? 'false' : 'true');
-            cartFab.setAttribute('aria-expanded', open ? 'true' : 'false');
-            cartFab.classList.toggle('is-open', !!open);
-        }
+    const sendBtn = promptInput.parentElement?.querySelector("button.bg-brand");
+    if (!sendBtn) return;
+    const promptWrap = promptInput.parentElement;
+    const cardWrap = promptWrap?.parentElement;
+    const heroRoot = cardWrap?.parentElement;
+    if (promptWrap) promptWrap.classList.add("ai-composer-wrap");
+    if (cardWrap) cardWrap.classList.add("ai-chat-combined");
 
-        function escapeHtml(text) {
-            return String(text)
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/\"/g, "&quot;")
-                .replace(/'/g, "&#39;");
-        }
-
-        function metaParts(item) {
-            const raw = String(item?.meta || "").trim();
-            const parts = raw.split("|").map((x) => x.trim()).filter(Boolean);
-            return {
-                price: parts[0] || "",
-                lines: parts.slice(1, 3),
-            };
-        }
-
-        function typeLabel(itemType) {
-            const type = String(itemType || "").toLowerCase();
-            if (type === "flight") return "항공";
-            if (["hotel", "stay", "accommodation"].includes(type)) return "숙박";
-            if (["groupbuy", "travel-group"].includes(type)) return "공동구매";
-            return type ? type.toUpperCase() : "ITEM";
-        }
-
-        function imageUrl(item) {
-            const payload = item?.payload || {};
-            const type = String(item?.item_type || item?.type || "").toLowerCase();
-            if (type === "flight") {
-                return payload?.airline_logo || payload?.airline_logo_url || payload?.logo || payload?.thumb_url || "";
-            }
-            const direct = payload?.image_url || payload?.image || payload?.thumbnail || payload?.photo || (Array.isArray(payload?.images) ? payload.images[0] : "");
-            if (direct) return direct;
-            if (["groupbuy", "travel-group"].includes(type)) {
-                return "https://images.unsplash.com/photo-1492571350019-22de08371fd3?auto=format&fit=crop&w=400&q=80";
-            }
-            return "";
-        }
-
-        function renderCart() {
-            if (!cartList || !cartEmpty) return;
-            cartTabs.forEach((btn) => {
-                const active = btn.getAttribute('data-cart-tab') === cartTab;
-                btn.classList.toggle('is-active', active);
-                btn.setAttribute('aria-selected', active ? 'true' : 'false');
-            });
-            if (cartTab === 'alerts') {
-                cartList.innerHTML = '';
-                if (!alertItems.length) {
-                    cartEmpty.style.display = 'block';
-                    cartEmpty.textContent = '도착한 참여 요청 알림이 없습니다.';
-                    return;
-                }
-                cartEmpty.style.display = 'none';
-                alertItems.forEach((item) => {
-                    const status = String(item.status || 'pending');
-                    const statusLabel = status === 'accepted' ? '수락됨' : (status === 'rejected' ? '거절됨' : '대기중');
-                    const incoming = String(item.direction || 'incoming') !== 'mine';
-                    const reqTitle = incoming
-                        ? `${escapeHtml(item.requester_name || '')}님이 요청했습니다`
-                        : `${escapeHtml(item.requester_name || '작성자')}님의 응답`;
-                    const li = document.createElement('li');
-                    li.className = 'ai-cart-item';
-                    li.innerHTML = `
-                        <div class="ai-cart-item__content" style="grid-column:1 / -1;">
-                            <div class="ai-cart-item__type">공동구매 · 참여요청</div>
-                            <div class="ai-cart-item__name">${escapeHtml(item.post_title || '-')}</div>
-                            <div class="ai-cart-item__line">${reqTitle}</div>
-                            ${item.requester_email ? `<div class="ai-cart-item__line">이메일: ${escapeHtml(item.requester_email || '')}</div>` : ''}
-                            <div class="ai-cart-item__line">${statusLabel}${item.message ? ` · ${escapeHtml(item.message || '')}` : ''}</div>
-                            ${
-                                incoming && status === 'pending'
-                                    ? `<div class="ai-cart-item__line">
-                                        <button type="button" data-alert-action="accept" data-alert-id="${Number(item.id)}" style="margin-right:6px;padding:4px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;">수락</button>
-                                        <button type="button" data-alert-action="reject" data-alert-id="${Number(item.id)}" style="padding:4px 8px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700;">거절</button>
-                                    </div>`
-                                    : ''
-                            }
-                            ${
-                                status !== 'pending'
-                                    ? `<div class="ai-cart-item__line">
-                                        <button type="button" data-alert-remove="${Number(item.id)}" class="ai-cart-alert-remove">알림 삭제</button>
-                                    </div>`
-                                    : ''
-                            }
-                        </div>
-                    `;
-                    cartList.appendChild(li);
-                });
-                return;
-            }
-            const items = Array.isArray(savedItems[cartTab]) ? savedItems[cartTab] : [];
-            cartList.innerHTML = '';
-            cartEmpty.style.display = items.length ? 'none' : 'block';
-            cartEmpty.textContent = cartTab === 'wishlist' ? '위시리스트 항목이 없습니다.' : '장바구니 항목이 없습니다.';
-            if (cartCount) {
-                const totalCount = (savedItems.cart?.length || 0) + (savedItems.wishlist?.length || 0) + (alertItems?.length || 0);
-                cartCount.hidden = false;
-                cartCount.textContent = String(totalCount || 0);
-            }
-            items.forEach((item) => {
-                const img = imageUrl(item);
-                const kind = `${typeLabel(item?.item_type)} · ${item?.source || 'saved-item'}`;
-                const meta = metaParts(item);
-                const lines = (meta.lines || []).map((line) => `<div class="ai-cart-item__line">${escapeHtml(line)}</div>`).join('');
-                const li = document.createElement('li');
-                li.className = 'ai-cart-item';
-                li.innerHTML = `
-                    <div class="ai-cart-item__thumb">${img ? `<img src="${escapeHtml(img)}" alt="${escapeHtml(item?.name || '')}" loading="lazy" onerror="this.remove()">` : ''}</div>
-                    <div class="ai-cart-item__content">
-                        <div class="ai-cart-item__type">${escapeHtml(kind)}</div>
-                        <div class="ai-cart-item__name">${escapeHtml(item?.name || '-')}</div>
-                        ${meta.price ? `<div class="ai-cart-item__line ai-cart-item__price">${escapeHtml(meta.price)}</div>` : ''}
-                        ${lines}
-                    </div>
-                    <button type="button" class="ai-cart-item__remove" data-cart-remove="${item.id}" title="삭제">×</button>
-                `;
-                cartList.appendChild(li);
-            });
-        }
-
-        async function savedItemsApi(path = '/api/saved-items', options = {}) {
-            const res = await fetch(path, {
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-                ...options,
-            });
-            let data = null;
-            try { data = await res.json(); } catch (_e) {}
-            if (res.status === 401) {
-                const err = new Error('로그인이 필요합니다.');
-                err.code = 'LOGIN_REQUIRED';
-                throw err;
-            }
-            if (!res.ok) {
-                const err = new Error((data && (data.detail || data.error)) || `HTTP ${res.status}`);
-                err.code = 'API_ERROR';
-                throw err;
-            }
-            return data;
-        }
-
-        async function refreshSavedItems() {
-            try {
-                const data = await savedItemsApi('/api/saved-items', { method: 'GET', headers: {} });
-                savedItems = {
-                    cart: Array.isArray(data?.cart) ? data.cart : [],
-                    wishlist: Array.isArray(data?.wishlist) ? data.wishlist : [],
-                };
-            } catch (e) {
-                savedItems = { cart: [], wishlist: [] };
-            }
-            renderCart();
-        }
-
-        cartFab?.addEventListener('click', () => {
-            const open = !cartDrawer?.classList.contains('is-open');
-            setCartDrawer(open);
-            if (open) {
-                Promise.all([refreshSavedItems(), refreshAlertItems()]).then(renderCart);
-            }
-        });
-        cartDrawerClose?.addEventListener('click', () => setCartDrawer(false));
-        // drawer가 열려 있을 때 window focus 시 데이터 새로고침
-        window.addEventListener('focus', () => {
-            if (cartDrawer?.classList.contains('is-open')) {
-                Promise.all([refreshSavedItems(), refreshAlertItems()]).then(renderCart);
-            }
-        });
-        cartTabs.forEach((btn) => btn.addEventListener('click', () => {
-            cartTab = btn.getAttribute('data-cart-tab') || 'cart';
-            if (cartTab === 'alerts') {
-                // 항상 최신 알림 목록 불러오기
-                refreshAlertItems().then(renderCart);
-                return;
-            }
-            renderCart();
-        }));
-
-        // cartList 클릭 이벤트 바인딩 (알림/장바구니 삭제, 수락/거절 등)
-        cartList?.addEventListener('click', (e) => {
-            const alertBtn = e.target.closest('[data-alert-action]');
-            if (alertBtn) {
-                const requestId = Number(alertBtn.getAttribute('data-alert-id'));
-                const action = String(alertBtn.getAttribute('data-alert-action') || '');
-                if (!requestId || !action) return;
-                (async () => {
-                    try {
-                        await decideAlertItem(requestId, action);
-                        await Promise.all([refreshSavedItems(), refreshAlertItems()]);
-                        renderCart();
-                    } catch (err) {
-                        alert(err?.message || '요청 처리 중 오류가 발생했습니다.');
-                    }
-                })();
-                return;
-            }
-            const alertRemoveBtn = e.target.closest('[data-alert-remove]');
-            if (alertRemoveBtn) {
-                const requestId = Number(alertRemoveBtn.getAttribute('data-alert-remove'));
-                if (!requestId) return;
-                (async () => {
-                    try {
-                        const res = await fetch(`/api/group-buy/join-requests/${requestId}`, { method: 'DELETE', credentials: 'same-origin' });
-                        if (!res.ok) {
-                            const d = await res.json().catch(() => ({}));
-                            throw new Error(d?.detail || `HTTP ${res.status}`);
-                        }
-                        await Promise.all([refreshSavedItems(), refreshAlertItems()]);
-                        renderCart();
-                    } catch (err) {
-                        alert(err?.message || '알림 삭제 중 오류가 발생했습니다.');
-                    }
-                })();
-                return;
-            }
-            const btn = e.target.closest('[data-cart-remove]');
-            if (!btn) return;
-            const itemId = Number(btn.getAttribute('data-cart-remove'));
-            if (Number.isNaN(itemId)) return;
-            (async () => {
-                try {
-                    await savedItemsApi(`/api/saved-items/${itemId}`, { method: 'DELETE', headers: {} });
-                    await Promise.all([refreshSavedItems(), refreshAlertItems()]);
-                    renderCart();
-                } catch (err) {
-                    if (err?.code === 'LOGIN_REQUIRED') {
-                        if (confirm('로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?')) location.href = '/login';
-                        return;
-                    }
-                    alert(err?.message || '삭제 중 오류가 발생했습니다.');
-                }
-            })();
-        });
-        refreshSavedItems();
-        refreshAlertItems().then(renderCart);
-        setCartDrawer(false);
+    function collapseHeroForChat() {
+        if (!heroRoot) return;
+        heroRoot.classList.add("ai-chat-mode");
     }
-    // ...existing code...
+
+    const shell = document.createElement("section");
+    shell.id = "ai-chat-shell";
+    shell.className = "mt-6 text-left";
+    shell.innerHTML = `
+        <div class="ai-chat-panel">
+            <div class="ai-chat-panel__header">
+                <div class="ai-chat-panel__badge">
+                    <span class="ai-chat-panel__dot"></span>
+                    여행 플래너와 대화 중
+                </div>
+                <div class="ai-chat-panel__hint"></div>
+            </div>
+            <div id="ai-chat-box" class="ai-chat-messages" aria-live="polite"></div>
+        </div>
+        <button id="ai-cart-fab" class="ai-cart-fab" type="button" aria-expanded="false" aria-controls="ai-cart-drawer" title="장바구니 열기">
+            <span class="ai-cart-fab__label">장바구니</span>
+            <span id="ai-cart-count" class="ai-cart-fab__count" hidden>0</span>
+        </button>
+        <div id="ai-cart-drawer" class="ai-cart-drawer" aria-hidden="true">
+            <div class="ai-cart-drawer__backdrop" data-cart-close></div>
+            <section class="ai-cart-drawer__panel">
+                <div class="ai-cart-drawer__grab"></div>
+                <div class="ai-cart-drawer__header">
+                    <div class="ai-cart-tabs" role="tablist" aria-label="저장 항목 탭">
+                        <button type="button" class="ai-cart-tab is-active" data-cart-tab="cart" role="tab" aria-selected="true">장바구니</button>
+                        <button type="button" class="ai-cart-tab" data-cart-tab="wishlist" role="tab" aria-selected="false">위시리스트</button>
+                        <button type="button" class="ai-cart-tab" data-cart-tab="alerts" role="tab" aria-selected="false">알림</button>
+                    </div>
+                    <button type="button" class="ai-cart-drawer__close" data-cart-close>닫기</button>
+                </div>
+                <ul id="ai-cart-list" class="ai-cart-list"></ul>
+                <div id="ai-cart-empty" class="ai-cart-empty">저장된 항목이 없습니다.</div>
+            </section>
+        </div>
+    `;
+    cardWrap.insertBefore(shell, promptWrap);
+
+    const chatBox = shell.querySelector("#ai-chat-box");
+    const cartFab = shell.querySelector("#ai-cart-fab");
+    const cartCount = shell.querySelector("#ai-cart-count");
+    const cartDrawer = shell.querySelector("#ai-cart-drawer");
+    const cartList = shell.querySelector("#ai-cart-list");
+    const cartEmpty = shell.querySelector("#ai-cart-empty");
+    const cartTabs = Array.from(shell.querySelectorAll("[data-cart-tab]"));
+    chatBox.style.scrollBehavior = "smooth";
+
+    const sessionKey = "flight_chat_session_id";
+    let sessionId = sessionStorage.getItem(sessionKey);
+    if (!sessionId) {
+        sessionId = globalThis.crypto?.randomUUID?.() || String(Date.now());
+        sessionStorage.setItem(sessionKey, sessionId);
+    }
+    let cartTab = "cart";
+    let savedItems = { cart: [], wishlist: [] };
+    let alertItems = [];
+
+    function isNearBottom() {
+        const threshold = 80;
+        return chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < threshold;
+    }
+
+    function scrollToBottom(force = false) {
+        if (force || isNearBottom()) {
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    }
 
     function escapeHtml(text) {
         return String(text)
@@ -606,7 +426,6 @@
             const res = await fetch("/api/group-buy/join-requests/inbox", { credentials: "same-origin" });
             if (res.status === 401) {
                 alertItems = [];
-                renderCart();
                 return;
             }
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -615,7 +434,6 @@
         } catch (_e) {
             alertItems = [];
         }
-        renderCart();
     }
 
     async function decideAlertItem(requestId, action) {
@@ -799,7 +617,77 @@
         }
     }
 
-    // ...중복 이벤트 바인딩 및 초기화 코드 삭제 (상단 코드만 사용)...
+    cartFab?.addEventListener("click", () => {
+        setCartDrawer(!cartDrawer?.classList.contains("is-open"));
+        if (cartDrawer?.classList.contains("is-open")) {
+            refreshAlertItems().then(renderCart);
+        }
+    });
+    shell.querySelectorAll("[data-cart-close]").forEach((el) => el.addEventListener("click", () => setCartDrawer(false)));
+    cartTabs.forEach((btn) => btn.addEventListener("click", () => {
+        cartTab = btn.getAttribute("data-cart-tab") || "cart";
+        if (cartTab === "alerts") {
+            refreshAlertItems().then(renderCart);
+            return;
+        }
+        renderCart();
+    }));
+    cartList?.addEventListener("click", (e) => {
+        const alertBtn = e.target.closest("[data-alert-action]");
+        if (alertBtn) {
+            const requestId = Number(alertBtn.getAttribute("data-alert-id"));
+            const action = String(alertBtn.getAttribute("data-alert-action") || "");
+            if (!requestId || !action) return;
+            (async () => {
+                try {
+                    await decideAlertItem(requestId, action);
+                    await refreshAlertItems();
+                    renderCart();
+                } catch (err) {
+                    alert(err?.message || "요청 처리 중 오류가 발생했습니다.");
+                }
+            })();
+            return;
+        }
+        const alertRemoveBtn = e.target.closest("[data-alert-remove]");
+        if (alertRemoveBtn) {
+            const requestId = Number(alertRemoveBtn.getAttribute("data-alert-remove"));
+            if (!requestId) return;
+            (async () => {
+                try {
+                    const res = await fetch(`/api/group-buy/join-requests/${requestId}`, { method: "DELETE", credentials: "same-origin" });
+                    if (!res.ok) {
+                        const d = await res.json().catch(() => ({}));
+                        throw new Error(d?.detail || `HTTP ${res.status}`);
+                    }
+                    await refreshAlertItems();
+                    renderCart();
+                } catch (err) {
+                    alert(err?.message || "알림 삭제 중 오류가 발생했습니다.");
+                }
+            })();
+            return;
+        }
+        const btn = e.target.closest("[data-cart-remove]");
+        if (!btn) return;
+        const itemId = Number(btn.getAttribute("data-cart-remove"));
+        if (Number.isNaN(itemId)) return;
+        (async () => {
+            try {
+                await savedItemsApi(`/api/saved-items/${itemId}`, { method: "DELETE", headers: {} });
+                savedItems[cartTab] = (savedItems[cartTab] || []).filter((x) => Number(x.id) !== itemId);
+                renderCart();
+            } catch (err) {
+                if (err?.code === "LOGIN_REQUIRED") {
+                    promptLoginForSavedItems();
+                    return;
+                }
+                alert(err?.message || "삭제 중 오류가 발생했습니다.");
+            }
+        })();
+    });
+    refreshSavedItems();
+    refreshAlertItems().then(renderCart);
 
     function parseFlightTableCards(rawHtml) {
         const html = String(rawHtml || "");
