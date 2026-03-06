@@ -1300,17 +1300,73 @@ function renderRentalSavedDrawer() {
   items.forEach((item) => {
     const payload =
       item?.payload && typeof item.payload === "object" ? item.payload : {};
-    const imageUrl = String(payload?.image || "");
+    const imageUrl = String(
+      payload?.image ||
+        payload?.image_url ||
+        payload?.thumb_url ||
+        payload?.photo_url ||
+        item?.image ||
+        item?.image_url ||
+        "/static/image/noimg.png",
+    );
     const li = document.createElement("li");
     li.className = "rental-saved-item";
+    const rawType = String(item?.item_type || "").toLowerCase();
+    const typeLabel =
+      rawType === "flight"
+        ? "항공"
+        : rawType === "hotel"
+          ? "숙박"
+          : rawType === "ticket" || rawType === "tour"
+            ? "티켓"
+            : rawType === "package"
+              ? "패키지"
+              : rawType === "groupbuy" || rawType === "travel-group"
+                ? "공동구매"
+                : "렌터카";
+    const rawMeta = String(item?.meta || "");
+    const metaParts = rawMeta
+      .split("|")
+      .map((x) => x.trim())
+      .filter(Boolean);
+    const normalizeKrwPriceText = (text) => {
+      const raw = String(text || "").trim();
+      if (!raw) return "";
+      const match = raw.match(/([\d,]+(?:\.\d+)?)/);
+      if (!match) return "";
+      const n = Number(String(match[1]).replace(/,/g, ""));
+      if (!Number.isFinite(n) || n <= 0) return "";
+      return `₩${Math.floor(n).toLocaleString("ko-KR")}`;
+    };
+    const detectedPriceMeta = metaParts.find((p) =>
+      /[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(String(p)),
+    );
+    let priceText = normalizeKrwPriceText(detectedPriceMeta || "");
+    if (!priceText) {
+      priceText = normalizeKrwPriceText(
+        item?.price ||
+          payload?.price_text ||
+          payload?.price ||
+          payload?.amount ||
+          payload?.total_price ||
+          "",
+      );
+    }
+    const metaLines = metaParts.filter(
+      (x) =>
+        x &&
+        x !== detectedPriceMeta &&
+        !/[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(String(x)),
+    );
     li.innerHTML = `
       <div class="rental-saved-item__thumb">${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="">` : ""}</div>
       <div>
-        <div class="rental-saved-item__type">렌터카 · ${escapeHtml(item?.source || "rental")}</div>
+        <div class="rental-saved-item__type">${typeLabel} · ${escapeHtml(item?.source || "saved-item")}</div>
         <div class="rental-saved-item__name">${escapeHtml(item?.name || "-")}</div>
-        ${item?.meta ? `<div class="rental-saved-item__meta">${escapeHtml(item.meta).replace(/\|/g, "<br>")}</div>` : ""}
+        ${priceText ? `<div class="rental-saved-item__meta rental-saved-price">${escapeHtml(priceText)}</div>` : ""}
+        ${metaLines.map((line) => `<div class="rental-saved-item__meta">${escapeHtml(line)}</div>`).join("")}
       </div>
-      <button type="button" class="rental-saved-item__remove" data-rental-saved-remove="${Number(item.id)}" title="삭제">X</button>
+      <button type="button" class="rental-saved-item__remove" data-rental-saved-remove="${Number(item.id)}" title="삭제">×</button>
     `;
     listEl.appendChild(li);
   });

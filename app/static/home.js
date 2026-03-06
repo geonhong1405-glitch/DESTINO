@@ -472,9 +472,33 @@ function homeSavedImageUrl(item) {
 function homeSavedMetaParts(item) {
     const raw = String(item?.meta || '').trim();
     const parts = raw.split('|').map((x) => x.trim()).filter(Boolean);
+    const normalizePrice = (v) => {
+        const txt = String(v || '').trim();
+        if (!txt) return '';
+        const m = txt.match(/([\d,]+(?:\.\d+)?)/);
+        if (!m) return '';
+        const n = Number(String(m[1]).replace(/,/g, ''));
+        if (!Number.isFinite(n) || n <= 0) return '';
+        return `₩${Math.floor(n).toLocaleString('ko-KR')}`;
+    };
+    const detected = parts.find((p) => normalizePrice(p));
+    let price = normalizePrice(detected || '');
+    if (!price) {
+        price = normalizePrice(
+            item?.price ||
+            item?.payload?.price_text ||
+            item?.payload?.price ||
+            item?.payload?.amount ||
+            item?.payload?.total_price ||
+            ''
+        );
+    }
     return {
-        price: parts[0] || '',
-        lines: parts.slice(1, 3),
+        price,
+        lines: parts
+            .filter((x) => x && x !== detected)
+            .slice(0, 3)
+            .filter((x) => !/[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(x)),
     };
 }
 

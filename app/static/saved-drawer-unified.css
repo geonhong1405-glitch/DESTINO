@@ -99,7 +99,8 @@
   bottom: 60px !important;
   z-index: 1199 !important;
   width: min(420px, calc(100vw - 24px)) !important;
-  max-height: min(60vh, 560px) !important;
+  max-height: min(72vh, 640px) !important;
+  min-height: 0 !important;
   background: #fff !important;
   border: 1px solid #e5e7eb !important;
   border-radius: 18px !important;
@@ -107,6 +108,7 @@
   padding: 10px 12px 12px !important;
   overflow: hidden !important;
   display: none;
+  font-family: "Pretendard", "Noto Sans KR", sans-serif !important;
 }
 
 .flight-saved-drawer.is-open,
@@ -137,6 +139,7 @@
   position: static !important;
   width: auto !important;
   max-height: none !important;
+  min-height: 0 !important;
   overflow: visible !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -244,7 +247,7 @@
   margin-top: 8px !important;
   display: grid !important;
   gap: 10px !important;
-  max-height: calc(min(60vh, 560px) - 92px) !important;
+  max-height: calc(min(72vh, 640px) - 92px) !important;
   overflow: auto !important;
   padding-right: 4px !important;
 }
@@ -267,15 +270,18 @@
 .rental-saved-item,
 .package-saved-item,
 .group-saved-item,
-.home-saved-item {
+.home-saved-item,
+.ai-cart-item {
   display: grid !important;
-  grid-template-columns: 84px 1fr auto !important;
+  grid-template-columns: 84px minmax(0, 1fr) auto !important;
   gap: 10px !important;
   align-items: start !important;
   border: 1px solid #eef2f7 !important;
   border-radius: 12px !important;
   padding: 10px !important;
   background: #fff !important;
+  position: relative !important;
+  font-family: "Pretendard", "Noto Sans KR", sans-serif !important;
 }
 
 .flight-saved-thumb,
@@ -284,7 +290,8 @@
 .rental-saved-item__thumb,
 .package-saved-thumb,
 .group-saved-item__thumb,
-.home-saved-thumb {
+.home-saved-thumb,
+.ai-cart-item__thumb {
   width: 80px !important;
   height: 80px !important;
   border-radius: 8px !important;
@@ -302,7 +309,8 @@
 .rental-saved-item__thumb img,
 .package-saved-thumb img,
 .group-saved-item__thumb img,
-.home-saved-thumb img {
+.home-saved-thumb img,
+.ai-cart-item__thumb img {
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
@@ -315,7 +323,8 @@
 .rental-saved-item__remove,
 .package-saved-item__remove,
 .group-saved-item__remove,
-.home-saved-remove {
+.home-saved-remove,
+.ai-cart-item__remove {
   border: 0 !important;
   background: #f8fafc !important;
   color: #475569 !important;
@@ -325,6 +334,11 @@
   cursor: pointer !important;
   font-size: 16px !important;
   line-height: 1 !important;
+  position: static !important;
+  justify-self: end !important;
+  align-self: start !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .flight-saved-item__remove:hover,
@@ -333,9 +347,116 @@
 .rental-saved-item__remove:hover,
 .package-saved-item__remove:hover,
 .group-saved-item__remove:hover,
-.home-saved-remove:hover {
+.home-saved-remove:hover,
+.ai-cart-item__remove:hover {
   background: #fee2e2 !important;
   color: #e11d48 !important;
+}
+
+.flight-saved-item__meta,
+.tour-saved-meta,
+.hotel-saved-item__meta,
+.rental-saved-item__meta,
+.package-saved-content,
+.group-saved-item__content,
+.home-saved-meta,
+.ai-cart-item__content {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+.flight-saved-item__type,
+.tour-saved-kind,
+.hotel-saved-item__type,
+.rental-saved-item__type,
+.package-saved-item__type,
+.group-saved-item__type,
+.home-saved-kind,
+.ai-cart-item__type {
+  font-size: 11px !important;
+  color: #94a3b8 !important;
+  font-weight: 700 !important;
+  margin-bottom: 3px !important;
+  line-height: 1.35 !important;
+  letter-spacing: normal !important;
+}
+
+.flight-saved-item__name,
+.tour-saved-name,
+.hotel-saved-item__name,
+.rental-saved-item__name,
+.package-saved-item__name,
+.group-saved-item__name,
+.home-saved-name,
+.ai-cart-item__name {
+  font-size: 14px !important;
+  color: #010101 !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+  margin-bottom: 4px !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+}
+
+.flight-saved-line,
+.tour-saved-line,
+.hotel-saved-line,
+.rental-saved-item__meta,
+.package-saved-line,
+.package-saved-item__meta,
+.group-saved-item__meta,
+.home-saved-line,
+.ai-cart-item__line {
+  font-size: 12px !important;
+  color: #64748b !important;
+  line-height: 1.35 !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+}
+
+.ai-cart-item--flight {
+  grid-template-columns: 84px minmax(0, 1fr) auto !important;
+  padding: 10px !important;
+}
+
+.ai-cart-item__thumb--flight {
+  width: 80px !important;
+  height: 80px !important;
+  border-radius: 8px !important;
+}
+
+.ai-cart-item__content--flight .ai-cart-item__name {
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+}
+
+.ai-cart-item__remove--flight {
+  position: static !important;
+  width: 30px !important;
+  height: 30px !important;
+  border: 0 !important;
+  background: #f8fafc !important;
+  color: #475569 !important;
+  justify-self: end !important;
+  align-self: start !important;
+}
+
+.flight-saved-price,
+.tour-saved-price,
+.hotel-saved-price,
+.rental-saved-price,
+.package-saved-price,
+.group-saved-price,
+.home-saved-price,
+.ai-cart-item__price {
+  color: var(--blue-600, #0ea5e9) !important;
+  font-weight: 800 !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+
+.ai-cart-item__content--flight .ai-cart-item__line.ai-cart-item__price {
+  font-size: 15px !important;
 }
 
 @media (max-width: 768px) {

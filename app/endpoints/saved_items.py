@@ -19,6 +19,47 @@ def _require_user_id(request: Request) -> int:
     return int(user_id)
 
 
+def _safe_text(value, default: str = "") -> str:
+    return str(value if value is not None else default).strip()
+
+
+def _safe_lower(value) -> str:
+    return _safe_text(value).lower()
+
+
+def _coalesce_payload(payload: dict, body: dict) -> dict:
+    if not isinstance(payload, dict):
+        payload = {}
+    merged = dict(payload)
+    fallback_keys = (
+        "id",
+        "name",
+        "meta",
+        "image",
+        "image_url",
+        "thumb_url",
+        "thumbnail",
+        "photo",
+        "photo_url",
+        "price",
+        "price_text",
+        "location",
+        "country",
+        "city",
+        "detail_url",
+        "source",
+        "item_type",
+        "airline",
+        "airline_code",
+        "departure",
+        "arrival",
+    )
+    for key in fallback_keys:
+        if merged.get(key) in (None, "") and body.get(key) not in (None, ""):
+            merged[key] = body.get(key)
+    return merged
+
+
 def _serialize_row(row: UserSavedItem) -> dict:
     payload = None
     try:
@@ -42,8 +83,6 @@ def get_saved_items(request: Request):
     session_token = request.cookies.get("session_token")
     user_id = get_user_id_from_session(session_token) if session_token else None
     if not user_id:
-        # UI initializes this endpoint on anonymous pages as well.
-        # Return an empty payload instead of 401 to avoid noisy console errors.
         return {"wishlist": [], "cart": []}
     user_id = int(user_id)
     db = SessionLocal()
@@ -60,7 +99,6 @@ def get_saved_items(request: Request):
         }
         stale_ids = []
         for row in rows:
-            # 과거에 삭제된 공동구매 글을 참조하는 저장항목 자동 정리
             if str(row.item_type or "").lower() in {"groupbuy", "travel-group"}:
                 payload = None
                 try:
@@ -89,31 +127,21 @@ def get_saved_items(request: Request):
 @router.post("/saved-items")
 async def add_saved_item(request: Request):
     user_id = _require_user_id(request)
-    payload = await request.json()
-    if not isinstance(payload, dict):
+    body = await request.json()
+    if not isinstance(body, dict):
         raise HTTPException(status_code=400, detail="잘못된 요청입니다.")
 
-    list_type = str(payload.get("list_type") or "").strip().lower()
+    list_type = _safe_lower(body.get("list_type"))
     if list_type not in _LIST_TYPES:
         raise HTTPException(status_code=400, detail="list_type은 wishlist/cart만 가능합니다.")
 
-    # name/meta/source를 무조건 소문자+trim으로 저장
-    item_type = str(payload.get("item_type") or "").strip().lower() or "item"
-    name = str(payload.get("name") or "").strip().lower()
-    meta = str(payload.get("meta") or "").strip().lower()
-    source = str(payload.get("source") or "").strip().lower()
-    raw_payload = payload.get("payload")
+    item_type = _safe_text(body.get("item_type"), "item") or "item"
+    name = _safe_text(body.get("name"))
+    meta = _safe_text(body.get("meta"))
+    source = _safe_text(body.get("source"))
+    raw_payload = _coalesce_payload(body.get("payload"), body)
     if not name:
         raise HTTPException(status_code=400, detail="name이 필요합니다.")
-
-    dedupe_key = (
-        user_id,
-        list_type,
-        item_type,
-        name,
-        meta,
-        source,
-    )
 
     db = SessionLocal()
     try:
@@ -122,16 +150,26 @@ async def add_saved_item(request: Request):
             .filter(
                 UserSavedItem.user_id == user_id,
                 UserSavedItem.list_type == list_type,
-                UserSavedItem.item_type == item_type,
-                UserSavedItem.name == name,
-                UserSavedItem.meta == meta,
-                UserSavedItem.source == source,
             )
             .order_by(UserSavedItem.id.desc())
             .all()
         )
-        if rows:
-            row = rows[0]
+        row = next(
+            (
+                r
+                for r in rows
+                if _safe_lower(r.item_type) == _safe_lower(item_type)
+                and _safe_lower(r.name) == _safe_lower(name)
+                and _safe_lower(r.meta) == _safe_lower(meta)
+                and _safe_lower(r.source) == _safe_lower(source)
+            ),
+            None,
+        )
+        if row:
+            if raw_payload and not row.payload_json:
+                row.payload_json = json.dumps(raw_payload, ensure_ascii=False)
+                db.commit()
+                db.refresh(row)
             return {"ok": True, "created": False, "item": _serialize_row(row)}
 
         row = UserSavedItem(
