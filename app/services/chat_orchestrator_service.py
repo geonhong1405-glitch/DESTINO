@@ -398,69 +398,114 @@ def _handle_itinerary_intent(
     if style:
         state["itinerary_style"] = style
 
-    p = (
-        "아래 조건으로 한국어 존댓말 여행 일정안을 HTML로 작성하세요.\n"
-        "요구사항:\n"
-        "1) <div> 기반으로 가독성 있게 구성하고, 마크다운/코드블록은 금지.\n"
-        "2) 섹션은 반드시 다음 순서로: 여행 성향 요약, 예산 배분, 계절 추천 명소, Day별 일정.\n"
-        "3) Day별 일정은 실제 여행일 수(입력 날짜 기준)로 만들고, 각 Day마다 오전/오후/저녁 추천 포함.\n"
-        "4) 이동 동선이 비효율적이지 않게 같은 권역끼리 묶어 일정 효율을 높이세요.\n"
-        "5) 예산은 총 예산을 절대 초과하지 않게 제안하고, 과소/과대 금액 추천은 금지.\n"
-        f"6) 계절({season}) 특성을 반영한 추천 명소/주의사항(날씨, 혼잡도)을 포함.\n"
-        "입력 조건:\n"
-        + f"- 여행지: {destination}\n"
-        + f"- 기간: {start_date} ~ {end_date}\n"
-        + f"- 인원: {adults}명\n"
-        + f"- 총 예산: {budget_krw}원\n"
-        + f"- 여행 스타일: {style}\n"
-        + f"- 최근 대화 참고: {context}\n"
-        + f"- 사용자 질문: {msg}\n"
-    )
-    r = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "system", "content": "여행 일정 도우미"}, {"role": "user", "content": p}],
-        temperature=0.3,
-    )
-    content = _strip_markdown_decorations((r.choices[0].message.content or "").strip())
-    # User requested itinerary text without movement-time labels.
-    content = re.sub(r"\(\s*이동\s*시간\s*[:：][^)]+\)", "", content, flags=re.IGNORECASE)
-    content = re.sub(r"이동\s*시간\s*[:：]\s*[0-9]+(?:\s*시간)?(?:\s*[0-9]+\s*분)?", "", content, flags=re.IGNORECASE)
-    content = re.sub(r"\s{2,}", " ", content)
+    content = ""
 
     def _safe(v: Any) -> str:
         return html.escape(str(v or "-"))
+
+    def _normalize_place_destination(raw_dest: str) -> str:
+        d = str(raw_dest or "").strip()
+        if not d:
+            return d
+        dl = d.lower()
+        city_alias = {
+            "tyo": "Tokyo", "nrt": "Tokyo", "hnd": "Tokyo",
+            "osa": "Osaka", "kix": "Osaka",
+            "nyc": "New York", "jfk": "New York", "ewr": "New York", "lga": "New York",
+            "lon": "London", "par": "Paris", "rom": "Rome",
+            "sel": "Seoul", "icn": "Seoul",
+        }
+        country_fallback = {
+            "\uc77c\ubcf8": "Tokyo", "japan": "Tokyo",
+            "\ubbf8\uad6d": "New York", "usa": "New York", "united states": "New York",
+            "\uc601\uad6d": "London", "uk": "London",
+            "\ud504\ub791\uc2a4": "Paris", "france": "Paris",
+        }
+        if dl in city_alias:
+            return city_alias[dl]
+        if dl in country_fallback:
+            return country_fallback[dl]
+        return d
 
     api_blocks: list[str] = []
     flight_added = False
     hotel_added = False
     place_added = False
+    shopping_hint_names: list[str] = []
+    api_flight_price_krw: int | None = None
+    api_hotel_price_krw: int | None = None
 
     try:
         if destination:
-            food_res = place_search_service.search_local_places(
-                city_name=destination,
-                category="restaurant",
-                keyword="맛집",
-                location_query=destination,
-                top_k=3,
-                radius_m=5000,
+            style_l = str(style or "").lower()
+            msg_l = str(msg or "").lower()
+            wants_food = any(k in style_l for k in ["\ubbf8\uc2dd", "food"]) or any(
+                k in msg_l for k in ["\ub9db\uc9d1", "\ubbf8\uc2dd", "\uba39", "food", "restaurant"]
             )
-            attraction_res = place_search_service.search_local_places(
-                city_name=destination,
-                category="attraction",
-                keyword="관광명소",
-                location_query=destination,
-                top_k=3,
-                radius_m=5000,
+            wants_shopping = any(k in style_l for k in ["\uc1fc\ud551", "shopping"]) or any(
+                k in msg_l for k in ["\uc1fc\ud551", "shopping", "mall", "outlet"]
             )
-            shopping_res = place_search_service.search_local_places(
-                city_name=destination,
-                category="shopping",
-                keyword="쇼핑",
-                location_query=destination,
-                top_k=3,
-                radius_m=7000,
-            )
+            wants_relax = any(k in style_l for k in ["\ud790\ub9c1", "relax"])
+            wants_activity = any(k in style_l for k in ["\uc561\ud2f0\ube44\ud2f0", "activity"])
+
+            place_dest = _normalize_place_destination(destination)
+            need_food = wants_food and not wants_shopping
+            need_shopping = wants_shopping and not wants_food
+            need_attraction = wants_relax or wants_activity or (not need_food and not need_shopping)
+
+            food_res = {"items": []}
+            attraction_res = {"items": []}
+            shopping_res = {"items": []}
+
+            if need_food:
+                food_res = place_search_service.search_local_places(
+                    city_name=place_dest,
+                    category="restaurant",
+                    keyword="\ub9db\uc9d1",
+                    location_query=place_dest,
+                    top_k=3,
+                    radius_m=5000,
+                )
+            elif need_shopping:
+                shopping_res = place_search_service.search_local_places(
+                    city_name=place_dest,
+                    category="shopping",
+                    keyword="\uc1fc\ud551",
+                    location_query=place_dest,
+                    top_k=3,
+                    radius_m=7000,
+                )
+            else:
+                food_res = place_search_service.search_local_places(
+                    city_name=place_dest,
+                    category="restaurant",
+                    keyword="\ub9db\uc9d1",
+                    location_query=place_dest,
+                    top_k=3,
+                    radius_m=5000,
+                )
+                attraction_res = place_search_service.search_local_places(
+                    city_name=place_dest,
+                    category="attraction",
+                    keyword="\uad00\uad11\uba85\uc18c",
+                    location_query=place_dest,
+                    top_k=3,
+                    radius_m=5000,
+                )
+                shopping_res = place_search_service.search_local_places(
+                    city_name=place_dest,
+                    category="shopping",
+                    keyword="\uc1fc\ud551",
+                    location_query=place_dest,
+                    top_k=3,
+                    radius_m=7000,
+                )
+
+            shopping_hint_names = [
+                str(x.get("name") or "").strip()
+                for x in list((shopping_res or {}).get("items") or [])
+                if str(x.get("name") or "").strip()
+            ][:8]
 
             def _place_block(title: str, rows: list[dict[str, Any]]) -> str:
                 if not rows:
@@ -490,11 +535,46 @@ def _handle_itinerary_intent(
                     lines.append("".join(card))
                 return "".join(lines)
 
-            places_html = (
-                _place_block("맛집 추천 (Google/Geoapify)", list((food_res or {}).get("items") or []))
-                + _place_block("관광명소 추천 (Google/Geoapify)", list((attraction_res or {}).get("items") or []))
-                + _place_block("쇼핑 스팟 추천 (Google/Geoapify)", list((shopping_res or {}).get("items") or []))
-            )
+            places_html = ""
+            if need_food:
+                places_html += _place_block("\ub9db\uc9d1 \uc2a4\ud31f \ucd94\ucc9c (Google/Geoapify)", list((food_res or {}).get("items") or []))
+            elif need_shopping:
+                places_html += _place_block("\uc1fc\ud551 \uc2a4\ud31f \ucd94\ucc9c (Google/Geoapify)", list((shopping_res or {}).get("items") or []))
+            else:
+                places_html += _place_block("\ub9db\uc9d1 \uc2a4\ud31f \ucd94\ucc9c (Google/Geoapify)", list((food_res or {}).get("items") or []))
+                places_html += _place_block("\uba85\uc18c \ucd94\ucc9c (Google/Geoapify)", list((attraction_res or {}).get("items") or []))
+                places_html += _place_block("\uc1fc\ud551 \uc2a4\ud31f \ucd94\ucc9c (Google/Geoapify)", list((shopping_res or {}).get("items") or []))
+            if not places_html:
+                seed_map: dict[str, dict[str, list[str]]] = {
+                    "tokyo": {
+                        "food": ["Uobei Shibuya Dogenzaka", "Ichiran Shibuya", "Gonpachi Nishi-Azabu"],
+                        "shop": ["Shibuya PARCO", "Isetan Shinjuku", "Ginza Six"],
+                    },
+                    "new york": {
+                        "food": ["Katz's Delicatessen", "Joe's Pizza", "Los Tacos No.1"],
+                        "shop": ["Macy's Herald Square", "SoHo Broadway Stores", "Brookfield Place"],
+                    },
+                }
+                key = str(place_dest or "").lower().strip()
+                seed = None
+                for k, v in seed_map.items():
+                    if k in key:
+                        seed = v
+                        break
+                if seed:
+                    food_lines = "".join([f"<div>{i+1}. {_safe(n)}</div>" for i, n in enumerate(seed["food"][:3])])
+                    shop_lines = "".join([f"<div>{i+1}. {_safe(n)}</div>" for i, n in enumerate(seed["shop"][:3])])
+                    if need_food:
+                        places_html = "<div style='margin-top:10px;'><b>맛집 스팟 추천 (Fallback)</b></div>" + food_lines
+                    elif need_shopping:
+                        places_html = "<div style='margin-top:10px;'><b>쇼핑 스팟 추천 (Fallback)</b></div>" + shop_lines
+                    else:
+                        places_html = (
+                            "<div style='margin-top:10px;'><b>맛집 스팟 추천 (Fallback)</b></div>"
+                            + food_lines
+                            + "<div style='margin-top:10px;'><b>쇼핑 스팟 추천 (Fallback)</b></div>"
+                            + shop_lines
+                        )
             if places_html:
                 api_blocks.append(places_html)
                 place_added = True
@@ -529,6 +609,12 @@ def _handle_itinerary_intent(
             rows = flight_search_service._filter_pref(rows, flight_state)
             rows = flight_search_service._sort_flights_for_recommendation(rows, flight_state)[:3]
             if rows:
+                try:
+                    prices = [int(float(r.get("price_krw"))) for r in rows if r.get("price_krw") is not None]
+                    if prices:
+                        api_flight_price_krw = min(prices)
+                except Exception:
+                    pass
                 api_blocks.append(
                     "<div style='margin-top:12px;'><b>항공편 추천 (실시간 API)</b></div>"
                     + chat_renderers.flight_html_intro(flight_state, rows)
@@ -554,10 +640,60 @@ def _handle_itinerary_intent(
                 state,
             )
             if hotel_html:
+                try:
+                    hotel_prices = [int(x.replace(",", "")) for x in re.findall(r"가격:\s*([0-9,]+)\s*KRW", hotel_html)]
+                    if hotel_prices:
+                        api_hotel_price_krw = min(hotel_prices)
+                except Exception:
+                    pass
                 api_blocks.append(f"<div style='margin-top:12px;'><b>호텔 추천 (실시간 API)</b></div>{hotel_html}")
                 hotel_added = True
     except Exception:
         pass
+
+    fixed_cost = (api_flight_price_krw or 0) + (api_hotel_price_krw or 0)
+    budget_left = (int(budget_krw) - fixed_cost) if budget_krw is not None else None
+    shopping_hint_text = ", ".join(shopping_hint_names[:6]) if shopping_hint_names else ""
+
+    api_budget_rules = []
+    if api_flight_price_krw is not None:
+        api_budget_rules.append(f"- Flight API lowest round-trip: {api_flight_price_krw:,} KRW")
+    if api_hotel_price_krw is not None:
+        api_budget_rules.append(f"- Hotel API lowest stay total: {api_hotel_price_krw:,} KRW")
+    if budget_krw is not None:
+        api_budget_rules.append(f"- Total budget: {int(budget_krw):,} KRW")
+    if budget_left is not None:
+        api_budget_rules.append(f"- Budget left after flight+hotel: {budget_left:,} KRW")
+
+    p = (
+        "Write a Korean honorific travel itinerary in HTML.\n"
+        "Rules:\n"
+        "1) Use readable <div>-based sections only. No markdown/code blocks.\n"
+        "2) Keep section order exactly: 여행 성향 요약, 예산 배분, 계절 추천 명소, Day별 일정.\n"
+        "3) Use actual trip dates and provide morning/afternoon/evening plan for each day.\n"
+        "4) Keep neighborhood flow efficient to reduce unnecessary transit.\n"
+        "5) Do not exceed total budget.\n"
+        "6) In budget allocation, flight and hotel MUST use API prices exactly and sum correctly.\n"
+        "7) For shopping-focused plan, include 2-3 concrete store/mall names in shopping slots.\n"
+        f"8) Reflect seasonal context: {season}.\n"
+        "Inputs:\n"
+        + f"- Destination: {destination}\n"
+        + f"- Dates: {start_date} ~ {end_date}\n"
+        + f"- Travelers: {adults}\n"
+        + f"- Total budget KRW: {budget_krw}\n"
+        + f"- Style: {style}\n"
+        + ("- Shopping API candidates: " + shopping_hint_text + "\n" if shopping_hint_text else "")
+        + ("- API budget baseline:\n" + "\n".join(api_budget_rules) + "\n" if api_budget_rules else "")
+        + f"- Recent context: {context}\n"
+        + f"- User message: {msg}\n"
+    )
+    r = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "system", "content": "Travel itinerary assistant"}, {"role": "user", "content": p}],
+        temperature=0.2,
+    )
+    content = _strip_markdown_decorations((r.choices[0].message.content or "").strip())
+    content = re.sub(r"\s{2,}", " ", content)
 
     if api_blocks:
         content = (

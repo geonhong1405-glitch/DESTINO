@@ -1,4 +1,5 @@
 ﻿from typing import Any
+import html as html_utils
 import os
 import re
 import time
@@ -32,6 +33,13 @@ def _fmt_price(value: Any, currency: str) -> str:
         return f"{v:,.2f} {currency or '-'}"
     except Exception:
         return f"{value} {currency or '-'}"
+
+
+def _hidden_meta(label: str, value: Any) -> str:
+    v = str(value or "").strip()
+    if not v:
+        return ""
+    return f"<span style='display:none'> | {html_utils.escape(label)}: {html_utils.escape(v)}</span>"
 
 
 def _coarse_area_label(address: Any, name: Any = None) -> str:
@@ -109,11 +117,6 @@ def _link_fallback_response(query: str, checkin: str, checkout: str, adults: int
     if not q:
         return None
     adults_n = max(1, int(adults or 2))
-    fallback_photo = (
-        "https://images.unsplash.com/photo-1566073771259-6a8506099945"
-        "?auto=format&fit=crop&w=1200&q=80"
-    )
-
     nights = 1
     try:
         if checkin and checkout:
@@ -123,7 +126,7 @@ def _link_fallback_response(query: str, checkin: str, checkout: str, adults: int
     except Exception:
         nights = 1
 
-    # 429 fallback: still render recommendation-like hotel cards with KRW totals.
+    # 429 fallback: keep visible text concise; keep hidden fields for card parsing.
     seeds = [
         (f"{q} 센트럴 호텔", 8.8, 83000, "신주쿠"),
         (f"{q} 프라임 스테이", 8.5, 76000, "시부야"),
@@ -136,11 +139,7 @@ def _link_fallback_response(query: str, checkin: str, checkout: str, adults: int
     for idx, (name, score, nightly_base, area) in enumerate(seeds[:5], 1):
         per_night = int(nightly_base * max(1.0, min(1.6, adults_n / 2)))
         total = per_night * nights
-        try:
-            name_q = requests.utils.quote(name)
-        except Exception:
-            name_q = name
-        item_photo = fallback_photo
+        item_photo = ""
         item_addr = q
         item_score = score
         if google_enabled:
@@ -148,7 +147,6 @@ def _link_fallback_response(query: str, checkin: str, checkout: str, adults: int
                 gp = find_hotel_google_place(name=name, address=q)
                 if isinstance(gp, dict) and gp.get("status") == "ok":
                     cand = gp.get("candidate") or {}
-                    details = gp.get("details") or {}
                     photos = gp.get("photo_urls") or []
                     if isinstance(photos, list) and photos and str(photos[0]).strip():
                         item_photo = str(photos[0]).strip()
@@ -159,21 +157,23 @@ def _link_fallback_response(query: str, checkin: str, checkout: str, adults: int
             except Exception:
                 pass
         area_label = _coarse_area_label(item_addr, name) or area
-        lines.append(
-            " | ".join(
-                [
-                    f"{idx}) {name}",
-                    "타입: 호텔",
-                    f"가격: ₩{total:,}",
-                    f"평점: {item_score}",
-                    f"체크인: {checkin or '-'}",
-                    f"체크아웃: {checkout or '-'}",
-                    f"주소: {item_addr}",
-                    f"지역: {area_label}",
-                    f"사진: {item_photo}",
-                ]
-            )
+        visible = " | ".join(
+            [
+                f"{idx}) {name}",
+                "타입: 호텔",
+                f"가격: ₩{total:,}",
+                f"평점: {item_score}",
+                f"지역: {area_label}",
+            ]
         )
+        hidden = "".join(
+            [
+                _hidden_meta("사진", item_photo),
+                _hidden_meta("체크인", checkin or ""),
+                _hidden_meta("체크아웃", checkout or ""),
+            ]
+        )
+        lines.append(f"{visible}{hidden}")
 
     html = f"<div><b>{q} 호텔 추천 (대체 결과) {len(lines)}개</b><br>{'<br>'.join(lines)}</div>"
     return html, {
@@ -218,20 +218,21 @@ def _google_hotel_fallback_response(query: str, checkin: str, checkout: str, top
                         "https://maps.googleapis.com/maps/api/place/photo"
                         f"?maxwidth=1200&photo_reference={pref}&key={api_key}"
                     )
-
-            parts = [f"{i}) {name}", f"주소: {addr}", "출처: Google Places"]
+            parts = [f"{i}) {name}", "출처: Google Places"]
             if isinstance(rating, (int, float)):
                 parts.append(f"평점: {float(rating):.1f}")
             area_label = _coarse_area_label(addr, name)
             if area_label:
                 parts.append(f"지역: {area_label}")
-            if photo_url:
-                parts.append(f"사진: {photo_url}")
-            if checkin:
-                parts.append(f"체크인: {checkin}")
-            if checkout:
-                parts.append(f"체크아웃: {checkout}")
-            lines.append(" | ".join(parts))
+            visible = " | ".join(parts)
+            hidden = "".join(
+                [
+                    _hidden_meta("사진", photo_url),
+                    _hidden_meta("체크인", checkin or ""),
+                    _hidden_meta("체크아웃", checkout or ""),
+                ]
+            )
+            lines.append(f"{visible}{hidden}")
 
         html = f"<div><b>{query} 호텔 추천 (Google 대체) {len(lines)}개</b><br>{'<br>'.join(lines)}</div>"
         return html, {
@@ -299,12 +300,18 @@ def _hotel_destination_candidates(query: str) -> list[str]:
         return []
 
     cleaned = q
-    for token in ["근처", "부근", "주변", "숙소", "호텔", "추천", "찾아줘", "찾아 줘", "좀", "알려줘", "알려 줘"]:
+    for token in [
+        "근처", "부근", "주변", "숙소", "호텔", "추천", "찾아줘", "찾아 줘", "좀", "알려줘", "알려 줘",
+        "오늘", "내일", "모레", "글피", "내일모레", "내일모래",
+        "from", "to", "checkin", "checkout", "check-in", "check-out",
+        "에서", "부터", "까지",
+    ]:
         cleaned = cleaned.replace(token, " ")
+    cleaned = re.sub(r"[~\-–—]+", " ", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,")
 
     out: list[str] = []
-    for cand in [q, cleaned]:
+    for cand in [cleaned, q]:
         if cand and cand not in out:
             out.append(cand)
 
@@ -312,6 +319,58 @@ def _hotel_destination_candidates(query: str) -> list[str]:
     for area, city in HOTEL_AREA_CITY_ALIASES.items():
         if str(area).lower() in q_l and city not in out:
             out.append(city)
+
+    # Landmark/place-name normalization to improve destination API recall.
+    landmark_city_map = {
+        # JP
+        "오사카성": "오사카", "도쿄타워": "도쿄", "도쿄역": "도쿄", "스카이트리": "도쿄",
+        "시부야스크램블": "도쿄", "교토역": "교토", "기요미즈데라": "교토", "후시미이나리": "교토",
+        "후쿠오카타워": "후쿠오카", "삿포로역": "삿포로",
+        "osaka castle": "osaka", "tokyo tower": "tokyo", "tokyo station": "tokyo", "tokyo skytree": "tokyo",
+        "shibuya scramble": "tokyo", "kyoto station": "kyoto", "kiyomizu": "kyoto", "fushimi inari": "kyoto",
+        "fukuoka tower": "fukuoka", "sapporo station": "sapporo",
+        # KR
+        "경복궁": "서울", "남산타워": "서울", "해운대": "부산",
+        "gyeongbokgung": "seoul", "n seoul tower": "seoul", "haeundae": "busan",
+        # TW/HK/SG/TH/VN
+        "타이베이101": "타이베이", "중정기념당": "타이베이", "빅토리아피크": "홍콩",
+        "마리나베이샌즈": "싱가포르", "가든스바이더베이": "싱가포르",
+        "왓아룬": "방콕", "카오산로드": "방콕", "다낭 미케비치": "다낭", "호안끼엠": "하노이",
+        "taipei 101": "taipei", "chiang kai shek memorial": "taipei", "victoria peak": "hong kong",
+        "marina bay sands": "singapore", "gardens by the bay": "singapore",
+        "wat arun": "bangkok", "khao san": "bangkok", "my khe beach": "danang", "hoan kiem": "hanoi",
+        # US/CA
+        "타임스스퀘어": "뉴욕", "자유의여신상": "뉴욕", "센트럴파크": "뉴욕", "브루클린브리지": "뉴욕",
+        "할리우드사인": "로스앤젤레스", "그리피스천문대": "로스앤젤레스", "금문교": "샌프란시스코",
+        "cn타워": "토론토",
+        "times square": "new york", "statue of liberty": "new york", "central park": "new york", "brooklyn bridge": "new york",
+        "hollywood sign": "los angeles", "griffith observatory": "los angeles", "golden gate bridge": "san francisco",
+        "cn tower": "toronto",
+        # EU
+        "에펠탑": "파리", "루브르": "파리", "콜로세움": "로마", "트레비분수": "로마",
+        "사그라다파밀리아": "바르셀로나", "람블라스": "바르셀로나",
+        "빅벤": "런던", "타워브리지": "런던", "대영박물관": "런던",
+        "담광장": "암스테르담", "프라하성": "프라하", "쇤브룬궁전": "비엔나",
+        "eiffel tower": "paris", "louvre": "paris", "colosseum": "rome", "trevi fountain": "rome",
+        "sagrada familia": "barcelona", "la rambla": "barcelona",
+        "big ben": "london", "tower bridge": "london", "british museum": "london",
+        "dam square": "amsterdam", "prague castle": "prague", "schonbrunn": "vienna",
+        # Oceania / Middle East
+        "오페라하우스": "시드니", "하버브리지": "시드니", "버즈칼리파": "두바이",
+        "sydney opera house": "sydney", "harbour bridge": "sydney", "burj khalifa": "dubai",
+    }
+    q_norm = re.sub(r"\s+", " ", q_l).strip()
+    for landmark, city in landmark_city_map.items():
+        if landmark in q_norm and city not in out:
+            out.append(city)
+
+    # Generic "도시+성"/"city castle" patterns
+    for city_ko in ["오사카", "도쿄", "교토", "후쿠오카", "삿포로", "나고야", "서울", "부산", "프라하"]:
+        if f"{city_ko}성" in q and city_ko not in out:
+            out.append(city_ko)
+    for city_en in ["osaka", "tokyo", "kyoto", "fukuoka", "sapporo", "nagoya", "prague"]:
+        if f"{city_en} castle" in q_norm and city_en not in out:
+            out.append(city_en)
 
     return [x for x in out if x]
 
@@ -477,8 +536,6 @@ def answer_hotel_from_parsed(parsed: dict[str, Any], prev_state: dict[str, Any])
             f"{i}) {name}",
             f"가격: {_fmt_price(price_obj.get('value'), str(price_obj.get('currency') or ''))}",
         ]
-        if hotel_id:
-            parts.append(f"hotel_id: {hotel_id}")
 
         score = (h.get("review") or {}).get("score")
         if score is not None:
@@ -486,19 +543,16 @@ def answer_hotel_from_parsed(parsed: dict[str, Any], prev_state: dict[str, Any])
 
         photo_url = _pick_hotel_photo(h)
 
-        maps_url = ""
         address_text = ""
         if not photo_url:
             try:
                 gp = find_hotel_google_place(name=name, address=query)
                 if isinstance(gp, dict) and gp.get("status") == "ok":
                     cand = gp.get("candidate") or {}
-                    details = gp.get("details") or {}
                     photo_urls = gp.get("photo_urls") or []
                     if isinstance(photo_urls, list) and photo_urls:
                         photo_url = str(photo_urls[0])
                     address_text = str(cand.get("address") or "")
-                    maps_url = str(details.get("url") or "")
             except Exception:
                 pass
 
@@ -507,11 +561,6 @@ def answer_hotel_from_parsed(parsed: dict[str, Any], prev_state: dict[str, Any])
         area_label = _coarse_area_label(address_text or query, name)
         if area_label:
             parts.append(f"지역: {area_label}")
-        if photo_url:
-            parts.append(f"사진: {photo_url}")
-
-        parts.append(f"체크인: {checkin}")
-        parts.append(f"체크아웃: {checkout}")
 
         dist_m = h.get("distance_m")
         if isinstance(dist_m, (int, float)):
@@ -521,7 +570,16 @@ def answer_hotel_from_parsed(parsed: dict[str, Any], prev_state: dict[str, Any])
         if stars:
             parts.append(f"등급: {stars}")
 
-        lines.append(" | ".join(parts))
+        visible = " | ".join(parts)
+        hidden = "".join(
+            [
+                _hidden_meta("사진", photo_url),
+                _hidden_meta("hotel_id", hotel_id),
+                _hidden_meta("체크인", checkin),
+                _hidden_meta("체크아웃", checkout),
+            ]
+        )
+        lines.append(f"{visible}{hidden}")
 
     html = f"<div><b>{query} 호텔 추천 ({bucket_title}) {len(rows)}개</b><br>{'<br>'.join(lines)}</div>"
     return html, {
@@ -533,3 +591,4 @@ def answer_hotel_from_parsed(parsed: dict[str, Any], prev_state: dict[str, Any])
         "travel_checkout": checkout,
         "hotel_adults": adults,
     }
+
