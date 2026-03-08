@@ -1212,7 +1212,7 @@ function updateRentalCardButtons() {
   });
 }
 
-function renderRentalSavedDrawer() {
+  function renderRentalSavedDrawer() {
   const listEl = document.getElementById("rentalSavedList");
   const emptyEl = document.getElementById("rentalSavedEmpty");
   const countEl = document.getElementById("rentalSavedFabCount");
@@ -1243,47 +1243,31 @@ function renderRentalSavedDrawer() {
     }
     emptyEl.style.display = "none";
     listEl.innerHTML = "";
-    rentalAlertState.forEach((item) => {
-      const status = String(item.status || "pending");
-      const statusLabel =
-        status === "accepted"
-          ? "수락됨"
-          : status === "rejected"
-            ? "거절됨"
-            : "대기중";
-      const incoming = String(item.direction || "incoming") !== "mine";
-      const reqTitle = incoming
-        ? `${escapeHtml(item.requester_name || "-")}님의 요청입니다`
-        : `${escapeHtml(item.requester_name || "작성자")}님의 응답`;
-      const li = document.createElement("li");
-      li.className = "rental-saved-item";
-      li.style.gridTemplateColumns = "1fr";
-      li.innerHTML = `
-        <div>
-          <div class="rental-saved-item__type">공동구매 · 참여요청</div>
-          <div class="rental-saved-item__name">${escapeHtml(item.post_title || "-")}</div>
-          <div class="rental-saved-item__meta">${reqTitle}<br>${item.requester_email ? `이메일: ${escapeHtml(item.requester_email)}<br>` : ""}${statusLabel}${item.message ? `<br>${escapeHtml(item.message || "")}` : ""}</div>
-          ${
-            incoming && status === "pending"
-              ? `
-            <div class="rental-saved-item__meta" style="margin-top:8px;">
-              <button type="button" data-rental-alert-action="accept" data-rental-alert-id="${Number(item.id)}" style="margin-right:6px;padding:4px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;">수락</button>
-              <button type="button" data-rental-alert-action="reject" data-rental-alert-id="${Number(item.id)}" style="padding:4px 8px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700;">거절</button>
-            </div>`
-              : ""
-          }
-          ${
-            status !== "pending"
-              ? `
-            <div class="rental-saved-item__meta" style="margin-top:8px;">
-              <button type="button" data-rental-alert-remove="${Number(item.id)}" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#475569;font-size:12px;font-weight:700;">알림 삭제</button>
-            </div>`
-              : ""
-          }
-        </div>
-      `;
-      listEl.appendChild(li);
-    });
+    listEl.innerHTML = rentalAlertState
+      .map((item) =>
+        window.SavedDrawerCommon
+          ? window.SavedDrawerCommon.renderAlertItem(item, {
+              itemClass: "rental-saved-item",
+              metaClass: "rental-saved-item__content",
+              typeClass: "rental-saved-item__type",
+              nameClass: "rental-saved-item__name",
+              lineClass: "rental-saved-item__meta",
+              closeHtml: (row) => `<button type="button" class="rental-saved-item__remove" data-rental-alert-remove="${Number(row.id)}" aria-label="삭제" title="삭제">×</button>`,
+              actionHtml: (row, ctx) => `
+                ${
+                  ctx.incoming && ctx.status === "pending"
+                    ? `<div class="saved-alert-actions">
+                        <button type="button" data-rental-alert-action="accept" data-rental-alert-id="${Number(row.id)}" class="saved-alert-btn">수락</button>
+                        <button type="button" data-rental-alert-action="reject" data-rental-alert-id="${Number(row.id)}" class="saved-alert-btn is-reject">거절</button>
+                      </div>`
+                    : ""
+                }
+                ${""}
+              `,
+            })
+          : "",
+      )
+      .join("");
     return;
   }
 
@@ -1297,79 +1281,24 @@ function renderRentalSavedDrawer() {
       ? "위시리스트 항목이 없습니다."
       : "장바구니 항목이 없습니다.";
 
-  items.forEach((item) => {
-    const payload =
-      item?.payload && typeof item.payload === "object" ? item.payload : {};
-    const imageUrl = String(
-      payload?.image ||
-        payload?.image_url ||
-        payload?.thumb_url ||
-        payload?.photo_url ||
-        item?.image ||
-        item?.image_url ||
-        "/static/image/noimg.png",
-    );
-    const li = document.createElement("li");
-    li.className = "rental-saved-item";
-    const rawType = String(item?.item_type || "").toLowerCase();
-    const typeLabel =
-      rawType === "flight"
-        ? "항공"
-        : rawType === "hotel"
-          ? "숙박"
-          : rawType === "ticket" || rawType === "tour"
-            ? "티켓"
-            : rawType === "package"
-              ? "패키지"
-              : rawType === "groupbuy" || rawType === "travel-group"
-                ? "공동구매"
-                : "렌터카";
-    const rawMeta = String(item?.meta || "");
-    const metaParts = rawMeta
-      .split("|")
-      .map((x) => x.trim())
-      .filter(Boolean);
-    const normalizeKrwPriceText = (text) => {
-      const raw = String(text || "").trim();
-      if (!raw) return "";
-      const match = raw.match(/([\d,]+(?:\.\d+)?)/);
-      if (!match) return "";
-      const n = Number(String(match[1]).replace(/,/g, ""));
-      if (!Number.isFinite(n) || n <= 0) return "";
-      return `₩${Math.floor(n).toLocaleString("ko-KR")}`;
-    };
-    const detectedPriceMeta = metaParts.find((p) =>
-      /[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(String(p)),
-    );
-    let priceText = normalizeKrwPriceText(detectedPriceMeta || "");
-    if (!priceText) {
-      priceText = normalizeKrwPriceText(
-        item?.price ||
-          payload?.price_text ||
-          payload?.price ||
-          payload?.amount ||
-          payload?.total_price ||
-          "",
-      );
-    }
-    const metaLines = metaParts.filter(
-      (x) =>
-        x &&
-        x !== detectedPriceMeta &&
-        !/[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(String(x)),
-    );
-    li.innerHTML = `
-      <div class="rental-saved-item__thumb">${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="">` : ""}</div>
-      <div>
-        <div class="rental-saved-item__type">${typeLabel} · ${escapeHtml(item?.source || "saved-item")}</div>
-        <div class="rental-saved-item__name">${escapeHtml(item?.name || "-")}</div>
-        ${priceText ? `<div class="rental-saved-item__meta rental-saved-price">${escapeHtml(priceText)}</div>` : ""}
-        ${metaLines.map((line) => `<div class="rental-saved-item__meta">${escapeHtml(line)}</div>`).join("")}
-      </div>
-      <button type="button" class="rental-saved-item__remove" data-rental-saved-remove="${Number(item.id)}" title="삭제">×</button>
-    `;
-    listEl.appendChild(li);
-  });
+  listEl.innerHTML = items
+    .map((item) =>
+      window.SavedDrawerCommon
+        ? window.SavedDrawerCommon.renderSavedItem(item, {
+            itemClass: "rental-saved-item",
+            thumbClass: "rental-saved-item__thumb",
+            metaClass: "rental-saved-item__meta",
+            typeClass: "rental-saved-item__type",
+            nameClass: "rental-saved-item__name",
+            lineClass: "rental-saved-item__meta",
+            priceClass: "rental-saved-item__meta rental-saved-price",
+            removeClass: "rental-saved-item__remove",
+            removeAttrName: "data-rental-saved-remove",
+            fallbackImage: "/static/image/noimg.png",
+          })
+        : "",
+    )
+    .join("");
 }
 
 async function toggleRentalSaved(rawPayload, listType) {

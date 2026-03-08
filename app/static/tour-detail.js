@@ -70,6 +70,14 @@ function normalizeKrwPriceText(text) {
     return `₩${Math.floor(n).toLocaleString('ko-KR')}`;
 }
 
+function isLikelyPriceMetaLine(text) {
+    const raw = String(text || '').trim();
+    if (!raw) return false;
+    if (/^(출발|도착|오는편\s*출발|오는편\s*도착)\b/.test(raw)) return false;
+    if (!/[\d,]+/.test(raw)) return false;
+    return /(₩|원|krw|KRW|~)/.test(raw) || /^[\d,\.\s]+$/.test(raw);
+}
+
 function savedTypeLabel(itemType) {
     const type = String(itemType || '').toLowerCase();
     return type ? type.toUpperCase() : 'ITEM';
@@ -120,66 +128,47 @@ function renderFlightSavedDrawer() {
         listEl.innerHTML = '';
         emptyEl.style.display = tourDetailAlertState.length ? 'none' : 'block';
         emptyEl.textContent = '공동구매 참여 요청 알림이 없습니다.';
-        tourDetailAlertState.forEach((item) => {
-            const status = String(item?.status || 'pending');
-            const statusLabel = status === 'accepted' ? '수락됨' : status === 'rejected' ? '거절됨' : '대기중';
-            const incoming = String(item?.direction || 'incoming') !== 'mine';
-            const reqTitle = incoming ? `${item?.requester_name || '-'}님이 요청했습니다` : `${item?.requester_name || '작성자'}님의 응답`;
-
-            const li = document.createElement('li');
-            li.className = 'flight-saved-item';
-            li.style.gridTemplateColumns = '1fr';
-            li.innerHTML = `
-                <div>
-                    <div class="flight-saved-item__type">공동구매 · 참여요청</div>
-                    <div class="flight-saved-item__name">${item?.post_title || '-'}</div>
-                    <div class="flight-saved-item__meta">${reqTitle}<br>${item?.requester_email ? `이메일: ${item.requester_email}<br>` : ''}${statusLabel}${item?.message ? `<br>${item.message}` : ''}</div>
+        listEl.innerHTML = tourDetailAlertState.map((item) => window.SavedDrawerCommon
+            ? window.SavedDrawerCommon.renderAlertItem(item, {
+                itemClass: 'flight-saved-item',
+                metaClass: 'flight-saved-item__content',
+                typeClass: 'flight-saved-item__type',
+                nameClass: 'flight-saved-item__name',
+                lineClass: 'flight-saved-line',
+                closeHtml: (alert) => `<button type="button" class="flight-saved-item__remove" data-tour-detail-alert-remove="${Number(alert.id)}" aria-label="삭제" title="삭제">×</button>`,
+                actionHtml: (alert, ctx) => `
                     ${
-                        incoming && status === 'pending'
-                            ? `<div class="flight-saved-item__meta" style="margin-top:8px;">
-                                <button type="button" data-tour-detail-alert-action="accept" data-tour-detail-alert-id="${Number(item.id)}" style="margin-right:6px;padding:4px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;">수락</button>
-                                <button type="button" data-tour-detail-alert-action="reject" data-tour-detail-alert-id="${Number(item.id)}" style="padding:4px 8px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700;">거절</button>
+                        ctx.incoming && ctx.status === 'pending'
+                            ? `<div class="saved-alert-actions">
+                                <button type="button" data-tour-detail-alert-action="accept" data-tour-detail-alert-id="${Number(alert.id)}" class="saved-alert-btn">수락</button>
+                                <button type="button" data-tour-detail-alert-action="reject" data-tour-detail-alert-id="${Number(alert.id)}" class="saved-alert-btn is-reject">거절</button>
                               </div>`
                             : ''
                     }
-                    ${
-                        status !== 'pending'
-                            ? `<div class="flight-saved-item__meta" style="margin-top:8px;">
-                                <button type="button" data-tour-detail-alert-remove="${Number(item.id)}" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#475569;font-size:12px;font-weight:700;">알림 삭제</button>
-                              </div>`
-                            : ''
-                    }
-                </div>
-            `;
-            listEl.appendChild(li);
-        });
+                    ${""}
+                `,
+            })
+            : '').join('');
         return;
     }
     const items = Array.isArray(savedItemState[tourSavedDrawerTab]) ? savedItemState[tourSavedDrawerTab] : [];
     listEl.innerHTML = '';
     emptyEl.style.display = items.length ? 'none' : 'block';
     emptyEl.textContent = tourSavedDrawerTab === 'wishlist' ? '위시리스트 항목이 없습니다.' : '장바구니 항목이 없습니다.';
-    items.forEach((item) => {
-        const priceText = normalizeKrwPriceText(item?.price || item?.payload?.price_text || '');
-        const metaLines = String(item?.meta || '')
-            .split('|')
-            .map((x) => x.trim())
-            .filter((x) => x && !/[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(x));
-        const kind = `${savedTypeLabel(item?.item_type)} · ${item?.source || 'saved-item'}`;
-        const li = document.createElement('li');
-        li.className = 'flight-saved-item';
-        li.innerHTML = `
-            <div class="flight-saved-thumb">${(item?.payload?.image || item?.payload?.image_url || item?.image) ? `<img src="${item?.payload?.image || item?.payload?.image_url || item?.image}" alt="${item.name}">` : ''}</div>
-            <div>
-                <div class="flight-saved-item__type">${kind}</div>
-                <div class="flight-saved-item__name">${item.name || '-'}</div>
-                ${metaLines.map((line) => `<div class="flight-saved-item__meta">${line}</div>`).join('')}
-                ${priceText ? `<div class="flight-saved-price">${priceText}</div>` : ''}
-            </div>
-            <button type="button" class="flight-saved-item__remove" data-flight-saved-remove="${item.id}" title="삭제">×</button>
-        `;
-        listEl.appendChild(li);
-    });
+    listEl.innerHTML = items.map((item) => window.SavedDrawerCommon
+        ? window.SavedDrawerCommon.renderSavedItem(item, {
+            itemClass: 'flight-saved-item',
+            thumbClass: 'flight-saved-thumb',
+            metaClass: 'flight-saved-item__meta',
+            typeClass: 'flight-saved-item__type',
+            nameClass: 'flight-saved-item__name',
+            lineClass: 'flight-saved-line',
+            priceClass: 'flight-saved-line flight-saved-price',
+            removeClass: 'flight-saved-item__remove',
+            removeAttrName: 'data-flight-saved-remove',
+            typeLabelFn: (itemType) => savedTypeLabel(itemType),
+        })
+        : '').join('');
 }
 
 function setFlightSavedDrawer(open) {

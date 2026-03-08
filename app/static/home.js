@@ -472,6 +472,13 @@ function homeSavedImageUrl(item) {
 function homeSavedMetaParts(item) {
     const raw = String(item?.meta || '').trim();
     const parts = raw.split('|').map((x) => x.trim()).filter(Boolean);
+    const isLikelyPriceLine = (v) => {
+        const txt = String(v || '').trim();
+        if (!txt) return false;
+        if (/^(출발|도착|오는편\s*출발|오는편\s*도착)\b/.test(txt)) return false;
+        if (!/[\d,]+/.test(txt)) return false;
+        return /(₩|원|krw|KRW|~)/.test(txt) || /^[\d,\.\s]+$/.test(txt);
+    };
     const normalizePrice = (v) => {
         const txt = String(v || '').trim();
         if (!txt) return '';
@@ -481,7 +488,7 @@ function homeSavedMetaParts(item) {
         if (!Number.isFinite(n) || n <= 0) return '';
         return `₩${Math.floor(n).toLocaleString('ko-KR')}`;
     };
-    const detected = parts.find((p) => normalizePrice(p));
+    const detected = parts.find((p) => isLikelyPriceLine(p)) || parts.find((p) => normalizePrice(p));
     let price = normalizePrice(detected || '');
     if (!price) {
         price = normalizePrice(
@@ -497,12 +504,26 @@ function homeSavedMetaParts(item) {
         price,
         lines: parts
             .filter((x) => x && x !== detected)
-            .slice(0, 3)
-            .filter((x) => !/[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(x)),
+            .slice(0, 3),
     };
 }
 
 function homeSavedItemHtml(item) {
+    if (window.SavedDrawerCommon) {
+        return window.SavedDrawerCommon.renderSavedItem(item, {
+            tagName: 'div',
+            itemClass: 'home-saved-item',
+            thumbClass: 'home-saved-thumb',
+            metaClass: 'home-saved-meta',
+            typeClass: 'home-saved-kind',
+            nameClass: 'home-saved-name',
+            lineClass: 'home-saved-line',
+            priceClass: 'home-saved-line home-saved-price',
+            removeClass: 'home-saved-remove',
+            removeAttrName: 'data-saved-remove',
+            typeLabelFn: (itemType) => homeSavedTypeLabel(itemType),
+        });
+    }
     const img = homeSavedImageUrl(item);
     const kind = `${homeSavedTypeLabel(item?.item_type)} · ${item?.source || 'saved-item'}`;
     const meta = homeSavedMetaParts(item);
@@ -608,39 +629,39 @@ function renderHomeSavedDrawer() {
         }
         emptyEl.style.display = 'none';
         listEl.innerHTML = homeAlertState.map((item) => {
-            const status = String(item.status || 'pending');
-            const statusLabel = status === 'accepted' ? '수락됨' : (status === 'rejected' ? '거절됨' : '대기중');
-            const incoming = String(item.direction || 'incoming') !== 'mine';
-            const reqTitle = incoming
-                ? `${homeSavedEscape(item.requester_name || '')}님이 요청했습니다`
-                : `${homeSavedEscape(item.requester_name || '작성자')}님의 응답`;
-            return `
-                <div class="home-saved-item" data-alert-id="${Number(item.id)}" style="grid-template-columns:1fr;">
-                    <div class="home-saved-meta">
-                        <div class="home-saved-kind">공동구매 · 참여요청</div>
-                        <div class="home-saved-name">${homeSavedEscape(item.post_title || '')}</div>
-                        <div class="home-saved-line">${reqTitle}</div>
-                        ${item.requester_email ? `<div class="home-saved-line">이메일: ${homeSavedEscape(item.requester_email || '')}</div>` : ''}
-                        ${item.message ? `<div class="home-saved-line">${homeSavedEscape(item.message || '')}</div>` : ''}
-                        <div class="home-saved-line">${statusLabel}</div>
-                        ${
-                            incoming && status === 'pending'
-                                ? `<div class="home-saved-line">
-                                    <button type="button" data-alert-action="accept" data-alert-id="${Number(item.id)}" class="home-saved-close">수락</button>
-                                    <button type="button" data-alert-action="reject" data-alert-id="${Number(item.id)}" class="home-saved-close">거절</button>
-                                </div>`
-                                : ''
-                        }
-                        ${
-                            status !== 'pending'
-                                ? `<div class="home-saved-line">
-                                    <button type="button" data-alert-remove="${Number(item.id)}" class="home-saved-close">알림 삭제</button>
-                                </div>`
-                                : ''
-                        }
-                    </div>
-                </div>
-            `;
+            if (window.SavedDrawerCommon) {
+                return window.SavedDrawerCommon.renderAlertItem(item, {
+                    tagName: 'div',
+                    itemClass: 'home-saved-item',
+                    metaClass: 'home-saved-meta',
+                    typeClass: 'home-saved-kind',
+                    nameClass: 'home-saved-name',
+                    lineClass: 'home-saved-line',
+                    closeHtml: (alert) => `<button type="button" class="home-saved-remove" data-alert-remove="${Number(alert.id)}" aria-label="삭제" title="삭제">×</button>`,
+                    actionHtml: (alert, ctx) => {
+                        const incoming = ctx.incoming;
+                        const status = ctx.status;
+                        return `
+                            ${
+                                incoming && status === 'pending'
+                                    ? `<div class="saved-alert-actions">
+                                        <button type="button" data-alert-action="accept" data-alert-id="${Number(alert.id)}" class="saved-alert-btn">수락</button>
+                                        <button type="button" data-alert-action="reject" data-alert-id="${Number(alert.id)}" class="saved-alert-btn is-reject">거절</button>
+                                    </div>`
+                                    : ''
+                            }
+                            ${
+                                status !== 'pending'
+                                    ? `<div class="saved-alert-actions">
+                                        <button type="button" data-alert-remove="${Number(alert.id)}" class="saved-alert-btn is-delete">알림 삭제</button>
+                                    </div>`
+                                    : ''
+                            }
+                        `;
+                    },
+                });
+            }
+            return '';
         }).join('');
         return;
     }

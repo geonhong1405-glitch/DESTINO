@@ -48,6 +48,14 @@
     return `₩${Math.floor(n).toLocaleString("ko-KR")}`;
   }
 
+  function isLikelyPriceMetaLine(text) {
+    const raw = String(text || "").trim();
+    if (!raw) return false;
+    if (/^(출발|도착|오는편\s*출발|오는편\s*도착)\b/.test(raw)) return false;
+    if (!/[\d,]+/.test(raw)) return false;
+    return /(₩|원|krw|KRW|~)/.test(raw) || /^[\d,\.\s]+$/.test(raw);
+  }
+
   function savedTypeLabel(itemType) {
     const type = String(itemType || "").toLowerCase();
     if (type === "flight") return "FLIGHT";
@@ -448,36 +456,31 @@
       emptyEl.style.display = packageAlertState.length ? "none" : "block";
       emptyEl.textContent = ALERT_EMPTY_LABEL;
 
-      packageAlertState.forEach((alert) => {
-        const li = document.createElement("li");
-        li.className = "package-saved-item";
-        const status = String(alert?.status || "pending");
-        const statusLabel =
-          status === "accepted"
-            ? "수락됨"
-            : status === "rejected"
-              ? "거절됨"
-              : "대기중";
-        const incoming = String(alert?.direction || "incoming") !== "mine";
-        li.innerHTML = `
-          <div class="package-saved-item__type">알림</div>
-          <div class="package-saved-item__name">${alert?.post_title || "공동구매 참여 요청"}</div>
-          <div class="package-saved-item__meta">${alert?.requester_name || "사용자"} · ${statusLabel}</div>
-          ${alert?.message ? `<div class="package-saved-item__meta">${alert.message}</div>` : ""}
-          ${
-            incoming && status === "pending"
-              ? `
-            <div style="display:flex;gap:6px;margin-top:8px;">
-              <button type="button" data-package-alert-decision="accept" data-package-alert-id="${Number(alert?.id)}" style="padding:4px 8px;border-radius:8px;border:1px solid #a7f3d0;background:#ecfdf5;color:#065f46;font-size:12px;font-weight:700;">수락</button>
-              <button type="button" data-package-alert-decision="reject" data-package-alert-id="${Number(alert?.id)}" style="padding:4px 8px;border-radius:8px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;font-size:12px;font-weight:700;">거절</button>
-            </div>
-          `
-              : ""
-          }
-          ${status !== "pending" ? `<button type="button" class="package-saved-item__remove" data-package-alert-remove="${Number(alert?.id)}" title="삭제">×</button>` : ""}
-        `;
-        listEl.appendChild(li);
-      });
+      listEl.innerHTML = packageAlertState
+        .map((alert) =>
+          window.SavedDrawerCommon
+            ? window.SavedDrawerCommon.renderAlertItem(alert, {
+                itemClass: "package-saved-item",
+                metaClass: "package-saved-content",
+                typeClass: "package-saved-item__type",
+                nameClass: "package-saved-item__name",
+                lineClass: "package-saved-item__meta",
+                closeHtml: (row) => `<button type="button" class="package-saved-item__remove" data-package-alert-remove="${Number(row?.id)}" aria-label="삭제" title="삭제">×</button>`,
+                actionHtml: (row, ctx) => `
+                  ${
+                    ctx.incoming && ctx.status === "pending"
+                      ? `<div class="saved-alert-actions">
+                          <button type="button" data-package-alert-decision="accept" data-package-alert-id="${Number(row?.id)}" class="saved-alert-btn">수락</button>
+                          <button type="button" data-package-alert-decision="reject" data-package-alert-id="${Number(row?.id)}" class="saved-alert-btn is-reject">거절</button>
+                        </div>`
+                      : ""
+                  }
+                  ${""}
+                `,
+              })
+            : "",
+        )
+        .join("");
       return;
     }
 
@@ -492,58 +495,24 @@
         ? CART_EMPTY_LABEL
         : WISHLIST_EMPTY_LABEL;
 
-    items.forEach((item) => {
-      const li = document.createElement("li");
-      li.className = "package-saved-item";
-      const thumb =
-        item?.payload?.thumb_url ||
-        item?.payload?.image_url ||
-        item?.payload?.image ||
-        item?.image_url ||
-        item?.image ||
-        "";
-      let price = "";
-      const metaLines = [];
-      if (item.meta) {
-        const parts = String(item.meta)
-          .split("|")
-          .map((x) => x.trim())
-          .filter(Boolean);
-        const detected = parts.find((p) => normalizeKrwPriceText(p));
-        price = normalizeKrwPriceText(detected || "");
-        metaLines.push(
-          ...parts.filter(
-            (p) =>
-              p !== detected &&
-              !/[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(p),
-          ),
-        );
-      }
-      if (!price) {
-        price = normalizeKrwPriceText(
-          item?.price ||
-          item?.payload?.price_text ||
-          item?.payload?.price ||
-          item?.payload?.amount ||
-          item?.payload?.total_price ||
-          ""
-        );
-      }
-      const typeText = `${savedTypeLabel(item.item_type)} · ${item?.source || "saved-item"}`;
-      li.innerHTML = `
-        <div class="package-saved-thumb">
-          ${thumb ? `<img src="${thumb.replace(/"/g, "&quot;")}" alt="썸네일" loading="lazy" onerror="this.remove()">` : ""}
-        </div>
-        <div class="package-saved-content">
-          <div class="package-saved-item__type">${typeText}</div>
-          <div class="package-saved-item__name">${item.name || "-"}</div>
-          ${price ? `<div class="package-saved-line package-saved-price">${price}</div>` : ""}
-          ${metaLines.map((line) => `<div class="package-saved-item__meta">${line}</div>`).join("")}
-        </div>
-        <button type="button" class="package-saved-item__remove" data-package-saved-remove="${item.id}" title="삭제">×</button>
-      `;
-      listEl.appendChild(li);
-    });
+    listEl.innerHTML = items
+      .map((item) =>
+        window.SavedDrawerCommon
+          ? window.SavedDrawerCommon.renderSavedItem(item, {
+              itemClass: "package-saved-item",
+              thumbClass: "package-saved-thumb",
+              metaClass: "package-saved-content",
+              typeClass: "package-saved-item__type",
+              nameClass: "package-saved-item__name",
+              lineClass: "package-saved-item__meta",
+              priceClass: "package-saved-line package-saved-price",
+              removeClass: "package-saved-item__remove",
+              removeAttrName: "data-package-saved-remove",
+              typeLabelFn: (itemType) => savedTypeLabel(itemType),
+            })
+          : "",
+      )
+      .join("");
   }
 
   function initPackageSavedDrawer() {

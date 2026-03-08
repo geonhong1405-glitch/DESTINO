@@ -397,21 +397,67 @@
 
         const looksLikePrice = (text) => /\d/.test(String(text || "")) && /(krw|usd|eur|jpy|원|₩|\$|€|¥)/i.test(String(text || ""));
         const price = normalizeSavedPrice(looksLikePrice(parts[0]) ? parts[0] : (String(payload?.price || "").trim() || ""));
+        const itineraries = Array.isArray(payload?.itineraries) ? payload.itineraries : [];
+        const outItinerary = itineraries[0] || {};
+        const inItinerary = itineraries[1] || {};
+        const outSegments = Array.isArray(outItinerary?.segments) ? outItinerary.segments : [];
+        const inSegments = Array.isArray(inItinerary?.segments) ? inItinerary.segments : [];
+        const outFirstSeg = outSegments[0] || null;
+        const outLastSeg = outSegments[outSegments.length - 1] || null;
+        const inFirstSeg = inSegments[0] || null;
+        const inLastSeg = inSegments[inSegments.length - 1] || null;
         const segs = parseFlightSegmentEntries(payload?.segmentDetails || "");
         const legSummaries = summarizeLegs(segs);
         const outLeg = legSummaries[0] || null;
         const inLeg = legSummaries[1] || null;
-        const dep = normalizeSavedDateTime(String(payload?.outboundDep || outLeg?.depAt || payload?.dep || "").trim());
-        const arr = normalizeSavedDateTime(String(payload?.outboundArr || outLeg?.arrAt || payload?.arr || "").trim());
-        const route = String(payload?.outboundRoute || outLeg?.routeText || payload?.routeInfo || "").trim();
-        const retDep = normalizeSavedDateTime(String(payload?.returnDep || inLeg?.depAt || "").trim());
-        const retArr = normalizeSavedDateTime(String(payload?.returnArr || inLeg?.arrAt || "").trim());
-        const retRoute = String(payload?.returnRoute || inLeg?.routeText || "").trim();
-        const isRound = Boolean(payload?.isRoundTrip || inLeg || (retDep && retArr));
+        const dep = normalizeSavedDateTime(String(
+            payload?.outboundDep ||
+            outFirstSeg?.departure?.at ||
+            outLeg?.depAt ||
+            payload?.dep ||
+            ""
+        ).trim());
+        const arr = normalizeSavedDateTime(String(
+            payload?.outboundArr ||
+            outLastSeg?.arrival?.at ||
+            outLeg?.arrAt ||
+            payload?.arr ||
+            ""
+        ).trim());
+        const route = String(
+            payload?.outboundRoute ||
+            (outFirstSeg?.departure?.iataCode && outLastSeg?.arrival?.iataCode
+                ? `${outFirstSeg.departure.iataCode} → ${outLastSeg.arrival.iataCode}`
+                : "") ||
+            outLeg?.routeText ||
+            payload?.routeInfo ||
+            ""
+        ).trim();
+        const retDep = normalizeSavedDateTime(String(
+            payload?.returnDep ||
+            inFirstSeg?.departure?.at ||
+            inLeg?.depAt ||
+            ""
+        ).trim());
+        const retArr = normalizeSavedDateTime(String(
+            payload?.returnArr ||
+            inLastSeg?.arrival?.at ||
+            inLeg?.arrAt ||
+            ""
+        ).trim());
+        const retRoute = String(
+            payload?.returnRoute ||
+            (inFirstSeg?.departure?.iataCode && inLastSeg?.arrival?.iataCode
+                ? `${inFirstSeg.departure.iataCode} → ${inLastSeg.arrival.iataCode}`
+                : "") ||
+            inLeg?.routeText ||
+            ""
+        ).trim();
+        const isRound = Boolean(payload?.isRoundTrip || inSegments.length || inLeg || (retDep && retArr));
         const name = String(item?.name || payload?.name || "-").trim();
-        const airlineCode = String(payload?.airline_code || "").trim().toUpperCase();
-        const depCode = String(payload?.dep_code || "").trim().toUpperCase();
-        const arrCode = String(payload?.arr_code || "").trim().toUpperCase();
+        const airlineCode = String(payload?.airline_code || outFirstSeg?.carrierCode || "").trim().toUpperCase();
+        const depCode = String(payload?.dep_code || outFirstSeg?.departure?.iataCode || "").trim().toUpperCase();
+        const arrCode = String(payload?.arr_code || outLastSeg?.arrival?.iataCode || "").trim().toUpperCase();
         const airlineName = String(payload?.airline_name || FLIGHT_AIRLINE_EN[airlineCode] || airlineCode || "").trim();
         const routeTitle = (depCode && arrCode) ? `${depCode} -> ${arrCode}` : "";
         const displayTitle = airlineName && routeTitle ? `${airlineName} ${routeTitle}` : (routeTitle || name);
@@ -599,32 +645,29 @@
                 const reqTitle = incoming
                     ? `${escapeHtml(item.requester_name || "-")}님이 요청했습니다`
                     : `${escapeHtml(item.requester_name || "작성자")}님의 응답`;
+                const statusClass = status === "accepted" ? "is-accepted" : (status === "rejected" ? "is-rejected" : "is-pending");
                 const li = document.createElement("li");
-                li.className = "ai-cart-item";
+                li.className = "ai-cart-item saved-alert-card";
+                li.setAttribute("data-alert-id", String(Number(item.id)));
                 li.innerHTML = `
-                    <div class="ai-cart-item__content" style="grid-column:1 / -1;">
+                    <div class="ai-cart-item__content">
                         <div class="ai-cart-item__type">공동구매 · 참여요청</div>
                         <div class="ai-cart-item__name">${escapeHtml(item.post_title || "-")}</div>
                         <div class="ai-cart-item__line">${reqTitle}</div>
                         ${item.requester_email ? `<div class="ai-cart-item__line">이메일: ${escapeHtml(item.requester_email || "")}</div>` : ""}
-                        <div class="ai-cart-item__line">${statusLabel}${item.message ? ` · ${escapeHtml(item.message || "")}` : ""}</div>
+                        <div class="ai-cart-item__line"><span class="saved-alert-status ${statusClass}">${statusLabel}</span></div>
+                        ${item.message ? `<div class="ai-cart-item__line">${escapeHtml(item.message || "")}</div>` : ""}
                         ${
                             incoming && status === "pending"
-                                ? `<div class="ai-cart-item__line">
-                                    <button type="button" data-alert-action="accept" data-alert-id="${Number(item.id)}" style="margin-right:6px;padding:4px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;">수락</button>
-                                    <button type="button" data-alert-action="reject" data-alert-id="${Number(item.id)}" style="padding:4px 8px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700;">거절</button>
+                                ? `<div class="saved-alert-actions">
+                                    <button type="button" data-alert-action="accept" data-alert-id="${Number(item.id)}" class="saved-alert-btn">수락</button>
+                                    <button type="button" data-alert-action="reject" data-alert-id="${Number(item.id)}" class="saved-alert-btn is-reject">거절</button>
                                 </div>`
-                                : ""
-                        }
-                        ${
-                            status !== "pending"
-                                ? `<div class="ai-cart-item__line">
-                                    <button type="button" data-alert-remove="${Number(item.id)}" class="ai-cart-alert-remove">알림 삭제</button>
-                                </div>`
-                                : ""
-                        }
-                    </div>
-                `;
+                                  : ""
+                          }
+                      </div>
+                      <button type="button" class="ai-cart-item__remove" data-alert-remove="${Number(item.id)}" title="삭제" aria-label="삭제">×</button>
+                  `;
                 cartList.appendChild(li);
             });
             return;
@@ -654,10 +697,8 @@
                 const f = parseSavedFlightMeta(item);
                 const depLine = f.dep ? `<div class=\"ai-cart-item__line\">출발 ${escapeHtml(f.dep)}</div>` : "";
                 const arrLine = f.arr ? `<div class=\"ai-cart-item__line\">도착 ${escapeHtml(f.arr)}</div>` : "";
-                const retDepLine = f.retDep ? `<div class=\"ai-cart-item__line\">오는편 출발 ${escapeHtml(f.retDep)}</div>` : "";
-                const retArrLine = f.retArr ? `<div class=\"ai-cart-item__line\">오는편 도착 ${escapeHtml(f.retArr)}</div>` : "";
                 priceHtml = f.price ? `<div class=\"ai-cart-item__line ai-cart-item__price\">${escapeHtml(f.price)}</div>` : priceHtml;
-                extraHtml = `${depLine}${arrLine}${f.isRound && retDepLine ? retDepLine : ""}${f.isRound && retArrLine ? retArrLine : ""}`;
+                extraHtml = `${depLine}${arrLine}`;
             }
             li.innerHTML = `
                 <div class="ai-cart-item__thumb">

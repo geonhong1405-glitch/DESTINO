@@ -115,7 +115,37 @@ def _parse_join_message_payload(raw: str | None) -> dict:
     return {"detail": str(raw or "").strip()}
 
 
-def _ensure_linked_items_in_requester_cart(db, requester_user_id: int, linked_items: list[dict]) -> tuple[int, int]:
+def _default_groupbuy_image(country: str, city: str = "") -> str:
+    c = str(country or "").strip()
+    ci = str(city or "").strip()
+    key = f"{c} {ci}".lower()
+    if "일본" in key:
+        return "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=800&q=80"
+    if "베트남" in key:
+        return "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=800&q=80"
+    if "태국" in key:
+        return "https://images.unsplash.com/photo-1508009603885-50cf7c579365?auto=format&fit=crop&w=800&q=80"
+    if "프랑스" in key:
+        return "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=800&q=80"
+    if "영국" in key or "런던" in key:
+        return "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=800&q=80"
+    if "이탈리아" in key:
+        return "https://images.unsplash.com/photo-1525874684015-58379d421a52?auto=format&fit=crop&w=800&q=80"
+    if "스페인" in key:
+        return "https://images.unsplash.com/photo-1543783207-ec64e4d95325?auto=format&fit=crop&w=800&q=80"
+    if "미국" in key:
+        return "https://images.unsplash.com/photo-1485738422979-f5c462d49f74?auto=format&fit=crop&w=800&q=80"
+    return "https://images.unsplash.com/photo-1488085061387-422e29b40080?auto=format&fit=crop&w=800&q=80"
+
+
+def _ensure_linked_items_in_requester_cart(
+    db,
+    requester_user_id: int,
+    linked_items: list[dict],
+    *,
+    fallback_country: str = "",
+    fallback_city: str = "",
+) -> tuple[int, int]:
     created_count = 0
     existed_count = 0
     uid = int(requester_user_id)
@@ -126,6 +156,16 @@ def _ensure_linked_items_in_requester_cart(db, requester_user_id: int, linked_it
         meta = str(item.get("meta") or "").strip()[:512]
         source = str(item.get("source") or "").strip()[:50] or "group-buy"
         payload = item.get("payload")
+        if isinstance(payload, dict):
+            image = str(payload.get("image_url") or payload.get("image") or payload.get("thumb_url") or "").strip()
+            if not image:
+                default_img = _default_groupbuy_image(fallback_country, fallback_city)
+                payload["image_url"] = default_img
+                payload["image"] = default_img
+            if fallback_country and not payload.get("country"):
+                payload["country"] = fallback_country
+            if fallback_city and not payload.get("city"):
+                payload["city"] = fallback_city
         if not name:
             continue
 
@@ -457,6 +497,8 @@ async def decide_join_request(request_id: int, request: Request):
                     db=db,
                     requester_user_id=int(row.requester_user_id),
                     linked_items=linked_items,
+                    fallback_country=str(post.country or ""),
+                    fallback_city=str(post.city or ""),
                 )
                 if added_count > 0:
                     email_msg = f" 작성자 이메일: {owner_email}." if owner_email else ""
