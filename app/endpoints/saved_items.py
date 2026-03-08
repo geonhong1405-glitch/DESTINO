@@ -11,6 +11,46 @@ router = APIRouter(prefix="/api", tags=["saved-items"])
 _LIST_TYPES = {"wishlist", "cart"}
 
 
+def _flight_logo_url(code: str, name: str) -> str:
+    c = str(code or "").strip().upper()
+    if not c:
+        n = str(name or "").lower()
+        if "korean" in n:
+            c = "KE"
+        elif "asiana" in n:
+            c = "OZ"
+        elif "tway" in n:
+            c = "TW"
+        elif "jeju" in n:
+            c = "7C"
+        elif "jin air" in n or "jinair" in n:
+            c = "LJ"
+        elif "air busan" in n:
+            c = "BX"
+        elif "air seoul" in n:
+            c = "RS"
+    if not c:
+        return ""
+    return f"https://images.kiwi.com/airlines/64x64/{c}.png"
+
+
+def _default_groupbuy_image(country: str, city: str) -> str:
+    key = f"{country} {city}".lower()
+    if "japan" in key or "일본" in key:
+        return "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=900&q=80"
+    if "thailand" in key or "태국" in key:
+        return "https://images.unsplash.com/photo-1508009603885-50cf7c579365?auto=format&fit=crop&w=900&q=80"
+    if "vietnam" in key or "베트남" in key:
+        return "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=900&q=80"
+    if "france" in key or "프랑스" in key:
+        return "https://images.unsplash.com/photo-1502602898536-47ad22581b52?auto=format&fit=crop&w=900&q=80"
+    if "italy" in key or "이탈리아" in key:
+        return "https://images.unsplash.com/photo-1515542622106-78bda8ba0e5b?auto=format&fit=crop&w=900&q=80"
+    if "uk" in key or "united kingdom" in key or "영국" in key:
+        return "https://images.unsplash.com/photo-1486299267070-83823f5448dd?auto=format&fit=crop&w=900&q=80"
+    return "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=900&q=80"
+
+
 def _require_user_id(request: Request) -> int:
     session_token = request.cookies.get("session_token")
     user_id = get_user_id_from_session(session_token) if session_token else None
@@ -66,6 +106,41 @@ def _serialize_row(row: UserSavedItem) -> dict:
         payload = json.loads(row.payload_json) if row.payload_json else None
     except Exception:
         payload = None
+    if isinstance(payload, dict):
+        item_type = str(row.item_type or payload.get("item_type") or "").lower()
+        source = str(row.source or payload.get("source") or "").lower()
+        if item_type in {"groupbuy", "travel-group", "group-buy"} or source == "group-buy":
+            has_image = bool(
+                payload.get("image")
+                or payload.get("image_url")
+                or payload.get("thumb_url")
+                or payload.get("photo")
+                or payload.get("photo_url")
+            )
+            if not has_image:
+                fallback = _default_groupbuy_image(
+                    str(payload.get("country") or ""),
+                    str(payload.get("city") or ""),
+                )
+                payload["image"] = fallback
+                payload["image_url"] = fallback
+        if item_type == "flight":
+            has_image = bool(
+                payload.get("image")
+                or payload.get("image_url")
+                or payload.get("thumb_url")
+                or payload.get("photo")
+                or payload.get("photo_url")
+            )
+            if not has_image:
+                logo = _flight_logo_url(
+                    str(payload.get("airline_code") or ""),
+                    str(payload.get("airline") or row.name or ""),
+                )
+                if logo:
+                    payload["thumb_url"] = logo
+                    payload["image"] = logo
+                    payload["image_url"] = logo
     return {
         "id": row.id,
         "list_type": row.list_type,

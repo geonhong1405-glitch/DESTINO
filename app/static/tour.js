@@ -69,6 +69,14 @@
     return `₩${Math.floor(n).toLocaleString("ko-KR")}`;
   }
 
+  function isLikelyPriceMetaLine(text) {
+    const raw = String(text || "").trim();
+    if (!raw) return false;
+    if (/^(출발|도착|오는편\s*출발|오는편\s*도착)\b/.test(raw)) return false;
+    if (!/[\d,]+/.test(raw)) return false;
+    return /(₩|원|krw|KRW|~)/.test(raw) || /^[\d,\.\s]+$/.test(raw);
+  }
+
   function savedTypeLabel(itemType) {
     const type = String(itemType || "").toLowerCase();
     return type ? type.toUpperCase() : "ITEM";
@@ -414,36 +422,31 @@
       emptyEl.style.display = tourAlertState.length ? "none" : "block";
       emptyEl.textContent = ALERT_EMPTY_LABEL;
 
-      tourAlertState.forEach((alert) => {
-        const li = document.createElement("li");
-        li.className = "tour-saved-item";
-        const status = String(alert?.status || "pending");
-        const statusLabel =
-          status === "accepted"
-            ? "수락됨"
-            : status === "rejected"
-              ? "거절됨"
-              : "대기중";
-        const incoming = String(alert?.direction || "incoming") !== "mine";
-        li.innerHTML = `
-          <div class="tour-saved-item__type">알림</div>
-          <div class="tour-saved-item__name">${alert?.post_title || "공동구매 참여 요청"}</div>
-          <div class="tour-saved-item__meta">${alert?.requester_name || "사용자"} | ${statusLabel}</div>
-          ${alert?.message ? `<div class="tour-saved-item__meta">${alert.message}</div>` : ""}
-          ${
-            incoming && status === "pending"
-              ? `
-                <div style="display:flex;gap:6px;margin-top:8px;">
-                  <button type="button" data-tour-alert-decision="accept" data-tour-alert-id="${Number(alert?.id)}" style="padding:4px 8px;border-radius:8px;border:1px solid #a7f3d0;background:#ecfdf5;color:#065f46;font-size:12px;font-weight:700;">수락</button>
-                  <button type="button" data-tour-alert-decision="reject" data-tour-alert-id="${Number(alert?.id)}" style="padding:4px 8px;border-radius:8px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;font-size:12px;font-weight:700;">거절</button>
-                </div>
-              `
-              : ""
-          }
-          ${status !== "pending" ? `<button type="button" class="tour-saved-item__remove" data-tour-alert-remove="${Number(alert?.id)}" title="삭제">&times;</button>` : ""}
-        `;
-        listEl.appendChild(li);
-      });
+      listEl.innerHTML = tourAlertState
+        .map((alert) =>
+          window.SavedDrawerCommon
+            ? window.SavedDrawerCommon.renderAlertItem(alert, {
+                itemClass: "tour-saved-item",
+                metaClass: "tour-saved-meta",
+                typeClass: "tour-saved-item__type",
+                nameClass: "tour-saved-item__name",
+                lineClass: "tour-saved-item__meta",
+                closeHtml: (row) => `<button type="button" class="tour-saved-item__remove" data-tour-alert-remove="${Number(row?.id)}" aria-label="삭제" title="삭제">×</button>`,
+                actionHtml: (row, ctx) => `
+                  ${
+                    ctx.incoming && ctx.status === "pending"
+                      ? `<div class="saved-alert-actions">
+                          <button type="button" data-tour-alert-decision="accept" data-tour-alert-id="${Number(row?.id)}" class="saved-alert-btn">수락</button>
+                          <button type="button" data-tour-alert-decision="reject" data-tour-alert-id="${Number(row?.id)}" class="saved-alert-btn is-reject">거절</button>
+                        </div>`
+                      : ""
+                  }
+                  ${""}
+                `,
+              })
+            : "",
+        )
+        .join("");
       return;
     }
 
@@ -454,38 +457,24 @@
         ? "위시리스트 항목이 없습니다."
         : "장바구니 항목이 없습니다.";
 
-    items.forEach((item) => {
-      const li = document.createElement("li");
-      li.className = "tour-saved-item";
-      // home drawer 스타일과 동일하게 썸네일, 이름, 가격, 메타, 삭제 버튼 렌더링
-      const imgSrc =
-        item?.payload?.thumb_url ||
-        item?.payload?.image_url ||
-        item?.payload?.image ||
-        item?.image_url ||
-        item?.image ||
-        "";
-      const title = item?.name || item?.payload?.title || "-";
-      const price = normalizeKrwPriceText(item?.payload?.price_text || item?.price || "");
-      const metaLines = String(item?.meta || "")
-        .split("|")
-        .map((x) => x.trim())
-        .filter((x) => x && !/[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(x));
-      const kind = `${savedTypeLabel(item?.item_type)} · ${item?.source || "saved-item"}`;
-      li.innerHTML = `
-        <div class="tour-saved-thumb">
-          ${imgSrc ? `<img src="${imgSrc}" alt="썸네일" loading="lazy" onerror="this.remove()">` : ""}
-        </div>
-        <div class="tour-saved-meta">
-          <div class="tour-saved-kind">${kind}</div>
-          <div class="tour-saved-name">${title}</div>
-          ${price ? `<div class="tour-saved-price">${price}</div>` : ""}
-          ${metaLines.map((line) => `<div class="tour-saved-line">${line}</div>`).join("")}
-        </div>
-        <button type="button" class="tour-saved-item__remove" data-tour-saved-remove="${Number(item.id)}" title="remove">&times;</button>
-      `;
-      listEl.appendChild(li);
-    });
+    listEl.innerHTML = items
+      .map((item) =>
+        window.SavedDrawerCommon
+          ? window.SavedDrawerCommon.renderSavedItem(item, {
+              itemClass: "tour-saved-item",
+              thumbClass: "tour-saved-thumb",
+              metaClass: "tour-saved-meta",
+              typeClass: "tour-saved-kind",
+              nameClass: "tour-saved-name",
+              lineClass: "tour-saved-line",
+              priceClass: "tour-saved-price",
+              removeClass: "tour-saved-item__remove",
+              removeAttrName: "data-tour-saved-remove",
+              typeLabelFn: (itemType) => savedTypeLabel(itemType),
+            })
+          : "",
+      )
+      .join("");
   }
 
   function initTourSavedDrawer() {

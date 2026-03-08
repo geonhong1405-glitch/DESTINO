@@ -31,8 +31,8 @@ function showToast(message, duration = 2000) {
 }
 let savedItemState = { wishlist: [], cart: [] };
 let tourSavedDrawerTab = 'cart';
+let packDetailAlertState = [];
 
-// DB에서 장바구니/위시리스트 동기화
 async function loadSavedItems() {
     try {
         const res = await fetch('/api/saved-items', { credentials: 'same-origin' });
@@ -47,7 +47,7 @@ async function loadSavedItems() {
             cart: Array.isArray(data?.cart) ? data.cart : [],
         };
         renderFlightSavedDrawer();
-    } catch (e) {
+    } catch (_e) {
         savedItemState = { wishlist: [], cart: [] };
         renderFlightSavedDrawer();
     }
@@ -62,14 +62,7 @@ function getCurrentProductInfo() {
     const loc = document.querySelector('.fa-location-dot')?.parentElement?.innerText?.trim() || '';
     const price = document.getElementById('productPrice')?.innerText || '';
     const img = document.getElementById('productImg')?.src || '';
-    return {
-        item_type: category,
-        name: title,
-        meta: loc,
-        price,
-        image: img,
-        id: id
-    };
+    return { item_type: category, name: title, meta: loc, price, image: img, id };
 }
 
 function getSavedItemKey(item) {
@@ -77,18 +70,59 @@ function getSavedItemKey(item) {
 }
 
 function hasSavedItem(listType, item) {
-    // payload.id(프론트 상품 id)와 비교
     if (item.id) {
-        return (savedItemState[listType] || []).some((x) => {
-            if (x.payload && x.payload.id) {
-                return String(x.payload.id) === String(item.id);
-            }
-            return false;
-        });
-    } else {
-        const key = getSavedItemKey(item);
-        return (savedItemState[listType] || []).some((x) => getSavedItemKey(x) === key);
+        return (savedItemState[listType] || []).some((x) => x.payload && String(x.payload.id) === String(item.id));
     }
+    const key = getSavedItemKey(item);
+    return (savedItemState[listType] || []).some((x) => getSavedItemKey(x) === key);
+}
+
+function normalizeKrwPriceText(text) {
+    const raw = String(text || '').trim();
+    if (!raw) return '';
+    const m = raw.match(/([\d,]+(?:\.\d+)?)\s*(krw|KRW|\uc6d0|\u20a9)?/);
+    if (!m) return '';
+    const n = Number(String(m[1]).replace(/,/g, ''));
+    if (!Number.isFinite(n) || n <= 0) return '';
+    return `\u20a9${Math.floor(n).toLocaleString('ko-KR')}`;
+}
+
+function isLikelyPriceMetaLine(text) {
+    const raw = String(text || '').trim();
+    if (!raw) return false;
+    if (/^(출발|도착|오는편\s*출발|오는편\s*도착)\b/.test(raw)) return false;
+    if (!/[\d,]+/.test(raw)) return false;
+    return /(\u20a9|\uc6d0|krw|KRW|~)/.test(raw) || /^[\d,\.\s]+$/.test(raw);
+}
+
+function savedTypeLabel(itemType) {
+    const type = String(itemType || '').toLowerCase();
+    return type ? type.toUpperCase() : 'ITEM';
+}
+
+async function loadPackDetailAlerts() {
+    try {
+        const res = await fetch('/api/group-buy/join-requests/inbox', { credentials: 'include' });
+        if (res.status === 401) {
+            packDetailAlertState = [];
+            return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        packDetailAlertState = Array.isArray(data) ? data : [];
+    } catch (_e) {
+        packDetailAlertState = [];
+    }
+}
+
+async function decidePackDetailAlert(requestId, action) {
+    const res = await fetch(`/api/group-buy/join-requests/${Number(requestId)}/decision`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
 function renderFlightSavedDrawer() {
@@ -97,48 +131,8 @@ function renderFlightSavedDrawer() {
     const countEl = document.getElementById('flightSavedFabCount');
     const tabs = Array.from(document.querySelectorAll('[data-flight-saved-tab]'));
     if (!listEl || !emptyEl) return;
-    const total = (savedItemState.cart?.length || 0) + (savedItemState.wishlist?.length || 0);
-    if (countEl) {
-        countEl.hidden = false;
-        countEl.textContent = String(total || 0);
-    }
-    tabs.forEach((btn) => {
-        const active = btn.getAttribute('data-flight-saved-tab') === tourSavedDrawerTab;
-        btn.classList.toggle('is-active', active);
-        btn.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
-    if (tourSavedDrawerTab === 'alerts') {
-        listEl.innerHTML = '';
-        emptyEl.style.display = 'block';
-        emptyEl.textContent = '알림 기능은 미지원입니다.';
-        return;
-    }
-    const items = Array.isArray(savedItemState[tourSavedDrawerTab]) ? savedItemState[tourSavedDrawerTab] : [];
-    listEl.innerHTML = '';
-    emptyEl.style.display = items.length ? 'none' : 'block';
-    emptyEl.textContent = tourSavedDrawerTab === 'wishlist' ? '위시리스트 항목이 없습니다.' : '장바구니 항목이 없습니다.';
-    items.forEach((item) => {
-        const li = document.createElement('li');
-        li.className = 'flight-saved-item';
-        li.innerHTML = `
-            <div class="flight-saved-item__type">${item.item_type === 'tour' ? '투어' : (item.item_type || 'item')}</div>
-            <div class="flight-saved-item__name">${item.name || '-'}</div>
-            <div class="flight-saved-item__meta">${item.meta || ''}${item.price ? `<br><b>${item.price}원</b>` : ''}</div>
-            <button type="button" class="flight-saved-item__remove" data-flight-saved-remove="${item.id}" title="삭제">×</button>
-            ${item.image ? `<img src="${item.image}" alt="${item.name}" style="width:38px;height:38px;object-fit:cover;position:absolute;top:10px;left:10px;border-radius:8px;">` : ''}
-        `;
-        listEl.appendChild(li);
-    });
-}
 
-function renderFlightSavedDrawer() {
-    const listEl = document.getElementById('flightSavedList');
-    const emptyEl = document.getElementById('flightSavedEmpty');
-    const countEl = document.getElementById('flightSavedFabCount');
-    const tabs = Array.from(document.querySelectorAll('[data-flight-saved-tab]'));
-    if (!listEl || !emptyEl) return;
-
-    const total = (savedItemState.cart?.length || 0) + (savedItemState.wishlist?.length || 0);
+    const total = (savedItemState.cart?.length || 0) + (savedItemState.wishlist?.length || 0) + (packDetailAlertState?.length || 0);
     if (countEl) {
         countEl.hidden = false;
         countEl.textContent = String(total || 0);
@@ -152,47 +146,51 @@ function renderFlightSavedDrawer() {
 
     if (tourSavedDrawerTab === 'alerts') {
         listEl.innerHTML = '';
-        emptyEl.style.display = 'block';
-        emptyEl.textContent = '알림 기능이 아직 준비 중입니다.';
+        emptyEl.style.display = packDetailAlertState.length ? 'none' : 'block';
+        emptyEl.textContent = '\uacf5\ub3d9\uad6c\ub9e4 \ucc38\uc5ec \uc694\uccad \uc54c\ub9bc\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.';
+        listEl.innerHTML = packDetailAlertState.map((item) => window.SavedDrawerCommon
+            ? window.SavedDrawerCommon.renderAlertItem(item, {
+                itemClass: 'flight-saved-item',
+                metaClass: 'flight-saved-item__content',
+                typeClass: 'flight-saved-item__type',
+                nameClass: 'flight-saved-item__name',
+                lineClass: 'flight-saved-line',
+                closeHtml: (alert) => `<button type="button" class="flight-saved-item__remove" data-pack-detail-alert-remove="${Number(alert.id)}" aria-label="삭제" title="삭제">×</button>`,
+                actionHtml: (alert, ctx) => `
+                    ${
+                        ctx.incoming && ctx.status === 'pending'
+                            ? `<div class="saved-alert-actions">
+                                <button type="button" data-pack-detail-alert-action="accept" data-pack-detail-alert-id="${Number(alert.id)}" class="saved-alert-btn">수락</button>
+                                <button type="button" data-pack-detail-alert-action="reject" data-pack-detail-alert-id="${Number(alert.id)}" class="saved-alert-btn is-reject">거절</button>
+                              </div>`
+                            : ''
+                    }
+                    ${""}
+                `,
+            })
+            : '').join('');
         return;
     }
 
     const items = Array.isArray(savedItemState[tourSavedDrawerTab]) ? savedItemState[tourSavedDrawerTab] : [];
     listEl.innerHTML = '';
     emptyEl.style.display = items.length ? 'none' : 'block';
-    emptyEl.textContent = tourSavedDrawerTab === 'wishlist' ? '위시리스트 항목이 없습니다.' : '장바구니 항목이 없습니다.';
+    emptyEl.textContent = tourSavedDrawerTab === 'wishlist' ? '\uc704\uc2dc\ub9ac\uc2a4\ud2b8 \ud56d\ubaa9\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.' : '\uc7a5\ubc14\uad6c\ub2c8 \ud56d\ubaa9\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.';
 
-    const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const toKrw = (value) => {
-        const raw = String(value ?? '').trim();
-        if (!raw) return '';
-        const numeric = Number(raw.replace(/[^\d.]/g, ''));
-        return Number.isFinite(numeric) && numeric > 0 ? `₩${Math.floor(numeric).toLocaleString('ko-KR')}` : raw;
-    };
-
-    items.forEach((item) => {
-        const imageUrl = item?.payload?.image || item?.payload?.image_url || item?.image || '';
-        const kind = `${item.item_type || 'item'} · ${item.source || 'package'}`;
-        const name = item?.name || '-';
-        const meta = item?.meta || '';
-        const priceText = toKrw(item?.price || item?.payload?.price_text || item?.payload?.price || '');
-
-        const li = document.createElement('li');
-        li.className = 'flight-saved-item';
-        li.innerHTML = `
-            <div class="flight-saved-thumb">
-                ${imageUrl ? `<img src="${esc(imageUrl)}" alt="${esc(name)}" loading="lazy" onerror="this.remove()">` : ''}
-            </div>
-            <div class="flight-saved-item__meta">
-                <div class="flight-saved-item__type">${esc(kind)}</div>
-                <div class="flight-saved-item__name">${esc(name)}</div>
-                ${priceText ? `<div class="flight-saved-price">${esc(priceText)}</div>` : ''}
-                ${meta ? `<div class="flight-saved-line">${esc(meta)}</div>` : ''}
-            </div>
-            <button type="button" class="flight-saved-item__remove" data-flight-saved-remove="${item.id}" title="삭제">×</button>
-        `;
-        listEl.appendChild(li);
-    });
+    listEl.innerHTML = items.map((item) => window.SavedDrawerCommon
+        ? window.SavedDrawerCommon.renderSavedItem(item, {
+            itemClass: 'flight-saved-item',
+            thumbClass: 'flight-saved-thumb',
+            metaClass: 'flight-saved-item__meta',
+            typeClass: 'flight-saved-item__type',
+            nameClass: 'flight-saved-item__name',
+            lineClass: 'flight-saved-line',
+            priceClass: 'flight-saved-line flight-saved-price',
+            removeClass: 'flight-saved-item__remove',
+            removeAttrName: 'data-flight-saved-remove',
+            typeLabelFn: (itemType) => savedTypeLabel(itemType),
+        })
+        : '').join('');
 }
 
 function setFlightSavedDrawer(open) {
@@ -204,47 +202,86 @@ function setFlightSavedDrawer(open) {
     fab.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
-
 function initFlightSavedDrawer() {
     const fab = document.getElementById('flightSavedFab');
     const drawer = document.getElementById('flightSavedDrawer');
     const listEl = document.getElementById('flightSavedList');
     if (!fab || !drawer) return;
+
     fab.addEventListener('click', () => {
         setFlightSavedDrawer(!drawer.classList.contains('is-open'));
-        if (drawer.classList.contains('is-open')) loadSavedItems();
+        if (drawer.classList.contains('is-open')) {
+            loadSavedItems();
+            loadPackDetailAlerts().then(renderFlightSavedDrawer);
+        }
     });
+
     document.querySelectorAll('[data-flight-saved-close]').forEach((el) => {
         el.addEventListener('click', () => setFlightSavedDrawer(false));
     });
+
     document.querySelectorAll('[data-flight-saved-tab]').forEach((btn) => {
         btn.addEventListener('click', () => {
             tourSavedDrawerTab = btn.getAttribute('data-flight-saved-tab') || 'cart';
+            if (tourSavedDrawerTab === 'alerts') {
+                loadPackDetailAlerts().then(renderFlightSavedDrawer);
+                return;
+            }
             loadSavedItems();
         });
     });
+
     listEl?.addEventListener('click', async (e) => {
+        const alertBtn = e.target.closest('[data-pack-detail-alert-action]');
+        if (alertBtn) {
+            const requestId = Number(alertBtn.getAttribute('data-pack-detail-alert-id'));
+            const action = String(alertBtn.getAttribute('data-pack-detail-alert-action') || '');
+            if (!requestId || !action) return;
+            try {
+                await decidePackDetailAlert(requestId, action);
+                await loadPackDetailAlerts();
+                renderFlightSavedDrawer();
+            } catch (err) {
+                alert(err?.message || '\uc694\uccad \ucc98\ub9ac \uc911 \uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4.');
+            }
+            return;
+        }
+
+        const alertRemoveBtn = e.target.closest('[data-pack-detail-alert-remove]');
+        if (alertRemoveBtn) {
+            const requestId = Number(alertRemoveBtn.getAttribute('data-pack-detail-alert-remove'));
+            if (!requestId) return;
+            try {
+                const res = await fetch(`/api/group-buy/join-requests/${requestId}`, { method: 'DELETE', credentials: 'include' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                await loadPackDetailAlerts();
+                renderFlightSavedDrawer();
+            } catch (err) {
+                alert(err?.message || '\uc54c\ub9bc \uc0ad\uc81c \uc911 \uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4.');
+            }
+            return;
+        }
+
         const btn = e.target.closest('[data-flight-saved-remove]');
         if (!btn) return;
         const itemId = Number(btn.getAttribute('data-flight-saved-remove'));
         if (Number.isNaN(itemId)) return;
-        // 서버에 id로 삭제 요청
         try {
             await fetch(`/api/saved-items/${itemId}`, { method: 'DELETE', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } });
-            // 클라이언트 상태에서도 제거
             savedItemState[tourSavedDrawerTab] = (savedItemState[tourSavedDrawerTab] || []).filter((x) => Number(x.id) !== itemId);
             renderFlightSavedDrawer();
-        } catch (err) {
-            alert('삭제 중 오류가 발생했습니다.');
+        } catch (_err) {
+            alert('\uc0ad\uc81c \uc911 \uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4.');
         }
     });
-    renderFlightSavedDrawer();
+
+    Promise.all([loadSavedItems(), loadPackDetailAlerts()]).finally(() => {
+        renderFlightSavedDrawer();
+    });
 }
 
-
-// 로그인 체크 함수 (템플릿에서 window.isLoggedIn = true/false로 세팅 필요)
 function requireLoginMessage() {
-    if (confirm('로그인 후 이용 가능한 기능입니다. 로그인 페이지로 이동할까요?')) {
+    if (confirm('\ub85c\uadf8\uc778 \ud6c4 \uc774\uc6a9 \uac00\ub2a5\ud55c \uae30\ub2a5\uc785\ub2c8\ub2e4. \ub85c\uadf8\uc778 \ud398\uc774\uc9c0\ub85c \uc774\ub3d9\ud560\uae4c\uc694?')) {
         location.href = '/login';
     }
 }

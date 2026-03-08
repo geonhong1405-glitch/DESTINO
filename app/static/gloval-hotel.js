@@ -284,6 +284,14 @@ function normalizeKrwPriceText(text) {
     return `₩${Math.floor(n).toLocaleString('ko-KR')}`;
 }
 
+function isLikelyPriceMetaLine(text) {
+    const raw = String(text || '').trim();
+    if (!raw) return false;
+    if (/^(출발|도착|오는편\s*출발|오는편\s*도착)\b/.test(raw)) return false;
+    if (!/[\d,]+/.test(raw)) return false;
+    return /(₩|원|krw|KRW|~)/.test(raw) || /^[\d,\.\s]+$/.test(raw);
+}
+
 function buildHotelSavedPayload(raw, listType) {
     const payload = raw && typeof raw === 'object' ? raw : null;
     if (!payload || !payload.name) return null;
@@ -571,28 +579,27 @@ function renderHotelSavedDrawer() {
             return;
         }
         emptyEl.style.display = 'none';
-        listEl.innerHTML = hotelAlertState.map((item) => {
-            const status = String(item.status || 'pending');
-            const statusLabel = status === 'accepted' ? '수락됨' : (status === 'rejected' ? '거절됨' : '대기중');
-            return `
-                <li class="hotel-saved-item" style="grid-template-columns:1fr;">
-                    <div>
-                        <div class="hotel-saved-item__type">공동구매 · 참여요청</div>
-                        <div class="hotel-saved-item__name">${hotelEscapeHtml(item.post_title || '-')}</div>
-                        <div class="hotel-saved-item__meta">${hotelEscapeHtml(item.requester_name || '-')}님의 요청<br>${item.requester_email ? `이메일: ${hotelEscapeHtml(item.requester_email)}<br>` : ''}${hotelEscapeHtml(statusLabel)}${item.message ? `<br>${hotelEscapeHtml(item.message)}` : ''}</div>
-                        ${status === 'pending'
-                            ? `<div style="margin-top:8px;display:flex;gap:6px;">
-                                <button type="button" data-hotel-alert-action="accept" data-hotel-alert-id="${Number(item.id)}" class="hotel-detail-action-btn" style="min-height:32px;padding:0 10px;">수락</button>
-                                <button type="button" data-hotel-alert-action="reject" data-hotel-alert-id="${Number(item.id)}" class="hotel-detail-action-btn" style="min-height:32px;padding:0 10px;">거절</button>
+        listEl.innerHTML = hotelAlertState.map((item) => window.SavedDrawerCommon
+            ? window.SavedDrawerCommon.renderAlertItem(item, {
+                itemClass: 'hotel-saved-item',
+                metaClass: 'hotel-saved-item__content',
+                typeClass: 'hotel-saved-item__type',
+                nameClass: 'hotel-saved-item__name',
+                lineClass: 'hotel-saved-line',
+                closeHtml: (alert) => `<button type="button" class="hotel-saved-item__remove" data-hotel-alert-remove="${Number(alert.id)}" aria-label="삭제" title="삭제">×</button>`,
+                actionHtml: (alert, ctx) => `
+                    ${
+                        ctx.incoming && ctx.status === 'pending'
+                            ? `<div class="saved-alert-actions">
+                                <button type="button" data-hotel-alert-action="accept" data-hotel-alert-id="${Number(alert.id)}" class="saved-alert-btn">수락</button>
+                                <button type="button" data-hotel-alert-action="reject" data-hotel-alert-id="${Number(alert.id)}" class="saved-alert-btn is-reject">거절</button>
                                </div>`
-                            : `<div style="margin-top:8px;">
-                                <button type="button" data-hotel-alert-remove="${Number(item.id)}" class="hotel-detail-action-btn" style="min-height:32px;padding:0 10px;">알림 삭제</button>
-                               </div>`
-                        }
-                    </div>
-                </li>
-            `;
-        }).join('');
+                            : ''
+                    }
+                    ${""}
+                `,
+            })
+            : '').join('');
         return;
     }
 
@@ -601,46 +608,20 @@ function renderHotelSavedDrawer() {
     emptyEl.style.display = items.length ? 'none' : 'block';
     emptyEl.textContent = hotelSavedTab === 'wishlist' ? '위시리스트 항목이 없습니다.' : '장바구니 항목이 없습니다.';
 
-    items.forEach((item) => {
-        const payload = item?.payload && typeof item.payload === 'object' ? item.payload : {};
-        const imageUrl = String(payload?.image || payload?.image_url || payload?.thumb_url || item?.image || item?.image_url || '');
-        let price = '';
-        let metaLines = [];
-        if (item?.meta) {
-            const parts = item.meta.split('|').map((x) => x.trim());
-            if (parts.length) {
-                const detected = parts.find((p) => normalizeKrwPriceText(p));
-                price = normalizeKrwPriceText(detected || '');
-                metaLines = parts.filter((p) => p && p !== detected && !/[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(p));
-            }
-        }
-        if (!price) {
-            price = normalizeKrwPriceText(
-                item?.price ||
-                payload?.price_text ||
-                payload?.price ||
-                payload?.amount ||
-                payload?.total_price ||
-                ''
-            );
-        }
-        const kind = `${hotelEscapeHtml((item?.item_type || 'item').toUpperCase())} · ${hotelEscapeHtml(item?.source || 'hotel')}`;
-        const li = document.createElement('li');
-        li.className = 'hotel-saved-item';
-        li.innerHTML = `
-            <div class="hotel-saved-item__thumb">
-                ${imageUrl ? `<img src="${hotelEscapeHtml(imageUrl)}" alt="${hotelEscapeHtml(item?.name || "")}" loading="lazy" onerror="this.remove()">` : ""}
-            </div>
-            <div class="home-saved-meta">
-                <div class="hotel-saved-item__type">${hotelEscapeHtml((item?.item_type || "item").toUpperCase())} · ${hotelEscapeHtml(item?.source || "hotel")}</div>
-                <div class="hotel-saved-item__name">${hotelEscapeHtml(item?.name || "-")}</div>
-                ${price ? `<div class="hotel-saved-line hotel-saved-price">${hotelEscapeHtml(price)}</div>` : ""}
-                ${metaLines.map((line) => `<div class="hotel-saved-item__meta">${hotelEscapeHtml(line)}</div>`).join("")}
-            </div>
-            <button type="button" class="home-saved-remove" data-hotel-saved-remove="${Number(item.id)}" aria-label="삭제">×</button>
-        `;
-        listEl.appendChild(li);
-    });
+    listEl.innerHTML = items.map((item) => window.SavedDrawerCommon
+        ? window.SavedDrawerCommon.renderSavedItem(item, {
+            itemClass: 'hotel-saved-item',
+            thumbClass: 'hotel-saved-item__thumb',
+            metaClass: 'hotel-saved-item__content',
+            typeClass: 'hotel-saved-item__type',
+            nameClass: 'hotel-saved-item__name',
+            lineClass: 'hotel-saved-line',
+            priceClass: 'hotel-saved-line hotel-saved-price',
+            removeClass: 'hotel-saved-item__remove',
+            removeAttrName: 'data-hotel-saved-remove',
+            typeLabelFn: (itemType) => window.SavedDrawerCommon.getTypeLabel(itemType),
+        })
+        : '').join('');
 }
 /* 
 <div class="hotel-saved-item__thumb">${imageUrl ? `<img src="${hotelEscapeHtml(imageUrl)}" alt="">` : ""}</div>

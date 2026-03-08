@@ -6,7 +6,7 @@
     <title>DESTINO - 렌터카 예약</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <link rel="stylesheet" href="../static/rental.css?v=20260227b">
-    <link rel="stylesheet" href="/static/saved-drawer-unified.css?v=20260306l" />
+    <link rel="stylesheet" href="/static/saved-drawer-unified.css?v=20260306o" />
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
@@ -396,7 +396,8 @@
         };
         window.__RENTAL_LOGGED_IN__ = {{ (true if nickname else false)|tojson }};
     </script>
-    <script src="../static/rental.js?v=20260306c"></script>
+    <script src="/static/saved-drawer-common.js?v=20260308a"></script>
+    <script src="../static/rental.js?v=20260308a"></script>
     <script>
         // Fallback date-popover binding: keeps date fields usable even if main JS partially fails.
         document.addEventListener('DOMContentLoaded', function () {
@@ -470,5 +471,3 @@
     </script>
 </body>
 </html>
-
-

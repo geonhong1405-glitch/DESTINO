@@ -202,6 +202,9 @@
 .group-saved-tabs,
 .home-saved-tabs {
   display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
   background: #f3f4f6 !important;
   padding: 4px !important;
   border-radius: 12px !important;
@@ -215,6 +218,8 @@
 .package-saved-tab,
 .group-saved-tab,
 .home-saved-tab {
+  appearance: none !important;
+  -webkit-appearance: none !important;
   border: 0 !important;
   background: transparent !important;
   color: #475569 !important;
@@ -223,6 +228,7 @@
   padding: 8px 12px !important;
   border-radius: 10px !important;
   cursor: pointer !important;
+  white-space: nowrap !important;
 }
 
 .flight-saved-tab.is-active,
@@ -244,12 +250,15 @@
 .package-saved-list,
 .group-saved-list,
 .home-saved-list {
+  list-style: none !important;
+  margin: 8px 0 0 !important;
+  padding: 0 4px 0 0 !important;
   margin-top: 8px !important;
   display: grid !important;
   gap: 10px !important;
   max-height: calc(min(72vh, 640px) - 92px) !important;
   overflow: auto !important;
-  padding-right: 4px !important;
+  box-sizing: border-box !important;
 }
 
 .flight-saved-empty,
@@ -259,6 +268,7 @@
 .package-saved-empty,
 .group-saved-empty,
 .home-saved-empty {
+  margin: 0 !important;
   color: #64748b !important;
   font-size: 13px !important;
   padding: 14px 6px 6px !important;
@@ -272,6 +282,9 @@
 .group-saved-item,
 .home-saved-item,
 .ai-cart-item {
+  list-style: none !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
   display: grid !important;
   grid-template-columns: 84px minmax(0, 1fr) auto !important;
   gap: 10px !important;
@@ -354,19 +367,24 @@
 }
 
 .flight-saved-item__meta,
+.flight-saved-item__content,
 .tour-saved-meta,
+.hotel-saved-item__content,
 .hotel-saved-item__meta,
 .rental-saved-item__meta,
 .package-saved-content,
 .group-saved-item__content,
 .home-saved-meta,
 .ai-cart-item__content {
+  display: block !important;
   min-width: 0 !important;
   width: 100% !important;
 }
 
 .flight-saved-item__type,
+.flight-saved-alert-title,
 .tour-saved-kind,
+.tour-saved-item__type,
 .hotel-saved-item__type,
 .rental-saved-item__type,
 .package-saved-item__type,
@@ -379,10 +397,12 @@
   margin-bottom: 3px !important;
   line-height: 1.35 !important;
   letter-spacing: normal !important;
+  font-family: "Pretendard", "Noto Sans KR", sans-serif !important;
 }
 
 .flight-saved-item__name,
 .tour-saved-name,
+.tour-saved-item__name,
 .hotel-saved-item__name,
 .rental-saved-item__name,
 .package-saved-item__name,
@@ -396,10 +416,13 @@
   margin-bottom: 4px !important;
   word-break: keep-all !important;
   overflow-wrap: anywhere !important;
+  font-family: "Pretendard", "Noto Sans KR", sans-serif !important;
 }
 
 .flight-saved-line,
+.flight-saved-alert-desc,
 .tour-saved-line,
+.tour-saved-item__meta,
 .hotel-saved-line,
 .rental-saved-item__meta,
 .package-saved-line,
@@ -410,8 +433,10 @@
   font-size: 12px !important;
   color: #64748b !important;
   line-height: 1.35 !important;
+  font-weight: 400 !important;
   word-break: keep-all !important;
   overflow-wrap: anywhere !important;
+  font-family: "Pretendard", "Noto Sans KR", sans-serif !important;
 }
 
 .ai-cart-item--flight {
@@ -427,6 +452,7 @@
 
 .ai-cart-item__content--flight .ai-cart-item__name {
   font-size: 14px !important;
+  font-weight: 700 !important;
   line-height: 1.35 !important;
 }
 
@@ -456,7 +482,140 @@
 }
 
 .ai-cart-item__content--flight .ai-cart-item__line.ai-cart-item__price {
-  font-size: 15px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 1.35 !important;
+}
+
+/* unified alert cards in drawers */
+.saved-alert-card,
+.flight-saved-alert-item.saved-alert-card,
+.ai-cart-item.saved-alert-card,
+.home-saved-item.saved-alert-card,
+.flight-saved-item.saved-alert-card,
+.hotel-saved-item.saved-alert-card,
+.rental-saved-item.saved-alert-card,
+.package-saved-item.saved-alert-card,
+.tour-saved-item.saved-alert-card,
+.group-saved-item.saved-alert-card {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: start !important;
+  gap: 10px !important;
+  min-height: 0 !important;
+  height: auto !important;
+  position: relative !important;
+  padding-right: 46px !important;
+}
+
+.saved-alert-card .home-saved-meta,
+.saved-alert-card .flight-saved-alert-meta,
+.saved-alert-card .flight-saved-item__meta,
+.saved-alert-card .flight-saved-item__content,
+.saved-alert-card .tour-saved-meta,
+.saved-alert-card .hotel-saved-item__content,
+.saved-alert-card .hotel-saved-item__meta,
+.saved-alert-card .rental-saved-item__meta,
+.saved-alert-card .package-saved-content,
+.saved-alert-card .group-saved-item__content,
+.saved-alert-card .ai-cart-item__content {
+  min-width: 0 !important;
+}
+
+.saved-alert-card .flight-saved-item__remove,
+.saved-alert-card .tour-saved-item__remove,
+.saved-alert-card .hotel-saved-item__remove,
+.saved-alert-card .rental-saved-item__remove,
+.saved-alert-card .package-saved-item__remove,
+.saved-alert-card .group-saved-item__remove,
+.saved-alert-card .home-saved-remove,
+.saved-alert-card .ai-cart-item__remove {
+  position: absolute !important;
+  top: 10px !important;
+  right: 10px !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  justify-self: auto !important;
+  align-self: auto !important;
+  z-index: 2 !important;
+}
+
+.saved-alert-card .home-saved-line,
+.saved-alert-card .flight-saved-alert-desc,
+.saved-alert-card .flight-saved-line,
+.saved-alert-card .flight-saved-item__meta,
+.saved-alert-card .tour-saved-line,
+.saved-alert-card .tour-saved-item__meta,
+.saved-alert-card .hotel-saved-line,
+.saved-alert-card .hotel-saved-item__meta,
+.saved-alert-card .rental-saved-item__meta,
+.saved-alert-card .package-saved-item__meta,
+.saved-alert-card .group-saved-item__meta,
+.saved-alert-card .ai-cart-item__line {
+  white-space: normal !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+  line-height: 1.45 !important;
+}
+
+.saved-alert-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin-top: 8px !important;
+}
+
+.saved-alert-btn {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  border: 1px solid #dbeafe !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-radius: 8px !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  cursor: pointer !important;
+}
+
+.saved-alert-btn.is-reject {
+  border-color: #fecaca !important;
+  background: #fef2f2 !important;
+  color: #991b1b !important;
+}
+
+.saved-alert-btn.is-delete {
+  border-color: #e5e7eb !important;
+  background: #fff !important;
+  color: #475569 !important;
+}
+
+.saved-alert-status {
+  display: inline-block !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+.saved-alert-status.is-pending {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+}
+
+.saved-alert-status.is-accepted {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+}
+
+.saved-alert-status.is-rejected {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
 }
 
 @media (max-width: 768px) {

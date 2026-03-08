@@ -964,43 +964,27 @@ function renderGroupSavedDrawer() {
             return;
         }
         emptyEl.style.display = 'none';
-        listEl.innerHTML = groupAlertState.map((item) => {
-            const status = String(item.status || 'pending');
-            const statusLabel = status === 'accepted' ? '수락됨' : (status === 'rejected' ? '거절됨' : '대기중');
-            const statusChipStyle = status === 'accepted'
-                ? 'display:inline-block;padding:2px 8px;border-radius:999px;background:#dcfce7;color:#166534;font-weight:800;'
-                : (status === 'rejected'
-                    ? 'display:inline-block;padding:2px 8px;border-radius:999px;background:#fee2e2;color:#991b1b;font-weight:800;'
-                    : 'display:inline-block;padding:2px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-weight:800;');
-            const incoming = String(item.direction || 'incoming') !== 'mine';
-            const reqTitle = incoming
-                ? `${escapeHtml(item.requester_name || '-')}님이 요청했습니다`
-                : `${escapeHtml(item.requester_name || '작성자')}님의 응답`;
-            return `
-                <li class="group-saved-item" style="grid-template-columns:1fr;">
-                    <div class="group-saved-item__content">
-                        <div class="group-saved-item__type">공동구매 · 참여요청</div>
-                        <div class="group-saved-item__name">${escapeHtml(item.post_title || '-')}</div>
-                        <div class="group-saved-item__meta">${reqTitle}<br>${item.requester_email ? `이메일: ${escapeHtml(item.requester_email)}<br>` : ''}<span style="${statusChipStyle}">${statusLabel}</span>${item.message ? `<br>${escapeHtml(item.message || '')}` : ''}</div>
-                        ${
-                            incoming && status === 'pending'
-                                ? `<div class="group-saved-item__meta">
-                                    <button type="button" data-group-alert-action="accept" data-group-alert-id="${Number(item.id)}" title="수락" style="margin-right:6px;padding:4px 8px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700;">수락</button>
-                                    <button type="button" data-group-alert-action="reject" data-group-alert-id="${Number(item.id)}" title="거절" style="padding:4px 8px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700;">거절</button>
-                                </div>`
-                                : ''
-                        }
-                        ${
-                            status !== 'pending' && !incoming
-                                ? `<div class="group-saved-item__meta" style="margin-top:8px;">
-                                    <button type="button" data-group-alert-remove="${Number(item.id)}" title="알림 삭제" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#475569;font-size:12px;font-weight:700;">알림 삭제</button>
-                                </div>`
-                                : ''
-                        }
-                    </div>
-                </li>
-            `;
-        }).join('');
+        listEl.innerHTML = groupAlertState.map((item) => window.SavedDrawerCommon
+            ? window.SavedDrawerCommon.renderAlertItem(item, {
+                itemClass: 'group-saved-item',
+                metaClass: 'group-saved-item__content',
+                typeClass: 'group-saved-item__type',
+                nameClass: 'group-saved-item__name',
+                lineClass: 'group-saved-item__meta',
+                closeHtml: (alert) => `<button type="button" class="group-saved-item__remove" data-group-alert-remove="${Number(alert.id)}" aria-label="삭제" title="삭제">×</button>`,
+                actionHtml: (alert, ctx) => `
+                    ${
+                        ctx.incoming && ctx.status === 'pending'
+                            ? `<div class="saved-alert-actions">
+                                <button type="button" data-group-alert-action="accept" data-group-alert-id="${Number(alert.id)}" title="수락" class="saved-alert-btn">수락</button>
+                                <button type="button" data-group-alert-action="reject" data-group-alert-id="${Number(alert.id)}" title="거절" class="saved-alert-btn is-reject">거절</button>
+                            </div>`
+                            : ''
+                    }
+                    ${""}
+                `,
+            })
+            : '').join('');
         return;
     }
 
@@ -1013,48 +997,20 @@ function renderGroupSavedDrawer() {
     }
 
     emptyEl.style.display = 'none';
-    listEl.innerHTML = items.map((item) => {
-        const imageUrl = getGroupSavedImageUrl(item);
-        const source = String(item?.source || 'saved-item');
-        const typeLabel = getSavedItemTypeLabel(item.item_type || item.type);
-        const parts = String(item?.meta || '').split('|').map((x) => x.trim()).filter(Boolean);
-        const normalizeKrwPriceText = (text) => {
-            const raw = String(text || '').trim();
-            if (!raw) return '';
-            const m = raw.match(/([\d,]+(?:\.\d+)?)/);
-            if (!m) return '';
-            const n = Number(String(m[1]).replace(/,/g, ''));
-            if (!Number.isFinite(n) || n <= 0) return '';
-            return `₩${Math.floor(n).toLocaleString('ko-KR')}`;
-        };
-        const detectedPriceMeta = parts.find((p) => /[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(String(p)));
-        let priceText = normalizeKrwPriceText(detectedPriceMeta || '');
-        if (!priceText) {
-            priceText = normalizeKrwPriceText(
-                item?.price ||
-                item?.payload?.price_text ||
-                item?.payload?.price ||
-                item?.payload?.amount ||
-                item?.payload?.total_price ||
-                ''
-            );
-        }
-        const metaLines = parts.filter((p) => p && p !== detectedPriceMeta && !/[\d,]+(?:\.\d+)?\s*(krw|KRW|원|₩)?/.test(String(p)));
-        return `
-            <li class="group-saved-item">
-                <div class="group-saved-item__thumb ${imageUrl ? '' : 'no-image'}">
-                    ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.name || '')}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('no-image')">` : ''}
-                </div>
-                <div class="group-saved-item__content">
-                    <div class="group-saved-item__type">${escapeHtml(typeLabel)} · ${escapeHtml(source)}</div>
-                    <div class="group-saved-item__name">${escapeHtml(item.name || '-')}</div>
-                    ${priceText ? `<div class="group-saved-item__meta group-saved-price">${escapeHtml(priceText)}</div>` : ''}
-                    ${metaLines.map((line) => `<div class="group-saved-item__meta">${escapeHtml(line)}</div>`).join('')}
-                </div>
-                <button type="button" class="group-saved-item__remove" data-group-saved-remove="${Number(item.id)}" title="삭제">×</button>
-            </li>
-        `;
-    }).join('');
+    listEl.innerHTML = items.map((item) => window.SavedDrawerCommon
+        ? window.SavedDrawerCommon.renderSavedItem(item, {
+            itemClass: 'group-saved-item',
+            thumbClass: 'group-saved-item__thumb',
+            metaClass: 'group-saved-item__content',
+            typeClass: 'group-saved-item__type',
+            nameClass: 'group-saved-item__name',
+            lineClass: 'group-saved-item__meta',
+            priceClass: 'group-saved-item__meta group-saved-price',
+            removeClass: 'group-saved-item__remove',
+            removeAttrName: 'data-group-saved-remove',
+            typeLabelFn: (itemType) => getSavedItemTypeLabel(itemType),
+        })
+        : '').join('');
 }
 
 function initGroupSavedDrawer() {

@@ -7,7 +7,7 @@
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="../static/package.css?v=20260303c" />
-    <link rel="stylesheet" href="/static/saved-drawer-unified.css?v=20260305b" />
+    <link rel="stylesheet" href="/static/saved-drawer-unified.css?v=20260306q" />
 </head>
 <body>
     <header class="header">
@@ -53,6 +53,7 @@
                     <div class="package-saved-tabs" role="tablist" aria-label="저장 항목 탭">
                         <button id="packageSavedTabCart" type="button" class="package-saved-tab is-active" data-package-saved-tab="cart" aria-selected="true">장바구니</button>
                         <button id="packageSavedTabWishlist" type="button" class="package-saved-tab" data-package-saved-tab="wishlist" aria-selected="false">위시리스트</button>
+                        <button id="packageSavedTabAlerts" type="button" class="package-saved-tab" data-package-saved-tab="alerts" aria-selected="false">알림</button>
                     </div>
                     <button type="button" class="package-saved-drawer__close" data-package-saved-close>닫기</button>
                 </div>
@@ -330,6 +331,7 @@
     <script>
         window.__AUTH__ = "{{ nickname|default('') }}";
     </script>
-    <script src="../static/package.js?v=20260303c"></script>
+    <script src="/static/saved-drawer-common.js?v=20260308a"></script>
+    <script src="../static/package.js?v=20260308a"></script>
 </body>
 </html>
