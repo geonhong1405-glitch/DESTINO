@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DESTINO - v 상세</title>
+    <title>DESTINO - 패키지 상세</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../static/pack-detail.css">
@@ -43,23 +43,23 @@
 
 
     <header class="header">
-            <div class="container header-inner">
-                <h1 class="logo"><a href="/">DESTINO</a></h1>
-                <nav class="header-nav">
-                    {% if nickname %}
-                    <a href="/mypage">
-                        <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
-                    </a>
-                    <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
-                    {% else %}
-                    <a href="/login">로그인</a>
-                    {% endif %}
-                    <a href="#">이용안내</a>
-                    <a href="#">고객센터</a>
-                    <a href="#">KOR</a>
-                </nav>
-            </div>
-        </header>
+        <div class="container header-inner">
+            <h1 class="logo"><a href="/">DESTINO</a></h1>
+            <nav class="header-nav">
+                {% if nickname %}
+                <a href="/mypage">
+                    <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                </a>
+                <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
+                {% else %}
+                <a href="/login">로그인</a>
+                {% endif %}
+                <a href="#">이용안내</a>
+                <a href="#">고객센터</a>
+                <a href="#">KOR</a>
+            </nav>
+        </div>
+    </header>
 
     <main class="max-w-6xl mx-auto px-4 py-6">
         <nav class="flex items-center gap-2 text-[11px] text-gray-400 mb-6">
@@ -100,7 +100,7 @@
                     </div>
 
                     <div class="prose max-w-none">
-                        <h3 class="text-xl font-bold text-gray-900 mb-4 border-l-4 border-blue-600 pl-3">상품 소개</h3>
+                        <h3 class="text-xl font-bold text-gray-900 mb-4 border-l-4 pl-3" style="border-color:#00aaff;border-left-width:4px;">상품 소개</h3>
                         <p id="productDesc" class="text-gray-600 leading-relaxed mb-6">
                             파리의 상징, 에펠탑을 대기 없이 빠르게 올라가보세요. 패스트트랙 입장권으로 긴 줄을 건너뛰고 2층 전망대에서 파리의 탁 트인 전경을 감상할 수 있습니다. 60분 센강 유람선 자유 탑승권이 포함되어 있어 더욱 낭만적인 파리 여행을 완성해 드립니다.
                         </p>
@@ -109,10 +109,10 @@
                     <div id="reviewSection" class="bg-white border border-gray-100 p-8 rounded-3xl mt-12 shadow-sm">
                         <div class="flex justify-between items-start mb-8">
                             <div>
-                                <h3 class="text-2xl font-bold text-gray-900">후기 <span id="reviewCount" class="text-blue-600 ml-1">2,408</span></h3>
+                                <h3 class="text-2xl font-bold text-gray-900">후기 <span id="reviewCount" class="ml-1" style="color:#00aaff">2,408</span></h3>
                                 <p class="text-sm text-gray-400 mt-1">이 투어를 이용한 고객들의 생생한 리뷰입니다.</p>
                             </div>
-                            <button onclick="openReviewModal()" class="bg-blue-50 text-blue-600 px-6 py-3 rounded-xl text-sm font-bold hover:bg-blue-100 transition-colors">
+                            <button onclick="openReviewModal()" class="px-6 py-3 rounded-xl text-sm font-bold transition-colors" style="background:#e6f7ff;color:#00aaff;">
                                 <i class="fa-solid fa-pencil mr-1"></i> 리뷰 작성
                             </button>
                         </div>
@@ -256,7 +256,7 @@
                             <span id="totalPriceDisplay" class="text-3xl font-black text-blue-600 tracking-tight">65,000원</span>
                         </div>
 
-                        <button onclick="handleBooking()" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-black py-5 rounded-2xl transition-all shadow-xl shadow-blue-200 active:scale-[0.97]">
+                        <button onclick="handleBooking()" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold py-[12px] rounded-lg transition-all shadow-xl shadow-blue-200 active:scale-[0.97]">
                             지금 바로 예약하기
                         </button>
                         <p class="text-center text-[11px] text-gray-400 mt-4 font-medium italic">결제 후 바로 확정 바우처가 발송됩니다.</p>
@@ -298,19 +298,79 @@
         메시지가 여기에 표시됩니다.
     </div>
 
-    <footer class="bg-white border-t border-gray-100 py-20 mt-20">
-        <div class="max-w-6xl mx-auto px-4 text-center">
-            <h2 class="text-2xl font-black italic text-gray-200 mb-6 tracking-tighter">DESTINO</h2>
-            <div class="flex justify-center gap-8 mb-8 text-xs font-bold text-gray-400">
-                <a href="#">이용약관</a>
-                <a href="#">개인정보처리방침</a>
-                <a href="#">취소 및 환불 규정</a>
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-top">
+                <div class="footer-column">
+                    <h3>고객센터</h3>
+                    <p>오전 9시 ~ 새벽 3시 운영</p>
+                    <p>채팅 상담 문의: 24시간 운영</p>
+                    <div class="cs-buttons">
+                        <a href="tel:1670-0000" class="btn-cs">
+                            <span class="icon">📞</span>
+                            <div class="text">
+                                <strong>전화 상담</strong>
+                            </div>
+                        </a>
+                        <a href="#" class="btn-cs">
+                            <span class="icon">✉️</span>
+                            <div class="text">
+                                <strong>메일 문의</strong>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <div class="footer-column">
+                    <h3>회사</h3>
+                    <ul>
+                        <li><a href="#">회사소개</a></li>
+                        <li><a href="#">채용정보</a></li>
+                        <li><a href="#">제휴문의</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>서비스</h3>
+                    <ul>
+                        <li><a href="#">공지사항</a></li>
+                        <li><a href="#">자주 묻는 질문</a></li>
+                        <li><a href="#">여행 매거진</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>혜택</h3>
+                    <ul>
+                        <li><a href="#">멤버십 안내</a></li>
+                        <li><a href="#">공동예매 가이드</a></li>
+                        <li><a href="#">포인트 정책</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>모든 여행</h3>
+                    <ul>
+                        <li><a href="#">항공</a></li>
+                        <li><a href="#">숙소</a></li>
+                        <li><a href="#">패키지</a></li>
+                        <li><a href="#">티켓</a></li>
+                        <li><a href="#">렌터카</a></li>
+                    </ul>
+                </div>
             </div>
-            <p class="text-xs text-gray-400 leading-relaxed">
-                (주)디스티노 투어 | 대표이사: 홍길동 | 사업자등록번호: 123-45-67890<br>
-                서울특별시 중구 태평로 1가 123 디스티노 빌딩 5층<br>
-                © 2024 DESTINO All Rights Reserved.
-            </p>
+            <hr class="footer-divider" />
+            <div class="footer-bottom">
+                <div class="company-info">
+                    <p>(주)데스티노 컴퍼니 | 대표이사: 김여행 | 사업자등록번호: 000-00-00000</p>
+                    <p>주소: 서울특별시 강남구 테헤란로 123 | 이메일: help@destino.com</p>
+                    <p class="disclaimer">
+                        데스티노는 통신판매중개자로서 통신판매의 당사자가 아니며, 상품의 예약, 이용 및환불 등과
+                        관련한 의무와 책임은 각 판매자에게 있습니다.
+                    </p>
+                    <div class="footer-policy">
+                        <a href="#">이용약관</a>
+                        <a href="#"><strong>개인정보처리방침</strong></a>
+                        <a href="#">소비자 분쟁해결 기준</a>
+                    </div>
+                </div>
+            </div>
         </div>
     </footer>
 
