@@ -1,3 +1,6 @@
+/* 웹폰트 임포트 */
+@import url('https://cdn.jsdelivr.net/gh/fonts-archive/Pretendard/Pretendard.css');
+
 :root {
   --fd-bg: #f5f8fd;
   --fd-navy: #10294d;
@@ -12,7 +15,7 @@
 body {
   margin: 0;
   color: var(--fd-text);
-  font-family: "Pretendard", "Noto Sans KR", sans-serif;
+  font-family: "Pretendard";
   background:
     radial-gradient(1200px 420px at 20% -10%, #e7f0ff 0%, transparent 60%),
     radial-gradient(1000px 400px at 100% 0%, #e8eeff 0%, transparent 60%),

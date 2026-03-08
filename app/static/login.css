@@ -1,3 +1,6 @@
+/* 웹폰트 임포트 */
+@import url('https://cdn.jsdelivr.net/gh/fonts-archive/Pretendard/Pretendard.css');
+
 * {
     margin: 0;
     padding: 0;
