@@ -74,6 +74,79 @@ def _is_bundle_reco_query(message: str, contains_fn) -> bool:
     return bool((has_flight and has_hotel and has_reco) or ("항공+호텔" in m) or (has_plus and has_flight and has_hotel))
 
 
+r"""
+def _is_bundle_reco_query_v2(message: str, contains_fn) -> bool:
+    m = str(message or "").lower()
+    m_compact = re.sub(r"\s+", "", m)
+
+    # Keep legacy keyword matching but add robust explicit Korean/English cues.
+    has_flight = contains_fn(m, ["??났", "??났沅?, "鍮꾪뻾", "flight"]) or ("\ud56d\uacf5\uad8c" in m_compact)
+    has_hotel = contains_fn(m, ["?명뀛", "?숈냼", "?숇컯", "hotel"]) or ("\ud638\ud154" in m_compact) or ("\uc219\uc18c" in m_compact)
+    has_itinerary = (
+        ("itinerary" in m_compact)
+        or ("schedule" in m_compact)
+        or ("plan" in m_compact)
+        or ("\uc77c\uc815" in m_compact)
+        or ("\ucf54\uc2a4" in m_compact)
+        or ("\uc124\uacc4" in m_compact)
+        or ("\uc9dc\uc918" in m_compact)
+    )
+    has_reco = (
+        contains_fn(m, ["異붿쿇", "怨꾪쉷", "travel", "plan"])
+        or ("\ucd94\ucc9c" in m_compact)
+        or ("\uacc4\ud68d" in m_compact)
+        or ("\uc54c\ub824\uc918" in m_compact)
+        or ("\uc9dc\uc918" in m_compact)
+    )
+    has_plus = ("+" in m_compact) or ("and" in m_compact) or ("\uac19\uc774" in m_compact)
+    has_multi_product = (has_flight and has_hotel) or (has_flight and has_itinerary) or (has_hotel and has_itinerary)
+    has_travel_cue = ("travel" in m_compact) or ("\uc5ec\ud589" in m_compact)
+    return bool((has_multi_product and (has_reco or has_itinerary or has_travel_cue)) or (has_plus and has_multi_product))
+
+
+"""
+def _is_bundle_reco_query_v2(message: str, contains_fn) -> bool:
+    m = str(message or "").lower()
+    m_compact = re.sub(r"\s+", "", m)
+    has_flight = ("flight" in m_compact) or ("\ud56d\uacf5\uad8c" in m_compact) or ("\ube44\ud589\uae30" in m_compact)
+    has_hotel = ("hotel" in m_compact) or ("\ud638\ud154" in m_compact) or ("\uc219\uc18c" in m_compact)
+    has_itinerary = any(
+        k in m_compact for k in ["itinerary", "schedule", "plan", "\uc77c\uc815", "\ucf54\uc2a4", "\uc124\uacc4", "\uc9dc\uc918"]
+    )
+    has_reco = any(
+        k in m_compact for k in ["travel", "plan", "\ucd94\ucc9c", "\uacc4\ud68d", "\uc54c\ub824\uc918", "\uc9dc\uc918"]
+    )
+    has_plus = ("+" in m_compact) or ("and" in m_compact) or ("\uac19\uc774" in m_compact)
+    has_multi_product = (has_flight and has_hotel) or (has_flight and has_itinerary) or (has_hotel and has_itinerary)
+    has_travel_cue = ("travel" in m_compact) or ("\uc5ec\ud589" in m_compact)
+    return bool((has_multi_product and (has_reco or has_itinerary or has_travel_cue)) or (has_plus and has_multi_product))
+
+
+def _pick_bundle_destination_city(message: str, state: dict[str, Any]) -> str:
+    msg_compact = re.sub(r"\s+", "", str(message or "")).lower()
+    origin_code = str(state.get("origin") or "").upper().strip()
+    dest_code = str(state.get("destination") or "").upper().strip()
+    if msg_compact:
+        for k in sorted(LOCATION_ALIASES.keys(), key=len, reverse=True):
+            kc = re.sub(r"\s+", "", str(k)).lower()
+            if not kc or kc not in msg_compact:
+                continue
+            code = str(LOCATION_ALIASES.get(k) or "").upper().strip()
+            if origin_code and code and code == origin_code:
+                continue
+            return str(k).strip()
+    if dest_code:
+        reverse_city: dict[str, str] = {}
+        for k, v in LOCATION_ALIASES.items():
+            code = str(v or "").upper().strip()
+            if not code:
+                continue
+            if code not in reverse_city or re.search(r"[가-힣]", str(k)):
+                reverse_city[code] = str(k)
+        return str(reverse_city.get(dest_code) or "").strip()
+    return ""
+
+
 def _handle_knowledge_intent(req: Any, prev_state: dict, context: str, SESSION_STATE: dict, sid: str, _answer_knowledge):
     html, delta = _answer_knowledge(req.message, context, prev_state)
     state = dict(prev_state)
@@ -101,6 +174,63 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
     msg_l = (req.message or "").lower()
     msg_raw = (req.message or "")
     msg_compact = re.sub(r"\s+", "", msg_raw)
+    prev_origin = str(prev_state.get("origin") or "").upper().strip()
+    prev_destination = str(prev_state.get("destination") or "").upper().strip()
+
+    def _detect_single_iata_from_message(message: str) -> str:
+        txt = str(message or "").strip()
+        if not txt:
+            return ""
+        up = txt.upper()
+        m_iata = re.search(r"\b([A-Z]{3})\b", up)
+        if m_iata:
+            return m_iata.group(1)
+        compact = re.sub(r"\s+", "", txt).lower()
+        if not compact:
+            return ""
+        for k, v in LOCATION_ALIASES.items():
+            kk = re.sub(r"\s+", "", str(k or "")).lower()
+            if kk and kk == compact:
+                return str(v or "").upper().strip()
+        return ""
+
+    # Flight slot-filling follow-up guard:
+    # when user replies with a single place token (e.g., "인천") after we asked missing slots,
+    # treat it as origin if destination is already known.
+    if str(prev_state.get("pending_intent") or "") == "flight":
+        detected_iata = _detect_single_iata_from_message(msg_raw)
+        has_only_location = bool(detected_iata) and len(msg_compact) <= 12 and not _has_date_signal(msg_raw)
+        if has_only_location and prev_destination:
+            if not prev_origin and detected_iata != prev_destination:
+                state["origin"] = detected_iata
+                state["destination"] = prev_destination
+            elif (
+                not prev_origin
+                and not str(state.get("origin") or "").strip()
+                and str(state.get("destination") or "").upper().strip() == detected_iata
+                and detected_iata != prev_destination
+            ):
+                state["origin"] = detected_iata
+                state["destination"] = prev_destination
+        # Date hallucination guard for flight-only follow-up:
+        # if the user only sent location text and there was no previous date,
+        # do not accept parser-inferred "today" dates.
+        if has_only_location and not str(prev_state.get("departure_date") or prev_state.get("travel_checkin") or "").strip():
+            state["departure_date"] = None
+        if has_only_location and not str(prev_state.get("return_date") or prev_state.get("travel_checkout") or "").strip():
+            state["return_date"] = None
+
+    # In bundle flow (flight+hotel+itinerary), do not allow date hallucinations on location-only follow-ups.
+    # If user didn't provide date this turn and previous turn also had no date, keep dates empty so we ask properly.
+    if bool(prev_state.get("bundle_mode")) and not _has_date_signal(msg_raw):
+        if not str(prev_state.get("departure_date") or "").strip():
+            state["departure_date"] = None
+        if not str(prev_state.get("return_date") or "").strip():
+            state["return_date"] = None
+        # Bundle recommendation should default to round-trip planning.
+        if not str(state.get("trip_type") or "").strip():
+            state["trip_type"] = "round"
+
     has_round_signal_in_turn = any(k in msg_l for k in ["왕복", "복귀", "돌아", "round trip", "roundtrip"])
     has_oneway_signal_in_turn = any(k in msg_l for k in ["편도", "oneway", "one-way"])
     has_stay_nights_signal_in_turn = bool(
@@ -318,8 +448,8 @@ def _handle_itinerary_intent(
             destination = m_dest.group(1).strip()
     destination = destination[:60]
 
-    carried_style = state.get("itinerary_style") if str(state.get("pending_intent") or "") == "itinerary" else None
-    style = str(carried_style or "").strip() or None
+    carried_style = str(state.get("itinerary_style") or "").strip()
+    style = carried_style or None
     if any(k in ml for k in ["미식", "맛집", "food", "먹"]):
         style = "미식 중심"
     elif any(k in ml for k in ["자연", "힐링", "휴양", "relax"]):
@@ -332,6 +462,8 @@ def _handle_itinerary_intent(
         style = "커플/로맨틱"
     elif any(k in ml for k in ["액티비티", "체험", "activity"]):
         style = "액티비티 중심"
+    if (not style) and bool(state.get("bundle_mode")):
+        style = "균형형"
 
     month = None
     if isinstance(start_date, str) and re.match(r"20\d{2}-\d{1,2}-\d{1,2}", start_date):
@@ -361,6 +493,28 @@ def _handle_itinerary_intent(
         missing.append("총 예산")
     if not style:
         missing.append("원하는 여행 스타일(미식/쇼핑/힐링/액티비티 등)")
+
+
+    # Prefer a single, direct budget prompt instead of generic missing-item list.
+    if budget_krw is None:
+        q_budget = (
+            "<div><b>??? ??? ???.</b></div>"
+            "<div style='margin-top:6px;'>?: ? 250??, 3000000 KRW</div>"
+        )
+        state["pending_intent"] = "itinerary"
+        state["last_intent"] = "itinerary"
+        if start_date:
+            state["travel_checkin"] = start_date
+        if end_date:
+            state["travel_checkout"] = end_date
+        if adults > 0:
+            state["adults"] = adults
+        if destination:
+            state["itinerary_destination"] = destination
+        if style:
+            state["itinerary_style"] = style
+        SESSION_STATE[sid] = state
+        return {"response": q_budget}
 
     if missing:
         q = (
@@ -414,6 +568,8 @@ def _handle_itinerary_intent(
             "nyc": "New York", "jfk": "New York", "ewr": "New York", "lga": "New York",
             "lon": "London", "par": "Paris", "rom": "Rome",
             "sel": "Seoul", "icn": "Seoul",
+            "\ub3c4\ucfc4": "Tokyo", "\ub3d9\uacbd": "Tokyo", "\uc624\uc0ac\uce74": "Osaka",
+            "\ub274\uc695": "New York", "\uc2dc\ub4dc\ub2c8": "Sydney", "\ub300\ub9cc": "Taipei",
         }
         country_fallback = {
             "\uc77c\ubcf8": "Tokyo", "japan": "Tokyo",
@@ -430,28 +586,61 @@ def _handle_itinerary_intent(
     api_blocks: list[str] = []
     flight_added = False
     hotel_added = False
+    rental_added = False
     place_added = False
     shopping_hint_names: list[str] = []
-    api_flight_price_krw: int | None = None
-    api_hotel_price_krw: int | None = None
+    try:
+        api_flight_price_krw: int | None = int(state.get("bundle_api_flight_price_krw")) if state.get("bundle_api_flight_price_krw") is not None else None
+    except Exception:
+        api_flight_price_krw = None
+    try:
+        api_hotel_price_krw: int | None = int(state.get("bundle_api_hotel_price_krw")) if state.get("bundle_api_hotel_price_krw") is not None else None
+    except Exception:
+        api_hotel_price_krw = None
+    try:
+        api_rental_price_krw: int | None = int(state.get("bundle_api_rental_price_krw")) if state.get("bundle_api_rental_price_krw") is not None else None
+    except Exception:
+        api_rental_price_krw = None
+    selected_hotel_name = str(state.get("bundle_selected_hotel_name") or "").strip()
 
     try:
         if destination:
             style_l = str(style or "").lower()
             msg_l = str(msg or "").lower()
-            wants_food = any(k in style_l for k in ["\ubbf8\uc2dd", "food"]) or any(
-                k in msg_l for k in ["\ub9db\uc9d1", "\ubbf8\uc2dd", "\uba39", "food", "restaurant"]
-            )
-            wants_shopping = any(k in style_l for k in ["\uc1fc\ud551", "shopping"]) or any(
-                k in msg_l for k in ["\uc1fc\ud551", "shopping", "mall", "outlet"]
-            )
+            style_food = any(k in style_l for k in ["\ubbf8\uc2dd", "food"])
+            style_shopping = any(k in style_l for k in ["\uc1fc\ud551", "shopping"])
+            style_attraction = any(k in style_l for k in ["\uAD00\uAD11", "\uba85\uc18c", "attraction", "sightseeing"])
+            msg_food = any(k in msg_l for k in ["\ub9db\uc9d1", "\ubbf8\uc2dd", "\uba39", "food", "restaurant"])
+            msg_shopping = any(k in msg_l for k in ["\uc1fc\ud551", "shopping", "mall", "outlet"])
+            msg_attraction = any(k in msg_l for k in ["\uAD00\uAD11", "\uba85\uc18c", "\ub180\uac70\ub9ac", "attraction", "sightseeing", "landmark"])
+            # Theme priority:
+            # - style says shopping => shopping-only spots
+            # - style says food => food-only spots
+            # - style says attraction => attraction-only spots
+            # - otherwise use message signals
+            if style_shopping and not style_food:
+                wants_shopping = True
+                wants_food = False
+                wants_attraction = False
+            elif style_food and not style_shopping:
+                wants_food = True
+                wants_shopping = False
+                wants_attraction = False
+            elif style_attraction and not style_food and not style_shopping:
+                wants_food = False
+                wants_shopping = False
+                wants_attraction = True
+            else:
+                wants_food = msg_food or style_food
+                wants_shopping = msg_shopping or style_shopping
+                wants_attraction = msg_attraction or style_attraction
             wants_relax = any(k in style_l for k in ["\ud790\ub9c1", "relax"])
             wants_activity = any(k in style_l for k in ["\uc561\ud2f0\ube44\ud2f0", "activity"])
 
             place_dest = _normalize_place_destination(destination)
-            need_food = wants_food and not wants_shopping
-            need_shopping = wants_shopping and not wants_food
-            need_attraction = wants_relax or wants_activity or (not need_food and not need_shopping)
+            need_food = wants_food and not wants_shopping and not wants_attraction
+            need_shopping = wants_shopping and not wants_food and not wants_attraction
+            need_attraction = wants_attraction or wants_relax or wants_activity or (not need_food and not need_shopping)
 
             food_res = {"items": []}
             attraction_res = {"items": []}
@@ -463,7 +652,7 @@ def _handle_itinerary_intent(
                     category="restaurant",
                     keyword="\ub9db\uc9d1",
                     location_query=place_dest,
-                    top_k=3,
+                    top_k=4,
                     radius_m=5000,
                 )
             elif need_shopping:
@@ -472,7 +661,16 @@ def _handle_itinerary_intent(
                     category="shopping",
                     keyword="\uc1fc\ud551",
                     location_query=place_dest,
-                    top_k=3,
+                    top_k=4,
+                    radius_m=7000,
+                )
+            elif need_attraction and not need_food and not need_shopping:
+                attraction_res = place_search_service.search_local_places(
+                    city_name=place_dest,
+                    category="attraction",
+                    keyword="\uAD00\uAD11\uba85\uc18c",
+                    location_query=place_dest,
+                    top_k=4,
                     radius_m=7000,
                 )
             else:
@@ -481,7 +679,7 @@ def _handle_itinerary_intent(
                     category="restaurant",
                     keyword="\ub9db\uc9d1",
                     location_query=place_dest,
-                    top_k=3,
+                    top_k=4,
                     radius_m=5000,
                 )
                 attraction_res = place_search_service.search_local_places(
@@ -489,7 +687,7 @@ def _handle_itinerary_intent(
                     category="attraction",
                     keyword="\uad00\uad11\uba85\uc18c",
                     location_query=place_dest,
-                    top_k=3,
+                    top_k=4,
                     radius_m=5000,
                 )
                 shopping_res = place_search_service.search_local_places(
@@ -497,7 +695,7 @@ def _handle_itinerary_intent(
                     category="shopping",
                     keyword="\uc1fc\ud551",
                     location_query=place_dest,
-                    top_k=3,
+                    top_k=4,
                     radius_m=7000,
                 )
 
@@ -511,7 +709,7 @@ def _handle_itinerary_intent(
                 if not rows:
                     return ""
                 lines: list[str] = [f"<div style='margin-top:10px;'><b>{_safe(title)}</b></div>"]
-                for i, x in enumerate(rows[:3], 1):
+                for i, x in enumerate(rows[:4], 1):
                     name = _safe(x.get("name"))
                     rating = _safe(x.get("rating"))
                     addr = _safe(x.get("address"))
@@ -540,6 +738,8 @@ def _handle_itinerary_intent(
                 places_html += _place_block("\ub9db\uc9d1 \uc2a4\ud31f \ucd94\ucc9c (Google/Geoapify)", list((food_res or {}).get("items") or []))
             elif need_shopping:
                 places_html += _place_block("\uc1fc\ud551 \uc2a4\ud31f \ucd94\ucc9c (Google/Geoapify)", list((shopping_res or {}).get("items") or []))
+            elif need_attraction and not need_food and not need_shopping:
+                places_html += _place_block("\uAD00\uAD11\uc9c0 \uc2a4\ud31f \ucd94\ucc9c (Google/Geoapify)", list((attraction_res or {}).get("items") or []))
             else:
                 places_html += _place_block("\ub9db\uc9d1 \uc2a4\ud31f \ucd94\ucc9c (Google/Geoapify)", list((food_res or {}).get("items") or []))
                 places_html += _place_block("\uba85\uc18c \ucd94\ucc9c (Google/Geoapify)", list((attraction_res or {}).get("items") or []))
@@ -575,6 +775,23 @@ def _handle_itinerary_intent(
                             + "<div style='margin-top:10px;'><b>쇼핑 스팟 추천 (Fallback)</b></div>"
                             + shop_lines
                         )
+            if not places_html:
+                # Final deterministic fallback to guarantee theme card section visibility.
+                if need_shopping:
+                    places_html = (
+                        "<div style='margin-top:10px;'><b>?? ?? ?? (Fallback)</b></div>"
+                        "<div>1. Shibuya PARCO</div><div>2. Isetan Shinjuku</div><div>3. Ginza Six</div><div>4. Omotesando Hills</div>"
+                    )
+                elif need_food:
+                    places_html = (
+                        "<div style='margin-top:10px;'><b>?? ?? ?? (Fallback)</b></div>"
+                        "<div>1. Uobei Shibuya Dogenzaka</div><div>2. Ichiran Shibuya</div><div>3. Tsuta Ramen</div><div>4. Ginza Kagari</div>"
+                    )
+                else:
+                    places_html = (
+                        "<div style='margin-top:10px;'><b>??? ?? ?? (Fallback)</b></div>"
+                        "<div>1. Senso-ji</div><div>2. Meiji Jingu</div><div>3. Ueno Park</div><div>4. Tokyo Tower</div>"
+                    )
             if places_html:
                 api_blocks.append(places_html)
                 place_added = True
@@ -582,7 +799,7 @@ def _handle_itinerary_intent(
         pass
 
     try:
-        if start_date and destination:
+        if start_date and destination and api_flight_price_krw is None:
             flight_state = {
                 "origin": str(state.get("origin") or "ICN"),
                 "destination": destination,
@@ -625,7 +842,7 @@ def _handle_itinerary_intent(
         pass
 
     try:
-        if destination and start_date and end_date:
+        if destination and start_date and end_date and api_hotel_price_krw is None:
             hotel_html, _ = hotel_service.answer_hotel_from_parsed(
                 {
                     "query": destination,
@@ -651,7 +868,40 @@ def _handle_itinerary_intent(
     except Exception:
         pass
 
-    fixed_cost = (api_flight_price_krw or 0) + (api_hotel_price_krw or 0)
+    wants_rental_plan = bool(state.get("bundle_wants_rental")) or any(
+        k in str(msg or "").lower() for k in ["rental", "car rental", "rent car", "\ub80c\ud130\uce74", "\ub80c\ud2b8\uce74"]
+    )
+    if not wants_rental_plan:
+        api_rental_price_krw = None
+    try:
+        if wants_rental_plan and destination and start_date and end_date and api_rental_price_krw is None:
+            rental_queries = [
+                f"{destination} 공항 렌터카 {start_date}~{end_date} {max(1, adults)}명",
+                f"{destination} 렌터카 {start_date}~{end_date} {max(1, adults)}명",
+            ]
+            rental_html = ""
+            for q in rental_queries:
+                rental_html_try, _ = rentalcar_service.answer_rentalcar_from_message(q, state)
+                rental_html = str(rental_html_try or "")
+                if "rental car recommendations" in rental_html.lower():
+                    break
+            if rental_html:
+                try:
+                    rental_prices = [
+                        int(x.replace(",", ""))
+                        for x in re.findall(r"price:\s*([0-9,]+)\s*KRW", rental_html, flags=re.IGNORECASE)
+                    ]
+                    if rental_prices:
+                        api_rental_price_krw = min(rental_prices)
+                except Exception:
+                    pass
+                api_blocks.append(f"<div style='margin-top:12px;'><b>렌터카 추천 (실시간 API)</b></div>{rental_html}")
+                rental_added = True
+    except Exception:
+        pass
+
+    effective_rental_cost = (api_rental_price_krw or 0) if wants_rental_plan else 0
+    fixed_cost = (api_flight_price_krw or 0) + (api_hotel_price_krw or 0) + effective_rental_cost
     budget_left = (int(budget_krw) - fixed_cost) if budget_krw is not None else None
     shopping_hint_text = ", ".join(shopping_hint_names[:6]) if shopping_hint_names else ""
 
@@ -660,10 +910,15 @@ def _handle_itinerary_intent(
         api_budget_rules.append(f"- Flight API lowest round-trip: {api_flight_price_krw:,} KRW")
     if api_hotel_price_krw is not None:
         api_budget_rules.append(f"- Hotel API lowest stay total: {api_hotel_price_krw:,} KRW")
+    if wants_rental_plan and api_rental_price_krw is not None:
+        api_budget_rules.append(f"- Rental API lowest total: {api_rental_price_krw:,} KRW")
     if budget_krw is not None:
         api_budget_rules.append(f"- Total budget: {int(budget_krw):,} KRW")
     if budget_left is not None:
-        api_budget_rules.append(f"- Budget left after flight+hotel: {budget_left:,} KRW")
+        if wants_rental_plan:
+            api_budget_rules.append(f"- Budget left after flight+hotel+rental: {budget_left:,} KRW")
+        else:
+            api_budget_rules.append(f"- Budget left after flight+hotel: {budget_left:,} KRW")
 
     p = (
         "Write a Korean honorific travel itinerary in HTML.\n"
@@ -673,7 +928,10 @@ def _handle_itinerary_intent(
         "3) Use actual trip dates and provide morning/afternoon/evening plan for each day.\n"
         "4) Keep neighborhood flow efficient to reduce unnecessary transit.\n"
         "5) Do not exceed total budget.\n"
-        "6) In budget allocation, flight and hotel MUST use API prices exactly and sum correctly.\n"
+        "6) In budget allocation, use API prices exactly when available and sum correctly.\n"
+        "6-1) If any API price is unavailable, explicitly write '조회 실패/확인 불가' and NEVER invent a number.\n"
+        + ("6-2) Rental was requested, so include rental budget line.\n" if wants_rental_plan else "6-2) Rental was NOT requested, so do not mention rental at all.\n")
+        + "6-3) If hotel baseline name is provided, explicitly mention that hotel name in the itinerary text.\n"
         "7) For shopping-focused plan, include 2-3 concrete store/mall names in shopping slots.\n"
         f"8) Reflect seasonal context: {season}.\n"
         "Inputs:\n"
@@ -684,6 +942,18 @@ def _handle_itinerary_intent(
         + f"- Style: {style}\n"
         + ("- Shopping API candidates: " + shopping_hint_text + "\n" if shopping_hint_text else "")
         + ("- API budget baseline:\n" + "\n".join(api_budget_rules) + "\n" if api_budget_rules else "")
+        + (f"- Hotel baseline name: {selected_hotel_name}\n" if selected_hotel_name else "")
+        + (
+            (
+                f"- API availability: flight={'ok' if api_flight_price_krw is not None else 'unavailable'}, "
+                f"hotel={'ok' if api_hotel_price_krw is not None else 'unavailable'}, "
+                f"rental={'ok' if api_rental_price_krw is not None else 'unavailable'}\n"
+            ) if wants_rental_plan else
+            (
+                f"- API availability: flight={'ok' if api_flight_price_krw is not None else 'unavailable'}, "
+                f"hotel={'ok' if api_hotel_price_krw is not None else 'unavailable'}\n"
+            )
+        )
         + f"- Recent context: {context}\n"
         + f"- User message: {msg}\n"
     )
@@ -694,6 +964,20 @@ def _handle_itinerary_intent(
     )
     content = _strip_markdown_decorations((r.choices[0].message.content or "").strip())
     content = re.sub(r"\s{2,}", " ", content)
+    if not wants_rental_plan:
+        content = re.sub(
+            r"<div>[^<]*(?:rental|\ub80c\ud130\uce74|\ub80c\ud0c8)[^<]*</div>",
+            "",
+            content,
+            flags=re.IGNORECASE,
+        )
+
+    if selected_hotel_name:
+        hotel_line = f"<div><b>기준 추천 숙소:</b> {html.escape(selected_hotel_name)}"
+        if api_hotel_price_krw is not None:
+            hotel_line += f" ({api_hotel_price_krw:,} KRW)"
+        hotel_line += "</div>"
+        content = hotel_line + content
 
     if api_blocks:
         content = (
@@ -809,6 +1093,26 @@ def _clip_sentence(value: str, max_len: int = 72) -> str:
     return f"{cut}..."
 
 
+def _split_preview_detail(value: str, max_len: int = 72) -> tuple[str, str]:
+    t = str(value or "").strip()
+    if not t:
+        return "", ""
+    # Prefer sentence boundary for preview.
+    m = re.search(r"^(.+?[.!?。])\s*(.*)$", t)
+    if m:
+        first = m.group(1).strip()
+        rest = m.group(2).strip()
+        if len(first) <= max_len:
+            return first, (rest or t)
+    preview = _clip_sentence(t, max_len=max_len)
+    if preview and preview.endswith("..."):
+        head = preview[:-3].strip()
+        if head and t.startswith(head):
+            tail = t[len(head):].lstrip(" .,!?\u3002")
+            return preview, (tail or t)
+    return preview, t
+
+
 def _country_rag_blurb(country_name_ko: str, context: str, prev_state: dict, _answer_knowledge) -> str:
     try:
         q = f"{country_name_ko} 여행의 핵심 매력과 초행자 주의점을 1~2문장으로 알려줘."
@@ -817,6 +1121,22 @@ def _country_rag_blurb(country_name_ko: str, context: str, prev_state: dict, _an
         text = re.sub(r"^(네[, ]*)?", "", text).strip()
         text = re.sub(r"(관련 문서|제공된 문맥|문맥에).*", "", text).strip()
         return _clip_sentence(text, max_len=78) or ""
+    except Exception:
+        return ""
+
+
+def _country_rag_detail(country_name_ko: str, context: str, prev_state: dict, _answer_knowledge) -> str:
+    try:
+        q = f"{country_name_ko} 여행의 매력, 추천 지역, 초행자 주의점을 3~4문장으로 자세히 알려줘."
+        html_ans, _ = _answer_knowledge(q, context, prev_state)
+        text = _html_to_plain_text(html_ans)
+        text = re.sub(r"^(네[, ]*)?", "", text).strip()
+        text = re.sub(r"(관련 문서|제공된 문맥|문맥에).*", "", text).strip()
+        if not text:
+            return ""
+        if len(text) > 280:
+            text = text[:280].rstrip() + "..."
+        return text
     except Exception:
         return ""
 
@@ -877,13 +1197,20 @@ def _country_reco_html(context: str, prev_state: dict, _answer_knowledge) -> str
         "<div style='margin-top:8px;'>예산/이동시간/여행난이도를 같이 보고 고르기 쉬운 후보만 추렸습니다.</div>",
     ]
     for i, c in enumerate(cards, 1):
-        rag_blurb = _country_rag_blurb(c["country"], context, prev_state, _answer_knowledge) or c["summary"]
+        rag_detail = _country_rag_detail(c["country"], context, prev_state, _answer_knowledge) or c["summary"]
+        rag_blurb, rag_detail_cont = _split_preview_detail(rag_detail, max_len=72)
+        rag_blurb = rag_blurb or c["summary"]
+        rag_detail_cont = rag_detail_cont or rag_detail
         lines.append(
             "<div style='margin:10px 0 14px 0;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;'>"
             f"<div><b>{i}. {html.escape(c['name'])}</b></div>"
             f"<div style='margin-top:8px;'><img src=\"{html.escape(c['photo'])}\" alt=\"{html.escape(c['name'])}\" style='width:100%;max-width:360px;height:160px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;'></div>"
             f"<div style='margin-top:6px;color:#374151;'>예상 예산: {html.escape(c['budget'])}</div>"
             f"<div style='margin-top:6px;color:#4b5563;'>{html.escape(rag_blurb)}</div>"
+            "<details style='margin-top:6px;'>"
+            "<summary style='cursor:pointer;color:#2563eb;font-weight:700;'>상세설명 더보기</summary>"
+            f"<div style='margin-top:6px;color:#4b5563;line-height:1.5;'>{html.escape(rag_detail_cont)}</div>"
+            "</details>"
             "<div style='color:#6b7280;font-size:12px;'>출처: DESTINO RAG 요약</div>"
             "</div>"
         )
@@ -1049,14 +1376,67 @@ def handle_chat_request(
                 )
             }
 
-        # Bundle flow: one prompt for flight + hotel (+ optional itinerary)
-        if _is_bundle_reco_query(req.message, _contains):
+        # Bundle flow: one prompt for flight + hotel (+ optional itinerary/rental)
+        bundle_followup = bool(prev_state.get("bundle_mode")) and str(prev_state.get("pending_intent") or "") == "flight"
+        if _is_bundle_reco_query_v2(req.message, _contains) or bundle_followup:
             seeded_state = dict(prev_state)
             try:
                 parsed_for_bundle = _parse_flight_slots(req.message, context) or {}
             except Exception:
                 parsed_for_bundle = {}
+
+            # Bundle follow-up fix:
+            # For short location-only replies (e.g., "인천"), treat input as origin
+            # and keep previously selected destination (e.g., 오사카).
+            if bundle_followup:
+                msg_raw = str(req.message or "").strip()
+                msg_compact = re.sub(r"\s+", "", msg_raw)
+                has_date = _has_date_signal(msg_raw)
+                detected_iata = ""
+                m_iata = re.search(r"\b([A-Z]{3})\b", msg_raw.upper())
+                if m_iata:
+                    detected_iata = m_iata.group(1)
+                else:
+                    compact_l = msg_compact.lower()
+                    for k, v in LOCATION_ALIASES.items():
+                        kk = re.sub(r"\s+", "", str(k or "")).lower()
+                        if kk and kk == compact_l:
+                            detected_iata = str(v or "").upper().strip()
+                            break
+                prev_dest = str(prev_state.get("destination") or "").upper().strip()
+                if (
+                    detected_iata
+                    and len(msg_compact) <= 12
+                    and not has_date
+                    and prev_dest
+                    and detected_iata != prev_dest
+                ):
+                    parsed_for_bundle["origin"] = detected_iata
+                    parsed_for_bundle["destination"] = prev_dest
+                    if not str(parsed_for_bundle.get("trip_type") or "").strip():
+                        parsed_for_bundle["trip_type"] = "round"
             seeded_state = _merge_state(seeded_state, parsed_for_bundle)
+            seeded_state["bundle_mode"] = True
+            parsed_party_n = _parse_party_size(req.message)
+            if parsed_party_n is not None and int(parsed_party_n) > 0:
+                seeded_state["adults"] = int(parsed_party_n)
+            msg_l2 = (req.message or "").lower()
+            has_itinerary_signal = _contains(msg_l2, ["일정", "코스", "루트", "itinerary", "plan"])
+            has_rental_signal = _contains(msg_l2, ["렌터카", "렌트카", "rental", "car rental", "rent car"])
+            msg_compact2 = re.sub(r"\s+", "", msg_l2)
+            has_itinerary_signal = has_itinerary_signal or any(
+                k in msg_compact2 for k in ["\uc77c\uc815", "\ucf54\uc2a4", "\uc124\uacc4", "\uc9dc\uc918", "itinerary", "schedule", "plan"]
+            )
+            has_rental_signal = has_rental_signal or any(
+                k in msg_compact2 for k in ["\ub80c\ud130\uce74", "\ub80c\ud2b8\uce74", "rental", "carrental", "rentcar"]
+            )
+            if bundle_followup:
+                seeded_state["bundle_wants_itinerary"] = bool(seeded_state.get("bundle_wants_itinerary")) or has_itinerary_signal
+                seeded_state["bundle_wants_rental"] = bool(seeded_state.get("bundle_wants_rental")) or has_rental_signal
+            else:
+                # New bundle request should not inherit old rental intent from session history.
+                seeded_state["bundle_wants_itinerary"] = bool(has_itinerary_signal)
+                seeded_state["bundle_wants_rental"] = bool(has_rental_signal)
             if not seeded_state.get("origin"):
                 seeded_state["origin"] = "ICN"
             dep_q, ret_q = _extract_iso_date_range_quick(req.message)
@@ -1066,6 +1446,16 @@ def handle_chat_request(
             if ret_q and not seeded_state.get("return_date"):
                 seeded_state["return_date"] = ret_q
                 seeded_state["travel_checkout"] = ret_q
+
+            bundle_city = str(seeded_state.get("bundle_destination_city") or "").strip()
+            if not bundle_city:
+                bundle_city = _pick_bundle_destination_city(req.message, seeded_state)
+                if bundle_city:
+                    seeded_state["bundle_destination_city"] = bundle_city
+            if bundle_city and not str(seeded_state.get("hotel_query") or "").strip():
+                seeded_state["hotel_query"] = bundle_city
+            if bundle_city and not str(seeded_state.get("itinerary_destination") or "").strip():
+                seeded_state["itinerary_destination"] = bundle_city
 
             flight_res = _handle_flight_intent(
                 req,
@@ -1082,8 +1472,21 @@ def handle_chat_request(
                 chat_renderers,
             )
             state_after_flight = dict(SESSION_STATE.get(sid, seeded_state))
+            bundle_city = str(state_after_flight.get("bundle_destination_city") or "").strip() or _pick_bundle_destination_city(req.message, state_after_flight)
+            if bundle_city:
+                state_after_flight["bundle_destination_city"] = bundle_city
+                state_after_flight["hotel_query"] = str(state_after_flight.get("hotel_query") or "").strip() or bundle_city
+                state_after_flight["itinerary_destination"] = str(state_after_flight.get("itinerary_destination") or "").strip() or bundle_city
+                SESSION_STATE[sid] = state_after_flight
+            adults_n = int(state_after_flight.get("adults") or 2)
+            hotel_checkin = str(state_after_flight.get("travel_checkin") or state_after_flight.get("departure_date") or "").strip()
+            hotel_checkout = str(state_after_flight.get("travel_checkout") or state_after_flight.get("return_date") or "").strip()
+            hotel_msg_parts = [bundle_city or "", "호텔", f"{adults_n}명"]
+            if hotel_checkin and hotel_checkout:
+                hotel_msg_parts.append(f"{hotel_checkin}~{hotel_checkout}")
+            hotel_req = type("BundleHotelReq", (), {"message": " ".join([p for p in hotel_msg_parts if p])})()
             hotel_res = _handle_hotel_intent(
-                req,
+                hotel_req,
                 state_after_flight,
                 context,
                 SESSION_STATE,
@@ -1092,11 +1495,103 @@ def handle_chat_request(
                 hotel_service,
             )
 
-            msg_l2 = (req.message or "").lower()
-            wants_itinerary = _contains(msg_l2, ["일정", "코스", "루트", "itinerary", "plan"])
+            state_after_hotel = dict(SESSION_STATE.get(sid, state_after_flight))
+            flight_html_text = str(flight_res.get("response") or "")
+            hotel_html_text = str(hotel_res.get("response") or "")
+
+            def _min_krw_from_html(raw_html: str) -> int | None:
+                try:
+                    vals = [int(x.replace(",", "")) for x in re.findall(r"([0-9][0-9,]*)\s*KRW", str(raw_html or ""), flags=re.IGNORECASE)]
+                    vals = [v for v in vals if v > 0]
+                    return min(vals) if vals else None
+                except Exception:
+                    return None
+
+            def _first_hotel_name_price(raw_html: str) -> tuple[str, int | None]:
+                txt = re.sub(r"<[^>]+>", " ", str(raw_html or ""))
+                txt = re.sub(r"\s+", " ", txt)
+                m = re.search(r"\d+\)\s*([^|]+?)\s*\|\s*가격:\s*([0-9,]+)\s*KRW", txt, flags=re.IGNORECASE)
+                if not m:
+                    return "", None
+                name = str(m.group(1) or "").strip()
+                try:
+                    price = int(str(m.group(2) or "").replace(",", ""))
+                except Exception:
+                    price = None
+                return name, price
+
+            def _select_hotel_name_price(raw_html: str, budget_total_krw: int | None, flight_price_krw: int | None) -> tuple[str, int | None]:
+                txt = re.sub(r"<[^>]+>", " ", str(raw_html or ""))
+                txt = re.sub(r"\s+", " ", txt)
+                candidates: list[tuple[str, int, float | None]] = []
+                for m in re.finditer(
+                    r"\d+\)\s*([^|]+?)\s*\|\s*[^|]*?([0-9,]+)\s*KRW(?:\s*\|\s*[^0-9|]*([0-9]+(?:\.[0-9]+)?))?",
+                    txt,
+                    flags=re.IGNORECASE,
+                ):
+                    name = str(m.group(1) or "").strip()
+                    try:
+                        price = int(str(m.group(2) or "").replace(",", ""))
+                    except Exception:
+                        continue
+                    rating_val: float | None = None
+                    try:
+                        if m.group(3) is not None:
+                            rating_val = float(m.group(3))
+                    except Exception:
+                        rating_val = None
+                    if name and price > 0:
+                        candidates.append((name, price, rating_val))
+                if not candidates:
+                    return _first_hotel_name_price(raw_html)
+
+                budget_for_hotel: int | None = None
+                try:
+                    if budget_total_krw is not None:
+                        flight_cost = int(flight_price_krw or 0)
+                        budget_for_hotel = max(0, int(budget_total_krw) - flight_cost)
+                except Exception:
+                    budget_for_hotel = None
+
+                pool = candidates
+                if budget_for_hotel is not None:
+                    affordable = [c for c in candidates if c[1] <= budget_for_hotel]
+                    if affordable:
+                        pool = affordable
+                    else:
+                        # If nothing fits budget, choose the cheapest option to minimize overrun.
+                        cheapest = sorted(candidates, key=lambda x: x[1])[0]
+                        return cheapest[0], cheapest[1]
+
+                def _score(c: tuple[str, int, float | None]) -> tuple[float, int]:
+                    _, price, rating = c
+                    return (float(rating if rating is not None else -1.0), -price)
+
+                chosen = sorted(pool, key=_score, reverse=True)[0]
+                return chosen[0], chosen[1]
+
+            bundle_flight = _min_krw_from_html(flight_html_text)
+            if bundle_flight is not None:
+                state_after_hotel["bundle_api_flight_price_krw"] = bundle_flight
+
+            budget_total_krw = None
+            try:
+                if state_after_hotel.get("max_price") is not None:
+                    budget_total_krw = int(float(state_after_hotel.get("max_price")))
+            except Exception:
+                budget_total_krw = None
+
+            hotel_name, hotel_price = _select_hotel_name_price(hotel_html_text, budget_total_krw, bundle_flight)
+            if hotel_price is not None:
+                state_after_hotel["bundle_api_hotel_price_krw"] = hotel_price
+            if hotel_name:
+                state_after_hotel["bundle_selected_hotel_name"] = hotel_name
+            SESSION_STATE[sid] = state_after_hotel
+
+            wants_itinerary = bool(state_after_hotel.get("bundle_wants_itinerary"))
+            wants_rental = bool(state_after_hotel.get("bundle_wants_rental"))
             itinerary_html = ""
             if wants_itinerary:
-                state_after_hotel = dict(SESSION_STATE.get(sid, state_after_flight))
                 itinerary_res = _handle_itinerary_intent(
                     req,
                     state_after_hotel,
@@ -1112,6 +1607,34 @@ def handle_chat_request(
                 )
                 itinerary_html = str(itinerary_res.get("response") or "")
 
+            rental_html = ""
+            if wants_rental:
+                rental_state = dict(SESSION_STATE.get(sid, state_after_hotel))
+                rental_city = str(
+                    rental_state.get("bundle_destination_city")
+                    or rental_state.get("destination")
+                    or rental_state.get("itinerary_destination")
+                    or rental_state.get("hotel_query")
+                    or ""
+                ).strip()
+                rental_start = str(rental_state.get("travel_checkin") or rental_state.get("departure_date") or "").strip()
+                rental_end = str(rental_state.get("travel_checkout") or rental_state.get("return_date") or "").strip()
+                rental_adults = int(rental_state.get("adults") or 2)
+                rental_message_parts = [rental_city, "렌터카"]
+                if rental_adults > 0:
+                    rental_message_parts.append(f"{rental_adults}명")
+                if rental_start and rental_end:
+                    rental_message_parts.append(f"{rental_start}~{rental_end}")
+                elif rental_start:
+                    rental_message_parts.append(rental_start)
+                rental_req = type("BundleRentalReq", (), {"message": " ".join([p for p in rental_message_parts if p])})()
+                rental_res = _handle_rentalcar_intent(rental_req, rental_state, SESSION_STATE, sid)
+                rental_html = str(rental_res.get("response") or "")
+                rental_min = _min_krw_from_html(rental_html)
+                if rental_min is not None:
+                    state_after_hotel["bundle_api_rental_price_krw"] = rental_min
+                    SESSION_STATE[sid] = state_after_hotel
+
             return {
                 "response": (
                     "<div><b>여행 통합 추천</b></div>"
@@ -1120,6 +1643,7 @@ def handle_chat_request(
                     + "<div style='margin-top:12px;'><b>숙소 추천</b></div>"
                     + str(hotel_res.get("response") or "")
                     + (f"<div style='margin-top:12px;'><b>일정 추천</b></div>{itinerary_html}" if itinerary_html else "")
+                    + (f"<div style='margin-top:12px;'><b>렌터카 추천</b></div>{rental_html}" if rental_html else "")
                 )
             }
 

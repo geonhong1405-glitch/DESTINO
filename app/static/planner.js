@@ -1,8 +1,12 @@
 ﻿document.addEventListener("DOMContentLoaded", function () {
+    if (window.lucide && typeof window.lucide.createIcons === "function") {
+        window.lucide.createIcons();
+    }
+
     const promptInput = document.getElementById("ai-prompt");
     if (!promptInput) return;
 
-    const sendBtn = promptInput.parentElement?.querySelector("button.bg-brand");
+    const sendBtn = promptInput.parentElement?.querySelector("button.bg-brand, button.bg-blue-600");
     if (!sendBtn) return;
     const promptWrap = promptInput.parentElement;
     const cardWrap = promptWrap?.parentElement;
@@ -395,7 +399,7 @@
         const rawMeta = String(item?.meta || payload?.meta || "").trim();
         const parts = rawMeta ? rawMeta.split("|").map((x) => x.trim()).filter(Boolean) : [];
 
-        const looksLikePrice = (text) => /\d/.test(String(text || "")) && /(krw|usd|eur|jpy|원|₩|\$|€|¥)/i.test(String(text || ""));
+        const looksLikePrice = (text) => /\d/.test(String(text || "")) && /(krw|usd|eur|jpy|원|\|\$|€|￥)/i.test(String(text || ""));
         const price = normalizeSavedPrice(looksLikePrice(parts[0]) ? parts[0] : (String(payload?.price || "").trim() || ""));
         const itineraries = Array.isArray(payload?.itineraries) ? payload.itineraries : [];
         const outItinerary = itineraries[0] || {};
@@ -987,11 +991,11 @@
     function normalizeSavedPrice(value) {
         const txt = String(value || "").trim();
         if (!txt) return "";
-        const m = txt.match(/([\d,]+(?:\.\d+)?)\s*(KRW|krw|원|₩)?/);
+        const m = txt.match(/([\d,]+(?:\.\d+)?)\s*(KRW|krw)?/);
         if (!m) return "";
         const n = Number(String(m[1]).replace(/,/g, ""));
         if (!Number.isFinite(n) || n <= 0) return "";
-        return `₩${Math.floor(n).toLocaleString("ko-KR")}`;
+        return `${Math.floor(n).toLocaleString("ko-KR")} KRW`;
     }
 
     function formatKoreanMeridiemTime(hhmm) {
@@ -1041,7 +1045,7 @@
         const txt = String(priceText || "").trim();
         const mKrw = txt.match(/([\d,]+)\s*KRW/i);
         if (mKrw) {
-            return { primary: `₩${mKrw[1]}`, secondary: "" };
+            return { primary: `${mKrw[1]} KRW`, secondary: "" };
         }
         const mFx = txt.match(/([\d,]+(?:\.\d+)?)\s*(USD|EUR|JPY|CNY|GBP)/i) || txt.match(/(USD|EUR|JPY|CNY|GBP)\s*([\d,]+(?:\.\d+)?)/i);
         if (mFx) {
@@ -1148,7 +1152,7 @@
             .replace(/<br\s*\/?>/gi, "\n")
             .replace(/<\/div>/gi, "\n")
             .replace(/<[^>]+>/g, " ")
-            .replace(/ /g, " ");
+            .replace(/\uFFFD/g, " ");
         const distanceBasisMatch = distanceBasisSource.match(/^\s*거리\s*기준\s*:\s*([^\n]+)$/im);
         const distanceBasis = distanceBasisMatch ? distanceBasisMatch[1].trim() : "";
 
@@ -1156,7 +1160,7 @@
             .replace(/<br\s*\/?>/gi, "\n")
             .replace(/<\/div>/gi, "\n")
             .replace(/<[^>]+>/g, "")
-            .replace(/ /g, " ");
+            .replace(/\uFFFD/g, " ");
         const lines = normalized.split("\n").map((s) => s.trim()).filter(Boolean);
         const cards = [];
 
@@ -1376,7 +1380,7 @@
                 return {
                     title,
                     subtitle: "추천 후보를 보기 쉽게 정리했어요.",
-                    items: items.slice(0, 9),
+                    items: items.slice(0, 4),
                 };
             }
             return null;
@@ -1385,7 +1389,7 @@
         return {
             title,
             subtitle: "후보별 핵심 정보와 이미지를 보기 쉽게 정리했어요.",
-            items: blocks.slice(0, 9),
+            items: blocks.slice(0, 4),
         };
     }
 
@@ -1470,29 +1474,97 @@
             seen.add(key);
             merged.push(c);
         });
-        const cards = merged;
-        if (!cards.length) return;
+        const isIntegrated = /여행\s*통합\s*추천/i.test(htmlText);
+        let cards = (isIntegrated ? merged.filter((c) => {
+            const t = String(c?.type || "");
+            return t === "항공편" || t === "렌터카" || t === "호텔" || (t === "상품" && looksLikeHotelCard(c));
+        }) : merged);
+
+        function sectionTextByTitle(html, title) {
+            const src = String(html || "");
+            const re = new RegExp(`<div[^>]*>\\s*<b>\\s*${title}\\s*<\\/b>\\s*<\\/div>([\\s\\S]*?)(?=<div[^>]*>\\s*<b>\\s*(?:항공편\\s*추천|숙소\\s*추천|일정\\s*추천|렌터카\\s*추천|실제\\s*API\\s*추천|추천)\\s*<\\/b>\\s*<\\/div>|$)`, "i");
+            const m = src.match(re);
+            if (!m) return "";
+            return String(m[1] || "")
+                .replace(/<br\s*\/?>/gi, "\n")
+                .replace(/<[^>]+>/g, " ")
+                .replace(/\s+/g, " ")
+                .trim();
+        }
+        if (isIntegrated) {
+            const hasHotel = cards.some((c) => String(c?.type || "") === "호텔" || (String(c?.type || "") === "상품" && looksLikeHotelCard(c)));
+            const hasRental = cards.some((c) => String(c?.type || "") === "렌터카");
+            if (!hasHotel) {
+                const hotelInfo = sectionTextByTitle(htmlText, "숙소\\s*추천");
+                cards.push({
+                    type: "호텔",
+                    name: "숙소 추천 준비 중",
+                    meta: hotelInfo || "호텔 결과를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.",
+                    price: "-",
+                    rating: "",
+                    stars: "",
+                    distance: "",
+                    checkin: "",
+                    checkout: "",
+                    address: "",
+                    area: "",
+                    photo: "",
+                    hotel_id: "",
+                });
+            }
+            // Do not auto-insert rental placeholder cards.
+            // Rental section should appear only when user explicitly asked for rental.
+        }
+        if (!cards.length) return false;
 
         const content = botBubble.querySelector(".ai-msg__content");
         if (!content) return;
+        const placeSection = content.querySelector(".ai-place-reco")?.cloneNode(true) || null;
 
-        // Keep itinerary narrative, but remove verbose API dump section once cards are available.
-        content.innerHTML = String(content.innerHTML || "").replace(
-            /<div[^>]*>\s*<b>\s*실제\s*API\s*추천\s*<\/b>\s*<\/div>[\s\S]*$/i,
-            ""
+        const originalHtml = String(content.innerHTML || "");
+        const itineraryMatch = originalHtml.match(
+            /<div[^>]*>\s*<b>\s*일정\s*추천\s*<\/b>\s*<\/div>[\s\S]*?(?=<div[^>]*>\s*<b>\s*(실제\s*API\s*추천|추천)\s*<\/b>\s*<\/div>|$)/i
         );
+        const itineraryOnlyHtml = itineraryMatch ? itineraryMatch[0] : "";
+
+        // Keep itinerary narrative only, and remove verbose API dump section once cards are available.
+        let cleanedHtml = itineraryOnlyHtml
+            .replace(
+                /<div[^>]*>\s*<b>\s*실제\s*API\s*추천\s*<\/b>\s*<\/div>[\s\S]*$/i,
+                ""
+            )
+            // In integrated responses, backend may include raw flight API table/text block.
+            // Remove that whole block and keep the card section instead.
+            .replace(
+                /<div[^>]*>\s*<b>\s*항공편\s*추천(?:\s*\(실시간\s*API\))?\s*<\/b>\s*<\/div>[\s\S]*?(?=<div[^>]*>\s*<b>\s*(숙소\s*추천|일정\s*추천|렌터카\s*추천)\s*<\/b>\s*<\/div>|$)/i,
+                ""
+            )
+            // Fallback cleanup for plain-text API dump lines.
+            .replace(/검색\s*조건\s*:[^<\n]*(?:<br\s*\/?>)?/gi, "")
+            .replace(/추천\s*\d+\s*건\s*:[^<\n]*(?:<br\s*\/?>)?/gi, "")
+            .replace(/API\s*조회\s*조건[^<\n]*(?:<br\s*\/?>)?/gi, "");
+        content.innerHTML = cleanedHtml;
         // Also remove raw flight table/condition dumps when card UI is rendered.
         Array.from(content.querySelectorAll("table")).forEach((el) => el.remove());
-        Array.from(content.querySelectorAll("div")).forEach((el) => {
+        Array.from(content.querySelectorAll("div, p, li, pre")).forEach((el) => {
             const txt = String(el.textContent || "").replace(/\s+/g, " ").trim();
-            if (/검색\s*조건\s*:|API\s*조회\s*조건|추천\s*\d+\s*건\s*:|구간\s*상세\s*보기/i.test(txt)) {
+            if (/검색\s*조건\s*:|API\s*조회\s*조건|추천\s*\d+\s*건\s*:|구간\s*상세\s*보기|항공사\s*출발\s*시간\s*도착\s*시간\s*구분\s*총\s*소요\s*요금/i.test(txt)) {
                 el.remove();
             }
         });
 
+        const typePriority = (c) => {
+            const t = String(c?.type || "");
+            if (t === "항공편") return 1;
+            if (t === "호텔" || (t === "상품" && looksLikeHotelCard(c))) return 2;
+            if (t === "렌터카") return 3;
+            return 9;
+        };
+        cards.sort((a, b) => typePriority(a) - typePriority(b));
+
         const section = document.createElement("section");
         section.className = "ai-commerce-cards";
-        const title = cards[0].type === "항공편" ? "항공편 카드" : `${cards[0].type} 카드`;
+        const title = "여행 추천 카드";
         section.innerHTML = `<div class="ai-commerce-cards__title">${escapeHtml(title)}</div>`;
         if (!flightCards.length && /(항공편을 찾지 못했|조건에 맞는 항공편이 없습니다)/i.test(htmlText)) {
             const warn = document.createElement("div");
@@ -1503,7 +1575,18 @@
 
         const grid = document.createElement("div");
         grid.className = "ai-commerce-cards__grid";
+        let lastTypeLabel = "";
         cards.forEach((cardData) => {
+            const groupLabel = cardData.type === "항공편"
+                ? "항공편"
+                : ((cardData.type === "호텔" || (cardData.type === "상품" && looksLikeHotelCard(cardData))) ? "숙소" : (cardData.type === "렌터카" ? "렌터카" : "기타"));
+            if (groupLabel !== lastTypeLabel) {
+                const groupHeader = document.createElement("div");
+                groupHeader.style.cssText = "grid-column:1/-1;margin:4px 0 2px;font-size:13px;font-weight:800;color:#1f2937;";
+                groupHeader.textContent = groupLabel;
+                grid.appendChild(groupHeader);
+                lastTypeLabel = groupLabel;
+            }
             const card = document.createElement("article");
             card.className = `ai-commerce-card ${cardData.type === "항공편" ? "ai-commerce-card--flight" : ""}`;
 
@@ -1873,8 +1956,12 @@
         section.appendChild(grid);
         const prevCommerceSection = content.querySelector(".ai-commerce-cards");
         if (prevCommerceSection) prevCommerceSection.remove();
+        const currentPlaceSection = content.querySelector(".ai-place-reco");
+        if (currentPlaceSection) currentPlaceSection.remove();
+        if (placeSection) content.appendChild(placeSection);
         content.appendChild(section);
         syncCommerceCardStates();
+        return true;
     }
 
     async function sendMessage() {
@@ -1923,8 +2010,10 @@
                 <div class="ai-msg__meta">DESTINO AI</div>
                 <div class="ai-msg__bubble"><div class="ai-msg__content">${html}</div></div>
             `;
-            const renderedReco = enhancePlaceRecommendationCards(loadingItem, html);
-            if (!renderedReco) enhanceCommerceCards(loadingItem, html);
+            // Render order: itinerary text -> theme place cards -> flight/hotel/rental cards.
+            const hasThemePlaces = /(맛집|쇼핑|관광지|명소)\s*스팟\s*추천/i.test(html);
+            if (hasThemePlaces) enhancePlaceRecommendationCards(loadingItem, html);
+            enhanceCommerceCards(loadingItem, html);
             scrollToBottom(true);
         } catch (error) {
             loadingItem.innerHTML = `
@@ -1946,3 +2035,5 @@
     renderCart();
     setCartDrawer(false);
 });
+
+

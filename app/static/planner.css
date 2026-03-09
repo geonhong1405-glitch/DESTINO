@@ -1566,11 +1566,11 @@ ul {
 }
 
 .ai-flight-card__fare-label {
-    font-size: 15px;
+    font-size: 13px;
 }
 
 .ai-flight-card__fare-value {
-    font-size: 40px;
+    font-size: 30px;
     line-height: 1.1;
     white-space: nowrap;
 }
@@ -1578,7 +1578,7 @@ ul {
 /* keep fare typography consistent across all flight-card variants */
 .ai-commerce-card--flight .ai-flight-card__fare-value,
 .ai-commerce-card--flight .ai-flight-card__schedule--round + .ai-flight-card__fare .ai-flight-card__fare-value {
-    font-size: 40px;
+    font-size: 30px;
     line-height: 1.1;
     font-weight: 800;
     white-space: nowrap;

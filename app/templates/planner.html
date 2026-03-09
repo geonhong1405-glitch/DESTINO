@@ -9,9 +9,9 @@
         <!-- Lucide Icons -->
         <script src="https://unpkg.com/lucide@latest"></script>
         <!-- 외부 스타일 및 스크립트 연결 -->
-        <link rel="stylesheet" href="../static/planner.css?v=20260304o" />
+        <link rel="stylesheet" href="../static/planner.css?v=20260309i" />
         <link rel="stylesheet" href="/static/saved-drawer-unified.css?v=20260306o" />
-        <script src="../static/planner.js?v=20260306o" defer></script>
+        <script src="../static/planner.js?v=20260309k" defer></script>
     </head>
     <body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
         <header class="header">
@@ -58,7 +58,7 @@
                         >
                     </h1>
                     <p class="text-lg text-gray-600 mb-10">
-                        원하는 여행 스타일, 예산, 계절을 이야기해주세요. 완벽한 일정을 추천해 드립니다.
+                        원하는 여행 스타일, 예산을 이야기해주세요. 완벽한 일정을 추천해 드립니다.
                     </p>
 
                     <!-- AI Search Box -->
@@ -70,22 +70,21 @@
                                 id="ai-prompt"
                                 rows="3"
                                 class="w-full resize-none rounded-2xl border-0 bg-transparent py-4 pl-6 pr-16 text-gray-900 placeholder-gray-400 focus:ring-0 text-lg sm:leading-6 outline-none"
-                                placeholder="예) 다가오는 겨울, 부모님을 모시고 갈 만한 따뜻한 동남아 휴양지를 3박 4일 일정으로 추천해줘. 예산은 인당 100만원이야."
+                                placeholder="원하는 여행 정보를 입력해 주세요."
                             ></textarea>
 
-                            <div class="absolute bottom-3 right-3 flex items-center space-x-2">
+                            <div class="absolute bottom-3 right-3 flex items-center">
                                 <button
                                     type="button"
-                                    class="p-2 text-gray-400 hover:text-brand transition-colors"
-                                    title="음성으로 입력"
+                                    class="bg-blue-600 hover:bg-blue-700 text-white rounded-xl p-3 shadow-md transition-transform transform hover:scale-105 flex items-center justify-center"
+                                    title="업로드"
+                                    aria-label="업로드"
                                 >
-                                    <i data-lucide="mic" class="w-5 h-5"></i>
-                                </button>
-                                <button
-                                    type="button"
-                                    class="bg-brand hover:bg-brand-dark text-white rounded-xl p-3 shadow-md transition-transform transform hover:scale-105 flex items-center justify-center"
-                                >
-                                    <i data-lucide="send" class="w-5 h-5"></i>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                        <polyline points="17 8 12 3 7 8"></polyline>
+                                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                                    </svg>
                                 </button>
                             </div>
                         </div>

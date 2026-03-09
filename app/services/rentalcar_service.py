@@ -303,6 +303,66 @@ def _parse_pickup_query(message: str, prev_state: dict[str, Any]) -> Optional[st
     return rs.get("pickup_query")
 
 
+def _default_pickup_query(prev_state: dict[str, Any], city_query_norm: str | None = None) -> Optional[str]:
+    state = prev_state or {}
+    rs = state.get("rental_state") or {}
+
+    # Prefer explicit carry-over if already known.
+    carried = str(rs.get("pickup_query") or "").strip()
+    if carried:
+        return carried
+
+    # Destination/arrival hints from chat state.
+    dest_hint = str(
+        state.get("arrival_airport")
+        or state.get("destination")
+        or state.get("bundle_destination_city")
+        or state.get("itinerary_destination")
+        or city_query_norm
+        or ""
+    ).strip()
+    if not dest_hint:
+        return None
+
+    hint_upper = dest_hint.upper()
+    city_to_airport = {
+        "OSA": "KIX",
+        "OSAKA": "KIX",
+        "TOKYO": "NRT",
+        "TYO": "NRT",
+        "NYC": "JFK",
+        "NEW YORK": "JFK",
+        "LON": "LHR",
+        "LONDON": "LHR",
+        "PAR": "CDG",
+        "PARIS": "CDG",
+        "SEL": "ICN",
+        "SEOUL": "ICN",
+        "SPK": "CTS",
+        "SAPPORO": "CTS",
+    }
+
+    if re.fullmatch(r"[A-Z]{3}", hint_upper):
+        if _is_broad_city_iata(hint_upper):
+            return city_to_airport.get(hint_upper)
+        return hint_upper
+
+    compact = re.sub(r"\s+", "", dest_hint).lower()
+    if compact:
+        for k, v in LOCATION_ALIASES.items():
+            kk = re.sub(r"\s+", "", str(k or "")).lower()
+            if not kk or kk != compact:
+                continue
+            code = str(v or "").upper().strip()
+            if not code:
+                continue
+            if _is_broad_city_iata(code):
+                return city_to_airport.get(code)
+            return code
+
+    return city_to_airport.get(hint_upper)
+
+
 def _parse_date_ymd(text: str, now: Optional[dt.date] = None) -> Optional[str]:
     now = now or dt.datetime.now().date()
     s = str(text or "").strip()
@@ -573,6 +633,11 @@ def answer_rentalcar_from_message(message: str, prev_state: Optional[dict[str, A
     passenger_count = _parse_passenger_count(message, prev_state)
     if has_rental_intent_in_turn and (not has_explicit_passenger_in_turn):
         passenger_count = None
+
+    # If pickup place is not explicitly provided, default to arrival airport.
+    # If user explicitly provides pickup, keep the explicit value.
+    if not has_explicit_pickup_in_turn and not pickup_query_norm:
+        pickup_query_norm = _default_pickup_query(prev_state, city_query_norm)
 
     rental_state = {
         "country_code": country_code,
