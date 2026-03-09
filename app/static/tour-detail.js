@@ -14,6 +14,7 @@ async function loadSavedItems() {
         if (res.status === 401) {
             savedItemState = { wishlist: [], cart: [] };
             renderFlightSavedDrawer();
+            syncDetailActionButtons();
             return;
         }
         const data = await res.json();
@@ -31,9 +32,11 @@ async function loadSavedItems() {
             cart: normalizeList(data?.cart),
         };
         renderFlightSavedDrawer();
+        syncDetailActionButtons();
     } catch (e) {
         savedItemState = { wishlist: [], cart: [] };
         renderFlightSavedDrawer();
+        syncDetailActionButtons();
     }
 }
 
@@ -44,7 +47,7 @@ function getCurrentProductInfo() {
     const meta = (document.querySelector('.fa-location-dot')?.parentElement?.innerText || '').trim();
     const price = document.getElementById('productPrice')?.innerText || '';
     const img = document.getElementById('productImg')?.src || '';
-    return { item_type: 'tour', name, meta, price, image: img };
+    return { item_type: 'ticket', name, meta, price, image: img };
 }
 
 
@@ -58,6 +61,23 @@ function getSavedItemKey(item) {
 function hasSavedItem(listType, item) {
     const key = getSavedItemKey(item);
     return (savedItemState[listType] || []).some((x) => getSavedItemKey(x) === key);
+}
+
+function syncDetailActionButtons() {
+    const product = getCurrentProductInfo();
+    const wishBtn = document.getElementById('wishBtn');
+    const cartBtn = document.getElementById('cartBtn');
+    const inWishlist = hasSavedItem('wishlist', product);
+    const inCart = hasSavedItem('cart', product);
+
+    if (wishBtn) {
+        wishBtn.classList.toggle('is-active', inWishlist);
+        wishBtn.setAttribute('aria-pressed', inWishlist ? 'true' : 'false');
+    }
+    if (cartBtn) {
+        cartBtn.classList.toggle('is-active', inCart);
+        cartBtn.setAttribute('aria-pressed', inCart ? 'true' : 'false');
+    }
 }
 
 function normalizeKrwPriceText(text) {
@@ -249,28 +269,17 @@ function initFlightSavedDrawer() {
             removedItem = (savedItemState.wishlist || []).find(x => Number(x.id) === itemId);
         }
         try {
-            await fetch(`/api/saved-items/${itemId}`, { method: 'DELETE', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } });
+            const res = await fetch(`/api/saved-items/${itemId}`, { method: 'DELETE', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } });
+            if (res.status === 401) {
+                window.isLoggedIn = false;
+                requireLoginMessage();
+                return;
+            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             // 클라이언트 상태에서도 제거
             savedItemState[tourSavedDrawerTab] = (savedItemState[tourSavedDrawerTab] || []).filter((x) => Number(x.id) !== itemId);
             renderFlightSavedDrawer();
-
-            // 현재 상세페이지 상품과 일치하는 경우, 해당 버튼만 색상 해제
-            const currentProduct = getCurrentProductInfo();
-            if (removedItem && getSavedItemKey(removedItem) === getSavedItemKey(currentProduct)) {
-                if (tourSavedDrawerTab === 'cart') {
-                    // 장바구니 버튼 색상 해제
-                    const cartBtn = document.getElementById('cartBtn');
-                    if (cartBtn) {
-                        cartBtn.classList.remove('text-blue-600', 'bg-blue-50', 'border-blue-100');
-                    }
-                } else if (tourSavedDrawerTab === 'wishlist') {
-                    // 찜 버튼 색상 해제
-                    const wishBtn = document.getElementById('wishBtn');
-                    if (wishBtn) {
-                        wishBtn.classList.remove('text-red-500', 'bg-red-50', 'border-red-100');
-                    }
-                }
-            }
+            if (removedItem) syncDetailActionButtons();
         } catch (err) {
             alert('삭제 중 오류가 발생했습니다.');
         }
@@ -313,12 +322,9 @@ function toggleWish() {
                 finish();
                 return requireLoginMessage();
             }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             await loadSavedItems();
-            // 티켓페이지처럼: 상태 동기화 후 버튼 색상도 동기화
-            const stillExists = hasSavedItem('wishlist', product);
-            if (!stillExists) {
-                btn.classList.remove('text-red-500', 'bg-red-50', 'border-red-100');
-            }
+            syncDetailActionButtons();
             showToast('찜 목록에서 제외되었습니다.');
         }).catch(() => {}).finally(finish);
     } else {
@@ -343,12 +349,9 @@ function toggleWish() {
             body: JSON.stringify(payload),
         }).then(async (res) => {
             if (res.status === 401) { finish(); return requireLoginMessage(); }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             await loadSavedItems();
-            // 티켓페이지처럼: 상태 동기화 후 버튼 색상도 동기화
-            const nowExists = hasSavedItem('wishlist', product);
-            if (nowExists) {
-                btn.classList.add('text-red-500', 'bg-red-50', 'border-red-100');
-            }
+            syncDetailActionButtons();
             showToast('찜 목록에 추가되었습니다! ❤️');
         }).catch(() => {}).finally(finish);
     }
@@ -376,12 +379,9 @@ function addToCart() {
                 finish();
                 return requireLoginMessage();
             }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             await loadSavedItems();
-            // 티켓페이지처럼: 상태 동기화 후 버튼 색상도 동기화
-            const stillExists = hasSavedItem('cart', product);
-            if (!stillExists) {
-                btn.classList.remove('text-blue-600', 'bg-blue-50', 'border-blue-100');
-            }
+            syncDetailActionButtons();
             showToast('장바구니에서 상품을 뺐습니다.');
         }).catch(() => {}).finally(finish);
     } else {
@@ -406,12 +406,9 @@ function addToCart() {
             body: JSON.stringify(payload),
         }).then(async (res) => {
             if (res.status === 401) { finish(); return requireLoginMessage(); }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             await loadSavedItems();
-            // 티켓페이지처럼: 상태 동기화 후 버튼 색상도 동기화
-            const nowExists = hasSavedItem('cart', product);
-            if (nowExists) {
-                btn.classList.add('text-blue-600', 'bg-blue-50', 'border-blue-100');
-            }
+            syncDetailActionButtons();
             showToast('장바구니에 상품을 담았습니다. 🛒');
         }).catch(() => {}).finally(finish);
     }
@@ -709,6 +706,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // 초기 합계 계산
     updateTotalPrice();
+    syncDetailActionButtons();
 });
 
 /**
@@ -742,6 +740,7 @@ function updateProductInfo(title, id) {
     // 위치(메타)는 .fa-location-dot 기준으로 추출
     const meta = (document.querySelector('.fa-location-dot')?.parentElement?.innerText?.replace(/^\s*\S+\s*/, '') || '').trim();
     window.FIXED_PRODUCT_META = meta;
+    syncDetailActionButtons();
 
     // 스카이다이빙 상품이면 아동 수량 선택 숨김, 아니면 보이기
     if (childQtyRow) {

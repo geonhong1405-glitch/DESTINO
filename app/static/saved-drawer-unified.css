@@ -344,6 +344,9 @@
   width: 30px !important;
   height: 30px !important;
   border-radius: 999px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   cursor: pointer !important;
   font-size: 16px !important;
   line-height: 1 !important;
@@ -351,7 +354,7 @@
   justify-self: end !important;
   align-self: start !important;
   margin: 0 !important;
-  padding: 0 !important;
+  padding: 1px 0 0 !important;
 }
 
 .flight-saved-item__remove:hover,
