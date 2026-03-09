@@ -5,14 +5,31 @@ import hashlib
 import requests
 from dotenv import load_dotenv
 
-load_dotenv()
-BOOKING_RAPIDAPI_KEY = os.getenv("BOOKING_RAPIDAPI_KEY")
+_ENV_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
+load_dotenv(dotenv_path=_ENV_PATH, override=True)
 BOOKING_RAPIDAPI_HOST = os.getenv("BOOKING_RAPIDAPI_HOST")
 
 _BOOKING_CACHE_TTL_SECONDS = 180
 _BOOKING_COOLDOWN_SECONDS = 45
 _BOOKING_SEARCH_CACHE: dict[str, dict] = {}
 _BOOKING_SEARCH_COOLDOWN: dict[str, float] = {}
+
+
+def _env(name: str, default: str = "") -> str:
+    load_dotenv(dotenv_path=_ENV_PATH, override=True)
+    return os.getenv(name, default)
+
+
+def _booking_timeout_config() -> tuple[float, float]:
+    try:
+        connect = float(str(os.getenv("BOOKING_API_CONNECT_TIMEOUT", "2")).strip())
+    except Exception:
+        connect = 2.0
+    try:
+        read = float(str(os.getenv("BOOKING_API_READ_TIMEOUT", "4")).strip())
+    except Exception:
+        read = 4.0
+    return max(1.0, connect), max(2.0, read)
 
 
 def _clean_env_token(value):
@@ -156,8 +173,8 @@ def search_car_rentals(
     currency_code="USD",
     location="US",
 ):
-    rapidapi_host = _ascii_header_value(BOOKING_RAPIDAPI_HOST)
-    rapidapi_key = _ascii_header_value(BOOKING_RAPIDAPI_KEY)
+    rapidapi_host = _ascii_header_value(_env("BOOKING_RAPIDAPI_HOST", BOOKING_RAPIDAPI_HOST or ""))
+    rapidapi_key = _ascii_header_value(_env("BOOKING_RAPIDAPI_KEY"))
     if not rapidapi_host or not rapidapi_key:
         return {"error": "Rental API credentials are not configured."}
 
@@ -194,10 +211,11 @@ def search_car_rentals(
         sec_no_location.pop("location", None)
         attempts.append(sec_no_location)
     try:
-        max_attempts = int(str(os.getenv("BOOKING_SEARCH_MAX_ATTEMPTS", "3")).strip())
+        max_attempts = int(str(os.getenv("BOOKING_SEARCH_MAX_ATTEMPTS", "1")).strip())
     except Exception:
-        max_attempts = 3
+        max_attempts = 1
     max_attempts = max(1, min(4, max_attempts))
+    connect_timeout, read_timeout = _booking_timeout_config()
 
     last_data = None
     last_status = 0
@@ -209,7 +227,12 @@ def search_car_rentals(
         if _is_in_cooldown(cache_key):
             continue
         try:
-            response = requests.get(url, headers=headers, params=params, timeout=(3, 7))
+            response = requests.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=(connect_timeout, read_timeout),
+            )
             last_status = response.status_code
             data = _safe_json(response)
         except Exception as e:

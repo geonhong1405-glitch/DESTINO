@@ -7,7 +7,6 @@ import base64
 import copy
 import time
 import requests
-from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Query, Request, HTTPException
 from fastapi.responses import HTMLResponse
@@ -67,6 +66,14 @@ _DEFAULT_FX_TO_KRW = {
     "SGD": 1000.0,
     "TWD": 43.0,
 }
+
+
+def _should_expose_rental_debug(request: Request) -> bool:
+    flag = str(os.getenv("RENTAL_SHOW_PROVIDER_DEBUG", "")).strip().lower()
+    if flag in {"1", "true", "yes", "on"}:
+        return True
+    host = str(getattr(request.url, "hostname", "") or "").strip().lower()
+    return host in {"localhost", "127.0.0.1"}
 
 
 class RentalDriverInput(BaseModel):
@@ -239,6 +246,32 @@ def _public_provider_detail(provider: str | None, detail: str | None) -> str:
     if p == "provider fallback":
         return "공급사 응답이 일시적으로 불안정해 대체 결과를 표시 중입니다."
     return ""
+
+
+def _is_sky_result_pending(raw: dict | None) -> bool:
+    if not isinstance(raw, dict):
+        return False
+    if raw.get("status") is not True:
+        return False
+    data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
+    meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
+    car_list = data.get("carList") if isinstance(data.get("carList"), list) else []
+    if car_list:
+        return False
+    if meta.get("isComplete") is False:
+        return True
+    providers = data.get("providers") if isinstance(data.get("providers"), dict) else {}
+    return any(
+        isinstance(row, dict) and row.get("in_progress")
+        for row in providers.values()
+    )
+
+
+def _parallel_booking_wait_seconds() -> float:
+    try:
+        return max(0.5, float(str(os.getenv("RENTAL_PARALLEL_BOOKING_WAIT_SECONDS", "1.5")).strip()))
+    except Exception:
+        return 1.5
 
 
 def _build_public_rental_failure_message(reasons: list[str]) -> str:
@@ -599,28 +632,49 @@ def rental_page(
             sky_raw = {}
             booking_raw = {}
 
-            # Default: parallel provider search for better response time.
-            # Set RENTAL_PARALLEL_PROVIDERS=0 only if strict quota-protection is needed.
-            parallel_providers = str(os.getenv("RENTAL_PARALLEL_PROVIDERS", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
-            if parallel_providers:
-                with ThreadPoolExecutor(max_workers=2) as ex:
-                    sky_future = ex.submit(
-                        search_sky_car_rentals,
-                        pickup_name=pickup_name or city_hint or "",
-                        pickup_lat=p_lat,
-                        pickup_lon=p_lon,
-                        dropoff_name=dropoff_name or pickup_name or city_hint or "",
-                        dropoff_lat=d_lat,
-                        dropoff_lon=d_lon,
-                        pickup_at=pickup_api_time,
-                        dropoff_at=dropoff_api_time,
-                        market=country_code,
-                        currency=currency_code,
-                        locale=_sky_locale_for_country(country_code),
-                        driver_age=30,
-                    )
-                    booking_future = ex.submit(
-                        search_car_rentals,
+            try:
+                sky_raw = search_sky_car_rentals(
+                    pickup_name=pickup_name or city_hint or "",
+                    pickup_lat=p_lat,
+                    pickup_lon=p_lon,
+                    dropoff_name=dropoff_name or pickup_name or city_hint or "",
+                    dropoff_lat=d_lat,
+                    dropoff_lon=d_lon,
+                    pickup_at=pickup_api_time,
+                    dropoff_at=dropoff_api_time,
+                    market=country_code,
+                    currency=currency_code,
+                    locale=_sky_locale_for_country(country_code),
+                    driver_age=30,
+                )
+            except Exception as e:
+                sky_raw = {"status": False, "message": f"sky_exception: {e}"}
+
+            sky_cars = parse_sky_car_search_results(sky_raw)
+            sky_raw_car_count = 0
+            if isinstance(sky_raw, dict):
+                sky_data = sky_raw.get("data") if isinstance(sky_raw.get("data"), dict) else {}
+                sky_car_list = sky_data.get("carList") if isinstance(sky_data.get("carList"), list) else []
+                sky_raw_car_count = len(sky_car_list)
+
+            if sky_cars:
+                rental_raw = sky_raw
+                rental_cars = sky_cars
+                rental_provider = "Sky Cars"
+                rental_provider_detail = "Sky cars/search"
+            else:
+                sky_msg = None
+                if isinstance(sky_raw, dict):
+                    sky_msg = str(sky_raw.get("message") or sky_raw.get("errors") or "").strip()
+                    if sky_msg:
+                        _add_fallback_reason(f"sky={sky_msg}")
+                    else:
+                        _add_fallback_reason("sky=empty")
+                    if sky_raw.get("status") is True:
+                        _add_fallback_reason(f"sky_raw_cars={sky_raw_car_count}")
+                        _add_fallback_reason(f"sky_parsed_cars={len(sky_cars)}")
+                try:
+                    booking_raw = search_car_rentals(
                         pick_up_lat=p_lat,
                         pick_up_lon=p_lon,
                         drop_off_lat=d_lat,
@@ -631,159 +685,27 @@ def rental_page(
                         currency_code=currency_code,
                         location=country_code,
                     )
-                    try:
-                        sky_raw = sky_future.result()
-                    except Exception as e:
-                        sky_raw = {"status": False, "message": f"sky_exception: {e}"}
-                    try:
-                        booking_raw = booking_future.result()
-                    except Exception as e:
-                        booking_raw = {"error": f"booking_exception: {e}"}
-            else:
-                try:
-                    sky_raw = search_sky_car_rentals(
-                        pickup_name=pickup_name or city_hint or "",
-                        pickup_lat=p_lat,
-                        pickup_lon=p_lon,
-                        dropoff_name=dropoff_name or pickup_name or city_hint or "",
-                        dropoff_lat=d_lat,
-                        dropoff_lon=d_lon,
-                        pickup_at=pickup_api_time,
-                        dropoff_at=dropoff_api_time,
-                        market=country_code,
-                        currency=currency_code,
-                        locale=_sky_locale_for_country(country_code),
-                        driver_age=30,
-                    )
                 except Exception as e:
-                    sky_raw = {"status": False, "message": f"sky_exception: {e}"}
+                    booking_raw = {"error": f"booking_exception: {e}"}
+                booking_cars = parse_rental_search_results(booking_raw)
 
-                sky_probe = parse_sky_car_search_results(sky_raw)
-                if not sky_probe:
-                    # Retry once with neutral Sky query params to absorb market/currency mismatch noise.
-                    try:
-                        sky_retry_raw = search_sky_car_rentals(
-                            pickup_name=pickup_name or city_hint or "",
-                            pickup_lat=p_lat,
-                            pickup_lon=p_lon,
-                            dropoff_name=dropoff_name or pickup_name or city_hint or "",
-                            dropoff_lat=d_lat,
-                            dropoff_lon=d_lon,
-                            pickup_at=pickup_api_time,
-                            dropoff_at=dropoff_api_time,
-                            market="US",
-                            currency="USD",
-                            locale="en-US",
-                            driver_age=30,
-                        )
-                        sky_retry_probe = parse_sky_car_search_results(sky_retry_raw)
-                        if sky_retry_probe:
-                            sky_raw = sky_retry_raw
-                            sky_probe = sky_retry_probe
-                    except Exception:
-                        pass
-
-                if not sky_probe and country_code == "JP":
-                    # JP-specific retry hints: Narita/Haneda/Tokyo often differ by provider entity naming.
-                    jp_retry_names: list[str] = []
-                    for cand in [
-                        pickup_name or "",
-                        dropoff_name or "",
-                        city_hint or "",
-                        "NRT",
-                        "Narita Airport",
-                        "HND",
-                        "Haneda Airport",
-                        "Tokyo",
-                    ]:
-                        c = str(cand or "").strip()
-                        if c and c not in jp_retry_names:
-                            jp_retry_names.append(c)
-                    for alt_name in jp_retry_names:
-                        try:
-                            sky_jp_raw = search_sky_car_rentals(
-                                pickup_name=alt_name,
-                                pickup_lat=p_lat,
-                                pickup_lon=p_lon,
-                                dropoff_name=alt_name,
-                                dropoff_lat=d_lat,
-                                dropoff_lon=d_lon,
-                                pickup_at=pickup_api_time,
-                                dropoff_at=dropoff_api_time,
-                                market="JP",
-                                currency="JPY",
-                                locale="en-US",
-                                driver_age=30,
-                            )
-                            sky_jp_probe = parse_sky_car_search_results(sky_jp_raw)
-                            if sky_jp_probe:
-                                sky_raw = sky_jp_raw
-                                sky_probe = sky_jp_probe
-                                break
-                        except Exception:
-                            continue
-
-                if sky_probe:
-                    rental_raw = sky_raw
-                    rental_cars = sky_probe
-                    rental_provider = "Sky Cars"
-                    rental_provider_detail = "Sky cars/search"
-                    booking_raw = {}
+                if booking_cars:
+                    rental_raw = booking_raw
+                    rental_cars = booking_cars
+                    rental_provider = "Booking Fallback"
+                    rental_provider_detail = f"Sky empty/fail -> Booking ({sky_msg or 'no sky detail'})"
                 else:
-                    try:
-                        booking_raw = search_car_rentals(
-                            pick_up_lat=p_lat,
-                            pick_up_lon=p_lon,
-                            drop_off_lat=d_lat,
-                            drop_off_lon=d_lon,
-                            pick_up_time=pickup_api_time,
-                            drop_off_time=dropoff_api_time,
-                            driver_age=30,
-                            currency_code=currency_code,
-                            location=country_code,
-                        )
-                    except Exception as e:
-                        booking_raw = {"error": f"booking_exception: {e}"}
-            sky_cars = parse_sky_car_search_results(sky_raw)
-            booking_cars = parse_rental_search_results(booking_raw)
-
-            if sky_cars:
-                rental_raw = sky_raw
-                rental_cars = sky_cars
-                rental_provider = "Sky Cars"
-                rental_provider_detail = "Sky cars/search"
-            elif booking_cars:
-                rental_raw = booking_raw
-                rental_cars = booking_cars
-                rental_provider = "Booking Fallback"
-                rental_provider_detail = "Sky empty/fail -> Booking"
-            else:
-                sky_msg = None
-                if isinstance(sky_raw, dict):
-                    sky_msg = str(sky_raw.get("message") or sky_raw.get("errors") or "").strip()
-                    if sky_msg:
-                        _add_fallback_reason(f"sky={sky_msg}")
-                    else:
-                        _add_fallback_reason("sky=empty")
-                booking_msg = None
-                if isinstance(booking_raw, dict):
-                    booking_msg = str(booking_raw.get("error") or booking_raw.get("message") or "").strip()
-                    if booking_msg:
-                        _add_fallback_reason(f"booking={booking_msg}")
-                    else:
-                        _add_fallback_reason("booking=empty")
-                rental_raw = booking_raw if isinstance(booking_raw, dict) else sky_raw
-                rental_cars = []
-                rental_provider = "Provider Fallback"
-                detail_raw = f"Sky empty/fail -> Booking empty/fail ({sky_msg or 'no sky detail'})"
-                detail_clean = _clean_provider_detail(detail_raw)
-                rental_provider_detail = detail_clean if detail_clean else "Sky empty/fail -> Booking"
-                cached = _get_cached_rental_results(cache_key)
-                if cached:
-                    rental_cars = cached["cars"]
-                    rental_provider = "Cached Fallback"
-                    rental_provider_detail = cached["provider_detail"] or "최근 검색 캐시 결과"
-                    rental_raw = {"status": True, "message": "cached_result"}
+                    booking_msg = None
+                    if isinstance(booking_raw, dict):
+                        booking_msg = str(booking_raw.get("error") or booking_raw.get("message") or "").strip()
+                        if booking_msg:
+                            _add_fallback_reason(f"booking={booking_msg}")
+                        else:
+                            _add_fallback_reason("booking=empty")
+                    rental_raw = sky_raw if isinstance(sky_raw, dict) and sky_raw.get("status") is True else booking_raw
+                    rental_cars = []
+                    rental_provider = ""
+                    rental_provider_detail = ""
             for car in rental_cars:
                 if not isinstance(car, dict):
                     continue
@@ -827,9 +749,6 @@ def rental_page(
                     except Exception:
                         car["price_per_day"] = None
 
-            if rental_cars and (rental_provider or "").lower() in {"sky cars", "booking fallback"}:
-                _set_cached_rental_results(cache_key, rental_cars, rental_provider, rental_provider_detail)
-
             if min_seats_value:
                 rental_cars = [c for c in rental_cars if not c.get("seats") or c.get("seats") >= min_seats_value]
             if transmission and transmission not in {"", "all"}:
@@ -849,61 +768,15 @@ def rental_page(
             api_error = _extract_rental_api_error(rental_raw) if isinstance(rental_raw, dict) else None
             if api_error:
                 rental_error = api_error
-                _add_fallback_reason(f"booking={api_error}")
             elif not rental_cars:
                 rental_error = "실시간 차량 검색 결과가 없습니다. 날짜/장소를 다시 확인해 주세요."
-                _add_fallback_reason("booking=no_cars")
-
-            reliable_count = sum(
-                1
-                for c in rental_cars
-                if c.get("price") is not None and not c.get("price_unreliable")
-            )
-            if reliable_count == 0 and rental_cars:
-                estimated = _apply_estimated_prices_to_cars(rental_cars, country_code, rental_days)
-                if estimated > 0:
-                    # Treat estimated-fare mode as non-fatal; keep result list visible without red error banner.
-                    rental_error = None
-                    rental_provider_detail = _public_provider_detail(
-                        rental_provider or "Provider Fallback",
-                        "estimated fares",
-                    )
-                else:
-                    _add_fallback_reason("filtered=all_unreliable_or_no_price")
-                    rental_error = "실시간 차량은 조회되었지만 요금이 불안정해 요금을 표시할 수 없습니다."
-
-            if not rental_cars:
-                # Always keep at least fallback inventory visible when provider results are empty.
-                rental_cars = _build_local_fallback_rental_cars(country_code, rental_days)
-                original_fallback = list(rental_cars)
-                filtered_fallback = list(rental_cars)
-                if min_seats_value:
-                    filtered_fallback = [c for c in filtered_fallback if not c.get("seats") or c.get("seats") >= min_seats_value]
-                if transmission and transmission not in {"", "all"}:
-                    tneedle = str(transmission).lower()
-                    filtered_fallback = [c for c in filtered_fallback if tneedle in str(c.get("transmission") or "").lower()]
-                rental_cars = filtered_fallback if filtered_fallback else original_fallback
-                if sort == "price_desc":
-                    rental_cars.sort(key=lambda x: x.get("price") or -1, reverse=True)
-                elif sort == "name":
-                    rental_cars.sort(key=lambda x: str(x.get("name") or ""))
-                elif sort == "rating":
-                    rental_cars.sort(key=lambda x: x.get("rating") or 0, reverse=True)
-                else:
-                    rental_cars.sort(key=lambda x: x.get("price") or 10**12)
-
-                if rental_cars:
-                    rental_provider = "Local Fallback"
-                    rental_provider_detail = _public_provider_detail(rental_provider, " / ".join(fallback_reasons))
-                    rental_error = None
-                else:
-                    rental_provider = "API Unavailable"
-                    rental_provider_detail = _public_provider_detail(rental_provider, " / ".join(fallback_reasons))
-                    rental_error = _build_public_rental_failure_message(fallback_reasons)
         except Exception as e:
             rental_error = f"렌터카 검색 중 오류: {e}"
 
+    rental_provider_debug_detail = " / ".join(fallback_reasons).strip()
     rental_provider_detail = _public_provider_detail(rental_provider, rental_provider_detail)
+    if not _should_expose_rental_debug(request):
+        rental_provider_debug_detail = ""
 
     return templates.TemplateResponse(
         "rental.html",
@@ -929,6 +802,7 @@ def rental_page(
             "transmission": transmission or "all",
             "rental_provider": rental_provider or "",
             "rental_provider_detail": rental_provider_detail or "",
+            "rental_provider_debug_detail": rental_provider_debug_detail or "",
         },
     )
 

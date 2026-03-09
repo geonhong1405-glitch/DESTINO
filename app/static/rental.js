@@ -4,6 +4,30 @@
   initRentalSavedUi();
 });
 
+initSkyPendingRefresh();
+
+function initSkyPendingRefresh() {
+  const initial = window.__RENTAL_INITIAL__ || {};
+  const provider = String(initial.rentalProvider || "").trim().toLowerCase();
+  const debug = String(initial.rentalProviderDebug || "");
+  const hasPendingSky =
+    provider === "local fallback" &&
+    debug.includes("sky=Successful") &&
+    debug.includes("sky_raw_cars=0");
+
+  if (!hasPendingSky) return;
+
+  const url = new URL(window.location.href);
+  const retryCount =
+    Number.parseInt(url.searchParams.get("_sky_refresh") || "0", 10) || 0;
+  if (retryCount >= 2) return;
+
+  window.setTimeout(() => {
+    url.searchParams.set("_sky_refresh", String(retryCount + 1));
+    window.location.replace(url.toString());
+  }, retryCount === 0 ? 1800 : 2600);
+}
+
 const DESTINATION_REGIONS = [
   {
     key: "jp",
@@ -904,9 +928,11 @@ function selectLocation(els, target, item, options = {}) {
   const latHidden = isPickup ? els.pickupLatHidden : els.dropoffLatHidden;
   const lonHidden = isPickup ? els.pickupLonHidden : els.dropoffLonHidden;
 
-  const localizedName = localizeLocationName(item.name || "");
+  const rawName = String(item.name || "").trim();
+  const localizedName = localizeLocationName(rawName);
   display.textContent = localizedName || "장소 선택";
-  nameHidden.value = localizedName || "";
+  // Keep provider-facing hidden value in original language/code form.
+  nameHidden.value = rawName || localizedName || "";
   latHidden.value = item.lat ?? "";
   lonHidden.value = item.lon ?? "";
 
@@ -918,7 +944,7 @@ function selectLocation(els, target, item, options = {}) {
   // Keep classic UX: dropoff follows pickup until user explicitly chooses dropoff.
   if (isPickup && (!dropoffManual || syncDropoff)) {
     els.dropoffDisplay.textContent = localizedName || '장소 선택';
-    els.dropoffNameHidden.value = localizedName || '';
+    els.dropoffNameHidden.value = rawName || localizedName || '';
     els.dropoffLatHidden.value = item.lat ?? '';
     els.dropoffLonHidden.value = item.lon ?? '';
     if (syncDropoff) window.__RENTAL_DROPOFF_MANUAL__ = false;
@@ -980,6 +1006,53 @@ function localizeLocationName(name) {
   return localized;
 }
 
+function canonicalProviderLocationName(name) {
+  const src = String(name || "").trim();
+  if (!src) return "";
+
+  const iataMatch = src.match(/\(([A-Z]{3})\)/);
+  const iata = iataMatch ? iataMatch[1] : "";
+  const normalized = src.toLowerCase();
+
+  const canonicalMap = new Map([
+    ["나리타 공항", "Narita Airport"],
+    ["하네다 공항", "Haneda Airport"],
+    ["인천국제공항", "Incheon Airport"],
+    ["김해국제공항", "Gimhae Airport"],
+    ["간사이국제공항", "Kansai Airport"],
+    ["수완나품공항", "Suvarnabhumi Airport"],
+    ["홍콩국제공항", "Hong Kong Intl Airport"],
+    ["타오위안공항", "Taoyuan Airport"],
+    ["시드니공항", "Sydney Airport"],
+    ["히드로공항", "Heathrow Airport"],
+    ["피우미치노공항", "Fiumicino Airport"],
+    ["두바이공항", "Dubai Airport"],
+    ["도쿄", "Tokyo"],
+    ["오사카", "Osaka"],
+    ["삿포로", "Sapporo"],
+    ["뉴욕", "New York"],
+    ["로스앤젤레스", "Los Angeles"],
+    ["런던", "London"],
+    ["파리", "Paris"],
+    ["로마", "Rome"],
+    ["두바이", "Dubai"],
+    ["방콕", "Bangkok"],
+    ["싱가포르", "Singapore"],
+    ["홍콩", "Hong Kong"],
+    ["타이베이", "Taipei"],
+    ["시드니", "Sydney"],
+    ["서울", "Seoul"],
+    ["부산", "Busan"],
+  ]);
+
+  for (const [ko, en] of canonicalMap.entries()) {
+    if (src === ko || src.startsWith(`${ko} (`) || normalized === en.toLowerCase() || normalized.startsWith(`${en.toLowerCase()} (`)) {
+      return iata ? `${en} (${iata})` : en;
+    }
+  }
+  return src;
+}
+
 function resetSelectedLocations(els) {
   window.__RENTAL_DROPOFF_MANUAL__ = false;
   els.pickupDisplay.textContent = '대여 장소를 선택하세요';
@@ -1004,10 +1077,17 @@ function bindFormSubmit(els) {
       alert("대여 장소를 검색 후 선택해 주세요.");
       return;
     }
+    els.pickupNameHidden.value = canonicalProviderLocationName(
+      els.pickupNameHidden.value,
+    );
     if (!els.dropoffLatHidden.value || !els.dropoffLonHidden.value) {
       els.dropoffNameHidden.value = els.pickupNameHidden.value;
       els.dropoffLatHidden.value = els.pickupLatHidden.value;
       els.dropoffLonHidden.value = els.pickupLonHidden.value;
+    } else {
+      els.dropoffNameHidden.value = canonicalProviderLocationName(
+        els.dropoffNameHidden.value,
+      );
     }
   });
 }
