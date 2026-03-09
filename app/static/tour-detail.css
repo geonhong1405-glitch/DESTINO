@@ -102,6 +102,18 @@ ul {list-style: none;}
     transition: opacity 0.3s ease-in-out;
 }
 
+#wishBtn.is-active {
+    color: var(--rose-600);
+    background: #fff1f2;
+    border-color: #fecdd3;
+}
+
+#cartBtn.is-active {
+    color: #2563eb;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
 /* === airport 스타일과 동일하게 tour-detail 장바구니(버튼/드로어) 스타일 적용 === */
 .flight-saved-fab {
     width: 88px;
