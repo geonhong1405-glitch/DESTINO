@@ -7,10 +7,31 @@ from typing import Any
 import requests
 from dotenv import load_dotenv
 
-load_dotenv()
+_ENV_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
+load_dotenv(dotenv_path=_ENV_PATH, override=True)
+_SKY_ENTITY_CACHE: dict[str, dict] = {}
+_SKY_RESULT_CACHE: dict[str, dict] = {}
+_SKY_ENTITY_CACHE_TTL_SECONDS = 3600
+_SKY_RESULT_CACHE_TTL_SECONDS = 300
 
-SKY_RAPIDAPI_KEY = os.getenv("SKY_RAPIDAPI_KEY")
-SKY_RAPIDAPI_HOST = os.getenv("SKY_RAPIDAPI_HOST", "flights-sky.p.rapidapi.com")
+_KNOWN_SKY_ENTITIES: dict[str, dict[str, str]] = {
+    # Confirmed from successful Sky Cars response metadata.
+    "NRT": {
+        "entity_id": "128668889",
+        "entity_name": "Tokyo Narita (NRT)",
+        "class": "Airport",
+        "location": "35.763889, 140.391111",
+        "hierarchy": "Tokyo|Tokyo|Kanto|Japan",
+    },
+}
+
+_KNOWN_SKY_QUERY_ALIASES: dict[str, str] = {
+    "nrt": "NRT",
+    "narita": "NRT",
+    "naritaairport": "NRT",
+    "tokyonarita": "NRT",
+    "tokyonaritaairport": "NRT",
+}
 
 
 def _clean_env_token(value: str | None) -> str:
@@ -22,15 +43,23 @@ def _clean_env_token(value: str | None) -> str:
     return s
 
 
+def _env(name: str, default: str = "") -> str:
+    load_dotenv(dotenv_path=_ENV_PATH, override=True)
+    return os.getenv(name, default)
+
+
 def _headers() -> dict[str, str]:
     return {
-        "x-rapidapi-key": _clean_env_token(SKY_RAPIDAPI_KEY),
-        "x-rapidapi-host": _clean_env_token(SKY_RAPIDAPI_HOST),
+        "x-rapidapi-key": _clean_env_token(_env("SKY_RAPIDAPI_KEY")),
+        "x-rapidapi-host": _clean_env_token(_env("SKY_RAPIDAPI_HOST", "flights-sky.p.rapidapi.com")),
     }
 
 
 def _has_creds() -> bool:
-    return bool(_clean_env_token(SKY_RAPIDAPI_KEY) and _clean_env_token(SKY_RAPIDAPI_HOST))
+    return bool(
+        _clean_env_token(_env("SKY_RAPIDAPI_KEY"))
+        and _clean_env_token(_env("SKY_RAPIDAPI_HOST", "flights-sky.p.rapidapi.com"))
+    )
 
 
 def _timeout_config() -> tuple[float, float]:
@@ -39,22 +68,34 @@ def _timeout_config() -> tuple[float, float]:
     except Exception:
         connect = 3.0
     try:
-        read = float(str(os.getenv("SKY_API_READ_TIMEOUT", "10")).strip())
+        read = float(str(os.getenv("SKY_API_READ_TIMEOUT", "20")).strip())
     except Exception:
-        read = 10.0
-    return max(1.0, connect), max(3.0, read)
+        read = 20.0
+    return max(1.0, connect), max(2.0, read)
 
 
 def _retry_config() -> tuple[int, float]:
     try:
-        retries = int(str(os.getenv("SKY_API_RETRIES", "2")).strip())
+        retries = int(str(os.getenv("SKY_API_RETRIES", "1")).strip())
     except Exception:
-        retries = 2
+        retries = 1
     try:
-        backoff = float(str(os.getenv("SKY_API_RETRY_BACKOFF_MS", "200")).strip()) / 1000.0
+        backoff = float(str(os.getenv("SKY_API_RETRY_BACKOFF_MS", "500")).strip()) / 1000.0
     except Exception:
-        backoff = 0.2
+        backoff = 0.5
     return max(0, retries), max(0.0, backoff)
+
+
+def _pending_poll_config() -> tuple[int, float]:
+    try:
+        attempts = int(str(os.getenv("SKY_PENDING_POLL_ATTEMPTS", "3")).strip())
+    except Exception:
+        attempts = 3
+    try:
+        interval = float(str(os.getenv("SKY_PENDING_POLL_INTERVAL_MS", "1200")).strip()) / 1000.0
+    except Exception:
+        interval = 1.2
+    return max(0, attempts), max(0.0, interval)
 
 
 def _get_with_retries(url: str, headers: dict[str, str], params: dict) -> requests.Response:
@@ -84,6 +125,53 @@ def _get_with_retries(url: str, headers: dict[str, str], params: dict) -> reques
     if last_exc:
         raise last_exc
     raise RuntimeError("Sky request failed")
+
+
+def _cache_get(store: dict[str, dict], key: str, ttl_seconds: int) -> dict | None:
+    row = store.get(key)
+    if not isinstance(row, dict):
+        return None
+    ts = row.get("ts")
+    if not isinstance(ts, (int, float)):
+        store.pop(key, None)
+        return None
+    if time.time() - float(ts) > ttl_seconds:
+        store.pop(key, None)
+        return None
+    payload = row.get("payload")
+    return payload if isinstance(payload, dict) else None
+
+
+def _cache_set(store: dict[str, dict], key: str, payload: dict) -> None:
+    store[key] = {"ts": time.time(), "payload": payload}
+
+
+def _has_sky_car_results(data: Any) -> bool:
+    if not isinstance(data, dict):
+        return False
+    car_list = ((data.get("data") or {}).get("carList") or []) if isinstance(data.get("data"), dict) else []
+    return isinstance(car_list, list) and len(car_list) > 0
+
+
+def _is_sky_pending_result(data: Any) -> bool:
+    if not isinstance(data, dict):
+        return False
+    if data.get("status") is not True:
+        return False
+    if _has_sky_car_results(data):
+        return False
+    meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
+    root_data = data.get("data") if isinstance(data.get("data"), dict) else {}
+    if meta.get("isComplete") is False:
+        return True
+    providers = root_data.get("providers") if isinstance(root_data.get("providers"), dict) else {}
+    return any(isinstance(v, dict) and v.get("in_progress") for v in providers.values())
+
+
+def _is_sky_successful_but_empty(data: Any) -> bool:
+    if not isinstance(data, dict):
+        return False
+    return data.get("status") is True and not _has_sky_car_results(data)
 
 
 def _parse_dt(value: str | None) -> _dt.datetime | None:
@@ -134,6 +222,31 @@ def _extract_iata(text: str | None) -> str | None:
     if m:
         return m.group(1)
     return None
+
+
+def _known_sky_entity_from_query(query: str | None) -> dict | None:
+    q = str(query or "").strip()
+    if not q:
+        return None
+
+    iata = _extract_iata(q) or (q.upper() if len(q) == 3 and q.isalpha() else None)
+    if iata:
+        known = _KNOWN_SKY_ENTITIES.get(iata.upper())
+        if known:
+            return dict(known)
+
+    normalized = re.sub(r"[^a-z]", "", q.lower())
+    mapped_iata = _KNOWN_SKY_QUERY_ALIASES.get(normalized)
+    if not mapped_iata:
+        for alias, code in _KNOWN_SKY_QUERY_ALIASES.items():
+            if alias and alias in normalized:
+                mapped_iata = code
+                break
+    if not mapped_iata:
+        return None
+
+    known = _KNOWN_SKY_ENTITIES.get(mapped_iata.upper())
+    return dict(known) if known else None
 
 
 # Unicode-safe alias candidates for car entity autocomplete.
@@ -225,7 +338,7 @@ def sky_cars_autocomplete(query: str, limit: int = 10) -> dict:
         return {"status": True, "data": []}
     try:
         resp = _get_with_retries(
-            f"https://{SKY_RAPIDAPI_HOST}/cars/auto-complete",
+            f"https://{_clean_env_token(_env('SKY_RAPIDAPI_HOST', 'flights-sky.p.rapidapi.com'))}/cars/auto-complete",
             headers=_headers(),
             params={"query": q},
         )
@@ -245,6 +358,15 @@ def resolve_sky_car_entity(
     q = (name or "").strip()
     if not q:
         return None
+    cache_key = f"{q.lower()}|{round(float(lat), 3) if lat is not None else ''}|{round(float(lon), 3) if lon is not None else ''}"
+    cached = _cache_get(_SKY_ENTITY_CACHE, cache_key, _SKY_ENTITY_CACHE_TTL_SECONDS)
+    if cached:
+        return cached
+
+    known = _known_sky_entity_from_query(q)
+    if known:
+        _cache_set(_SKY_ENTITY_CACHE, cache_key, known)
+        return known
 
     def parse_loc(item: dict) -> tuple[float | None, float | None]:
         try:
@@ -254,7 +376,11 @@ def resolve_sky_car_entity(
         except Exception:
             return None, None
 
-    for cand in _entity_query_candidates(q)[:4]:
+    for cand in _entity_query_candidates(q)[:2]:
+        cand_known = _known_sky_entity_from_query(cand)
+        if cand_known:
+            _cache_set(_SKY_ENTITY_CACHE, cache_key, cand_known)
+            return cand_known
         iata = _extract_iata(cand) or (cand.upper() if len(cand) == 3 and cand.isalpha() else None)
         raw = sky_cars_autocomplete(cand, limit=15)
         items = raw.get("data") if isinstance(raw, dict) else None
@@ -265,6 +391,7 @@ def resolve_sky_car_entity(
             for item in items:
                 ename = str(item.get("entity_name") or "")
                 if f"({iata})" in ename or str(item.get("iata") or "").upper() == iata:
+                    _cache_set(_SKY_ENTITY_CACHE, cache_key, item)
                     return item
 
         if lat is not None and lon is not None:
@@ -279,6 +406,7 @@ def resolve_sky_car_entity(
                     best = item
                     best_d = d
             if best is not None:
+                _cache_set(_SKY_ENTITY_CACHE, cache_key, best)
                 return best
 
         cand_l = cand.lower()
@@ -286,10 +414,13 @@ def resolve_sky_car_entity(
         if wants_airport:
             for item in items:
                 if str(item.get("class") or "").lower() == "airport":
+                    _cache_set(_SKY_ENTITY_CACHE, cache_key, item)
                     return item
         for item in items:
             if str(item.get("class") or "").lower() in {"city", "airport"}:
+                _cache_set(_SKY_ENTITY_CACHE, cache_key, item)
                 return item
+        _cache_set(_SKY_ENTITY_CACHE, cache_key, items[0])
         return items[0]
 
     return None
@@ -311,6 +442,26 @@ def search_sky_car_rentals(
 ) -> dict:
     if not _has_creds():
         return {"status": False, "message": "Missing SKY_RAPIDAPI_KEY"}
+
+    result_cache_key = "|".join(
+        [
+            str(pickup_name or "").strip(),
+            str(dropoff_name or "").strip(),
+            str(pickup_lat or ""),
+            str(pickup_lon or ""),
+            str(dropoff_lat or ""),
+            str(dropoff_lon or ""),
+            str(pickup_at or "").strip(),
+            str(dropoff_at or "").strip(),
+            str(market or "").strip(),
+            str(currency or "").strip(),
+            str(locale or "").strip(),
+            str(driver_age or ""),
+        ]
+    )
+    cached = _cache_get(_SKY_RESULT_CACHE, result_cache_key, _SKY_RESULT_CACHE_TTL_SECONDS)
+    if cached and _has_sky_car_results(cached):
+        return cached
 
     pu = resolve_sky_car_entity(pickup_name, pickup_lat, pickup_lon)
     same_dropoff = (
@@ -336,15 +487,65 @@ def search_sky_car_rentals(
         "locale": locale,
         "driverAge": driver_age,
     }
+    search_url = f"https://{_clean_env_token(_env('SKY_RAPIDAPI_HOST', 'flights-sky.p.rapidapi.com'))}/cars/search"
+
     try:
         resp = _get_with_retries(
-            f"https://{SKY_RAPIDAPI_HOST}/cars/search",
+            search_url,
             headers=_headers(),
             params=params,
         )
         data = _safe_json(resp)
     except Exception as e:
         return {"status": False, "message": f"Sky cars search request failed: {e}"}
+
+    if _is_sky_pending_result(data) or _is_sky_successful_but_empty(data):
+        poll_attempts, poll_interval = _pending_poll_config()
+        for _ in range(poll_attempts):
+            if poll_interval > 0:
+                time.sleep(poll_interval)
+            try:
+                follow_resp = _get_with_retries(
+                    search_url,
+                    headers=_headers(),
+                    params=params,
+                )
+                follow_data = _safe_json(follow_resp)
+            except Exception:
+                continue
+            if _has_sky_car_results(follow_data):
+                resp = follow_resp
+                data = follow_data
+                break
+            if not _is_sky_pending_result(follow_data) and not _is_sky_successful_but_empty(follow_data):
+                resp = follow_resp
+                data = follow_data
+                break
+            resp = follow_resp
+            data = follow_data
+
+    # Sky sometimes returns an empty "Successful" response for localized KR/JP
+    # combinations while the same entity returns inventory with neutral params.
+    if (
+        _is_sky_successful_but_empty(data)
+        and (str(market).upper(), str(currency).upper(), str(locale)) != ("US", "USD", "en-US")
+    ):
+        neutral_params = dict(params)
+        neutral_params["market"] = "US"
+        neutral_params["currency"] = "USD"
+        neutral_params["locale"] = "en-US"
+        try:
+            neutral_resp = _get_with_retries(
+                search_url,
+                headers=_headers(),
+                params=neutral_params,
+            )
+            neutral_data = _safe_json(neutral_resp)
+            if _has_sky_car_results(neutral_data):
+                resp = neutral_resp
+                data = neutral_data
+        except Exception:
+            pass
 
     if not isinstance(data, dict):
         data = {"status": False, "message": "Invalid sky cars response"}
@@ -353,6 +554,8 @@ def search_sky_car_rentals(
         data["meta"]["resolved_pickup"] = pu
         data["meta"]["resolved_dropoff"] = do
         data["meta"]["_http_status"] = resp.status_code if "resp" in locals() else None
+    if _has_sky_car_results(data):
+        _cache_set(_SKY_RESULT_CACHE, result_cache_key, data)
     return data
 
 

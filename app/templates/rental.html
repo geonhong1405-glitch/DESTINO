@@ -180,6 +180,12 @@
 
             {% if rental_cars and rental_provider %}
             <div style="margin:8px 0 0; font-size:12px; color:#64748b;">Provider: {{ rental_provider }}</div>
+            {% if rental_provider_detail %}
+            <div style="margin:4px 0 0; font-size:12px; color:#94a3b8;">{{ rental_provider_detail }}</div>
+            {% endif %}
+            {% if rental_provider_debug_detail %}
+            <div style="margin:4px 0 0; font-size:11px; color:#c2410c; word-break:break-word;">Debug: {{ rental_provider_debug_detail }}</div>
+            {% endif %}
             {% endif %}
 
             {% if rental_cars %}
@@ -392,12 +398,14 @@
             dropoffLat: {{ (dropoff_lat or '')|tojson }},
             dropoffLon: {{ (dropoff_lon or '')|tojson }},
             pickupAt: {{ (pickup_at or '')|tojson }},
-            dropoffAt: {{ (dropoff_at or '')|tojson }}
+            dropoffAt: {{ (dropoff_at or '')|tojson }},
+            rentalProvider: {{ (rental_provider or '')|tojson }},
+            rentalProviderDebug: {{ (rental_provider_debug_detail or '')|tojson }}
         };
         window.__RENTAL_LOGGED_IN__ = {{ (true if nickname else false)|tojson }};
     </script>
     <script src="/static/saved-drawer-common.js?v=20260308a"></script>
-    <script src="../static/rental.js?v=20260308a"></script>
+    <script src="../static/rental.js?v=20260309b"></script>
     <script>
         // Fallback date-popover binding: keeps date fields usable even if main JS partially fails.
         document.addEventListener('DOMContentLoaded', function () {
