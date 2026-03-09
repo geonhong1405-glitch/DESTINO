@@ -1481,6 +1481,14 @@
             /<div[^>]*>\s*<b>\s*실제\s*API\s*추천\s*<\/b>\s*<\/div>[\s\S]*$/i,
             ""
         );
+        // Also remove raw flight table/condition dumps when card UI is rendered.
+        Array.from(content.querySelectorAll("table")).forEach((el) => el.remove());
+        Array.from(content.querySelectorAll("div")).forEach((el) => {
+            const txt = String(el.textContent || "").replace(/\s+/g, " ").trim();
+            if (/검색\s*조건\s*:|API\s*조회\s*조건|추천\s*\d+\s*건\s*:|구간\s*상세\s*보기/i.test(txt)) {
+                el.remove();
+            }
+        });
 
         const section = document.createElement("section");
         section.className = "ai-commerce-cards";
