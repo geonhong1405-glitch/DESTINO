@@ -506,6 +506,7 @@ def answer_hotel_from_parsed(parsed: dict[str, Any], prev_state: dict[str, Any])
         float(first.get("longitude") or first.get("lon") or 135.49292),
     )
     rows = booking_recommend_buckets(raw, center=center, top_k=top_k).get(bucket) or []
+    original_rows = list(rows)
     if max_price is not None:
         filtered_rows = []
         for h in rows:
@@ -517,7 +518,7 @@ def answer_hotel_from_parsed(parsed: dict[str, Any], prev_state: dict[str, Any])
                 continue
             if c == "KRW" and v <= float(max_price):
                 filtered_rows.append(h)
-        rows = filtered_rows
+        rows = filtered_rows or original_rows
     if not rows:
         return "<p>조건에 맞는 호텔 결과가 없습니다.</p>", {"hotel_context": True}
 
@@ -591,4 +592,3 @@ def answer_hotel_from_parsed(parsed: dict[str, Any], prev_state: dict[str, Any])
         "travel_checkout": checkout,
         "hotel_adults": adults,
     }
-

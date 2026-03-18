@@ -2,6 +2,8 @@ import re
 from datetime import datetime, timedelta
 from typing import Any, Callable, Optional
 
+from app.services.location_alias_service import LOCATION_ALIASES, COUNTRY_ALIASES
+
 
 def parse_flight_slots(
     message: str,
@@ -62,6 +64,42 @@ def parse_flight_slots(
 
     for key in ["origin", "destination", "departure_date", "return_date", "sort_by", "trip_type", "limit"]:
         parsed[key] = _none_like(parsed.get(key))
+
+    def _match_location_alias(text: str) -> str | None:
+        compact = re.sub(r"\s+", "", str(text or "")).lower()
+        if not compact:
+            return None
+        loc_map = dict(LOCATION_ALIASES)
+        loc_map.update(COUNTRY_ALIASES)
+        for k in sorted(loc_map.keys(), key=len, reverse=True):
+            kc = re.sub(r"\s+", "", str(k or "")).lower()
+            if kc and (compact == kc or kc in compact):
+                code = str(loc_map.get(k) or "").upper().strip()
+                if code:
+                    return code
+        return None
+
+    if not parsed.get("origin") or not parsed.get("destination"):
+        route_patterns = [
+            "(.+?)\\uC5D0\\uC11C(.+?)\\uAE4C\\uC9C0",
+            "(.+?)\\uC5D0\\uC11C(.+?)\\uB85C",
+            "(.+?)\\uC5D0\\uC11C(.+?)\\uC73C\\uB85C",
+            "(.+?)\\uC5D0\\uC11C(.+?)\\uD589",
+            "(.+?)\\uC5D0\\uC11C(.+?)\\uAC00\\uB294",
+            r"from(.+?)to(.+)",
+        ]
+        for pat in route_patterns:
+            m_route = re.search(pat, message, re.IGNORECASE)
+            if not m_route:
+                continue
+            origin_code = _match_location_alias(m_route.group(1))
+            destination_code = _match_location_alias(m_route.group(2))
+            if origin_code and not parsed.get("origin"):
+                parsed["origin"] = origin_code
+            if destination_code and not parsed.get("destination"):
+                parsed["destination"] = destination_code
+            if parsed.get("origin") and parsed.get("destination"):
+                break
 
     if parsed.get("children") is None and parsed.get("child") is not None:
         parsed["children"] = parsed.get("child")
