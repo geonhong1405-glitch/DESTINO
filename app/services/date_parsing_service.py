@@ -34,6 +34,14 @@ def parse_rel_date(text: str):
 
 def has_date_signal(text: str, *, contains_fn: Callable[[str, list[str]], bool]) -> bool:
     t = text or ""
+    if re.search(r"\d{1,2}\s*\uC6D4\s*\d{1,2}\s*\uC77C(?:\s*\uC5D0)?", t):
+        return True
+    if re.search(r"\d{1,2}[/-]\d{1,2}(?:\s*\uC77C)?(?:\s*\uC5D0)?", t):
+        return True
+    if re.search(r"\d+\s*\uC77C\s*(?:\uB3D9\uC548|\uAC04)", t):
+        return True
+    if re.search(r"\d+\s*\uC8FC\s*(?:\uB4A4|\uD6C4)", t):
+        return True
     if re.search(r"\b20\d{2}-\d{2}-\d{2}\b", t):
         return True
     if re.search(r"\d{1,2}\s*월\s*\d{1,2}\s*일", t):
@@ -81,6 +89,13 @@ def parse_abs_monthday_range(text: str, *, now_dt: datetime) -> dict[str, Option
             return datetime(year, month, day).strftime("%Y-%m-%d")
         except Exception:
             return None
+
+    m_single_kr = re.search(r"(\d{1,2})\s*\uC6D4\s*(\d{1,2})\s*\uC77C(?:\s*\uC5D0)?", s)
+    if m_single_kr:
+        month = int(m_single_kr.group(1))
+        day = int(m_single_kr.group(2))
+        year = _infer_year(month, day)
+        return {"departure_date": _to_iso(year, month, day), "return_date": None}
 
     compact = re.sub(r"\s+", "", s)
     # Normalize Korean month/day markers without relying on locale source encoding.

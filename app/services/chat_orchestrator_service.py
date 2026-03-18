@@ -1,6 +1,7 @@
 from typing import Any
 import html
 import re
+from datetime import datetime
 
 from app.services import rentalcar_service
 from app.services import product_reco_service
@@ -10,9 +11,20 @@ from app.services.location_alias_service import LOCATION_ALIASES, COUNTRY_ALIASE
 def _extract_iso_date_range_quick(message: str) -> tuple[str | None, str | None]:
     t = str(message or "")
     m = re.search(r"(20\d{2}-\d{1,2}-\d{1,2})\s*[~\-]\s*(20\d{2}-\d{1,2}-\d{1,2})", t)
-    if not m:
+    if m:
+        return m.group(1), m.group(2)
+    m2 = re.search(r"(\d{1,2})[/-](\d{1,2})\s*[~\-]\s*(\d{1,2})[/-](\d{1,2})", t)
+    if not m2:
         return None, None
-    return m.group(1), m.group(2)
+    now_year = datetime.now().year
+    try:
+        dep = datetime(now_year, int(m2.group(1)), int(m2.group(2)))
+        ret = datetime(now_year, int(m2.group(3)), int(m2.group(4)))
+    except Exception:
+        return None, None
+    if ret < dep:
+        ret = ret.replace(year=ret.year + 1)
+    return dep.strftime("%Y-%m-%d"), ret.strftime("%Y-%m-%d")
 
 
 def _parse_party_size(message: str) -> int | None:
@@ -123,6 +135,9 @@ def _is_bundle_reco_query_v2(message: str, contains_fn) -> bool:
 
 
 def _pick_bundle_destination_city(message: str, state: dict[str, Any]) -> str:
+    route_dest = _extract_route_destination_city(message, state)
+    if route_dest:
+        return route_dest
     msg_compact = re.sub(r"\s+", "", str(message or "")).lower()
     origin_code = str(state.get("origin") or "").upper().strip()
     dest_code = str(state.get("destination") or "").upper().strip()
@@ -144,6 +159,41 @@ def _pick_bundle_destination_city(message: str, state: dict[str, Any]) -> str:
             if code not in reverse_city or re.search(r"[가-힣]", str(k)):
                 reverse_city[code] = str(k)
         return str(reverse_city.get(dest_code) or "").strip()
+    return ""
+
+
+def _extract_route_destination_city(message: str, state: dict[str, Any] | None = None) -> str:
+    msg = str(message or "")
+    msg_compact = re.sub(r"\s+", "", msg).lower()
+    if not msg_compact:
+        return ""
+    alias_keys = [str(k).strip() for k in list(LOCATION_ALIASES.keys()) + list(COUNTRY_ALIASES.keys()) if str(k).strip()]
+    hits: list[tuple[int, int, str]] = []
+    for k in sorted(alias_keys, key=len, reverse=True):
+        kc = re.sub(r"\s+", "", k).lower()
+        if not kc:
+            continue
+        for m in re.finditer(re.escape(kc), msg_compact):
+            hits.append((m.start(), m.end(), k))
+    if not hits:
+        return ""
+    hits.sort(key=lambda x: (x[0], -(x[1] - x[0])))
+    chosen: list[tuple[int, int, str]] = []
+    last_end = -1
+    for start, end, label in hits:
+        if start < last_end:
+            continue
+        chosen.append((start, end, label))
+        last_end = end
+    mentions = [label for _, _, label in chosen]
+    if len(mentions) >= 2 and ("\uC5D0\uC11C" in msg or "from" in msg.lower()):
+        origin_code = str((state or {}).get("origin") or "").upper().strip()
+        for label in mentions[1:]:
+            code = str(LOCATION_ALIASES.get(label) or COUNTRY_ALIASES.get(label) or "").upper().strip()
+            if origin_code and code and code == origin_code:
+                continue
+            return label
+        return mentions[1]
     return ""
 
 
@@ -169,11 +219,18 @@ def _handle_hotel_intent(req: Any, prev_state: dict, context: str, SESSION_STATE
 
 
 def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STATE: dict, sid: str, NeedMoreInfoError: type, _parse_flight_slots, _has_date_signal, _merge_state, _missing_questions, flight_search_service, chat_renderers):
-    parsed = _parse_flight_slots(req.message, context)
+    raw_message = req.message or ""
+    normalized_message = re.sub(
+        r"(\d{1,2})\s*\uC6D4\s*(\d{1,2})\s*\uC77C(?:\s*\uC5D0)?",
+        r"\1/\2",
+        raw_message,
+    )
+    parsed = _parse_flight_slots(normalized_message, context)
     state = _merge_state(prev_state, parsed)
-    msg_l = (req.message or "").lower()
-    msg_raw = (req.message or "")
+    msg_l = normalized_message.lower()
+    msg_raw = normalized_message
     msg_compact = re.sub(r"\s+", "", msg_raw)
+    has_only_location = False
     prev_origin = str(prev_state.get("origin") or "").upper().strip()
     prev_destination = str(prev_state.get("destination") or "").upper().strip()
 
@@ -193,6 +250,24 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
             if kk and kk == compact:
                 return str(v or "").upper().strip()
         return ""
+
+    def _extract_single_calendar_date(message: str) -> str:
+        txt = str(message or "").strip()
+        if not txt:
+            return ""
+        m_kr = re.fullmatch(r"\s*(\d{1,2})\s*\uC6D4\s*(\d{1,2})\s*\uC77C\s*", txt)
+        m_slash = re.fullmatch(r"\s*(\d{1,2})\s*[/-]\s*(\d{1,2})\s*", txt)
+        m_kr_post = re.fullmatch(r"\s*(\d{1,2})\s*\uC6D4\s*(\d{1,2})\s*\uC77C(?:\uC5D0)?\s*", txt)
+        m_slash_post = re.fullmatch(r"\s*(\d{1,2})\s*[/-]\s*(\d{1,2})(?:\s*\uC77C)?(?:\uC5D0)?\s*", txt)
+        m = m_kr or m_slash or m_kr_post or m_slash_post
+        if not m:
+            return ""
+        try:
+            now_dt = datetime.now()
+            dt = datetime(now_dt.year, int(m.group(1)), int(m.group(2)))
+            return dt.strftime("%Y-%m-%d")
+        except Exception:
+            return ""
 
     # Flight slot-filling follow-up guard:
     # when user replies with a single place token (e.g., "인천") after we asked missing slots,
@@ -219,6 +294,8 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
             state["departure_date"] = None
         if has_only_location and not str(prev_state.get("return_date") or prev_state.get("travel_checkout") or "").strip():
             state["return_date"] = None
+        elif has_only_location and str(prev_state.get("return_date") or prev_state.get("travel_checkout") or "").strip():
+            state["return_date"] = str(prev_state.get("return_date") or prev_state.get("travel_checkout") or "").strip()
 
     # In bundle flow (flight+hotel+itinerary), do not allow date hallucinations on location-only follow-ups.
     # If user didn't provide date this turn and previous turn also had no date, keep dates empty so we ask properly.
@@ -231,6 +308,30 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
         if not str(state.get("trip_type") or "").strip():
             state["trip_type"] = "round"
 
+    # General flight date hallucination guard:
+    # when user asked route/round-trip only and did not provide any date this turn,
+    # do not keep parser/LLM-inferred dates unless they already existed in previous state.
+    if not _has_date_signal(msg_raw):
+        if not str(prev_state.get("departure_date") or prev_state.get("travel_checkin") or "").strip():
+            state["departure_date"] = None
+            state["travel_checkin"] = None
+        if not str(prev_state.get("return_date") or prev_state.get("travel_checkout") or "").strip():
+            state["return_date"] = None
+            state["travel_checkout"] = None
+
+    single_calendar_date = _extract_single_calendar_date(msg_raw)
+    has_single_calendar_date_in_turn = bool(single_calendar_date)
+
+    # When we are explicitly waiting for a return date, a single date-only reply
+    # like "3/23" or "3월 23일" should populate return_date, not departure_date.
+    needs_return_followup = bool(
+        str(prev_state.get("pending_intent") or "") == "flight"
+        and str(prev_state.get("trip_type") or state.get("trip_type") or "") == "round"
+        and str(prev_state.get("departure_date") or prev_state.get("travel_checkin") or "").strip()
+        and not str(prev_state.get("return_date") or prev_state.get("travel_checkout") or "").strip()
+    )
+
+
     has_round_signal_in_turn = any(k in msg_l for k in ["왕복", "복귀", "돌아", "round trip", "roundtrip"])
     has_oneway_signal_in_turn = any(k in msg_l for k in ["편도", "oneway", "one-way"])
     has_stay_nights_signal_in_turn = bool(
@@ -238,6 +339,9 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
         or re.search(r"\d+\s*일\s*(?:동안|간)", msg_raw)
     )
     has_two_iso_dates = bool(re.search(r"20\d{2}-\d{1,2}-\d{1,2}.*20\d{2}-\d{1,2}-\d{1,2}", msg_compact))
+    # Do not treat a calendar date like "3월 20일" as a stay-length signal.
+    if re.search(r"\d+\s*월\s*\d+\s*일", msg_raw) and not re.search(r"\d+\s*일\s*(?:동안|간)\b", msg_raw):
+        has_stay_nights_signal_in_turn = False
     has_two_mmdd_dates = bool(re.search(r"\d{1,2}[/-]\d{1,2}.*\d{1,2}[/-]\d{1,2}", msg_compact))
     has_two_kr_md_dates = bool(re.search(r"\d{1,2}\s*월\s*\d{1,2}\s*일.*\d{1,2}\s*월\s*\d{1,2}\s*일", msg_raw))
     has_range_connector = any(k in msg_compact for k in ["~", "-", "부터", "까지", "to"])
@@ -249,13 +353,116 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
             or ("글피" in msg_compact and ("내일" in msg_compact or "모레" in msg_compact))
         )
     )
-    has_explicit_return_date_in_turn = bool(
+    has_any_date_like_reply = bool(
+        has_single_calendar_date_in_turn
+        or _has_date_signal(msg_raw)
+        or bool(re.search(r"\d", msg_raw))
+    )
+    has_multi_date_semantics = bool(
         has_two_iso_dates
         or has_two_mmdd_dates
         or has_two_kr_md_dates
         or has_relative_range
         or has_stay_nights_signal_in_turn
     )
+    forced_followup_date = single_calendar_date or str(parsed.get("departure_date") or parsed.get("return_date") or "").strip()
+    is_round_flight_followup = bool(
+        str(prev_state.get("pending_intent") or "") == "flight"
+        and str(prev_state.get("trip_type") or state.get("trip_type") or "") == "round"
+        and has_any_date_like_reply
+        and not has_only_location
+    )
+    if is_round_flight_followup:
+        prev_dep = str(prev_state.get("departure_date") or prev_state.get("travel_checkin") or "").strip()
+        prev_ret = str(prev_state.get("return_date") or prev_state.get("travel_checkout") or "").strip()
+        if not prev_dep and not prev_ret and forced_followup_date and not has_multi_date_semantics:
+            state["departure_date"] = forced_followup_date
+            state["travel_checkin"] = forced_followup_date
+            state["return_date"] = None
+            state["travel_checkout"] = None
+            state["trip_type"] = "round"
+            state["pending_intent"] = "flight"
+            SESSION_STATE[sid] = state
+            missing_after_departure = _missing_questions(state)
+            if missing_after_departure:
+                raise NeedMoreInfoError(missing_after_departure[0])
+        if prev_dep and not prev_ret and forced_followup_date and not has_multi_date_semantics:
+            state["departure_date"] = prev_dep
+            state["travel_checkin"] = prev_dep
+            state["return_date"] = forced_followup_date
+            state["travel_checkout"] = forced_followup_date
+    has_explicit_return_date_in_turn = bool(
+        has_two_iso_dates
+        or has_two_mmdd_dates
+        or has_two_kr_md_dates
+        or has_relative_range
+        or has_stay_nights_signal_in_turn
+        or (needs_return_followup and _has_date_signal(msg_raw))
+    )
+    # When we just received a departure date for a round-trip flow, do not accept
+    # parser/LLM-inferred return dates such as an assumed 7-night stay.
+    needs_departure_followup = bool(
+        str(prev_state.get("pending_intent") or "") == "flight"
+        and str(prev_state.get("trip_type") or state.get("trip_type") or "") == "round"
+        and not str(prev_state.get("departure_date") or prev_state.get("travel_checkin") or "").strip()
+        and not str(prev_state.get("return_date") or prev_state.get("travel_checkout") or "").strip()
+    )
+    single_followup_date = parsed.get("departure_date") or parsed.get("return_date")
+    single_date_followup_only = bool(
+        (_has_date_signal(msg_raw) or has_single_calendar_date_in_turn)
+        and single_followup_date
+        and not has_only_location
+        and not has_two_iso_dates
+        and not has_two_mmdd_dates
+        and not has_two_kr_md_dates
+        and not has_relative_range
+        and not has_stay_nights_signal_in_turn
+    )
+    if needs_return_followup and single_date_followup_only:
+        state["departure_date"] = str(prev_state.get("departure_date") or prev_state.get("travel_checkin") or "").strip()
+        state["travel_checkin"] = state["departure_date"]
+        state["return_date"] = single_followup_date
+        state["travel_checkout"] = single_followup_date
+    if (
+        needs_departure_followup
+        and single_date_followup_only
+    ):
+        state["departure_date"] = single_followup_date
+        state["travel_checkin"] = single_followup_date
+        state["return_date"] = None
+        state["travel_checkout"] = None
+        state["trip_type"] = "round"
+        state["pending_intent"] = "flight"
+        SESSION_STATE[sid] = state
+        missing_after_departure = _missing_questions(state)
+        if missing_after_departure:
+            raise NeedMoreInfoError(missing_after_departure[0])
+
+    # Generic single-date follow-up handling for round-trip flight slot filling:
+    # first date fills departure_date, second date fills return_date.
+    if (
+        str(prev_state.get("pending_intent") or "") == "flight"
+        and str(prev_state.get("trip_type") or state.get("trip_type") or "") == "round"
+        and single_date_followup_only
+    ):
+        prev_dep = str(prev_state.get("departure_date") or prev_state.get("travel_checkin") or "").strip()
+        prev_ret = str(prev_state.get("return_date") or prev_state.get("travel_checkout") or "").strip()
+        if not prev_dep:
+            state["departure_date"] = single_followup_date
+            state["travel_checkin"] = single_followup_date
+            state["return_date"] = None
+            state["travel_checkout"] = None
+            state["trip_type"] = "round"
+            state["pending_intent"] = "flight"
+            SESSION_STATE[sid] = state
+            missing_after_single_date = _missing_questions(state)
+            if missing_after_single_date:
+                raise NeedMoreInfoError(missing_after_single_date[0])
+        elif not prev_ret:
+            state["departure_date"] = prev_dep
+            state["travel_checkin"] = prev_dep
+            state["return_date"] = single_followup_date
+            state["travel_checkout"] = single_followup_date
     has_explicit_return_in_turn = has_explicit_return_date_in_turn
     has_origin_cue_in_turn = bool(
         any(k in msg_l for k in ["출발", "from", "depart", "departure"])
@@ -265,6 +472,11 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
     destination_present = bool(parsed.get("destination"))
     origin_likely_carried_from_prev = bool(destination_present and origin_same_as_prev and not has_origin_cue_in_turn)
     mentioned_destination_without_origin = bool(parsed.get("destination")) and not bool(parsed.get("origin"))
+    date_only_followup = bool(
+        str(prev_state.get("pending_intent") or "") == "flight"
+        and _has_date_signal(req.message)
+        and len(re.sub(r"\s+", "", msg_raw)) <= 16
+    )
     origin_changed = bool(parsed.get("origin")) and str(parsed.get("origin")) != str(prev_state.get("origin") or "")
     destination_changed = bool(parsed.get("destination")) and str(parsed.get("destination")) != str(prev_state.get("destination") or "")
     route_changed = origin_changed or destination_changed
@@ -274,15 +486,50 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
         or _has_date_signal(req.message)
     )
     route_changed_without_date = bool(route_changed and not has_explicit_date_in_turn)
+    fresh_route_flight_query_without_date = bool(
+        str(prev_state.get("pending_intent") or "") != "flight"
+        and not has_explicit_date_in_turn
+        and (
+            bool(parsed.get("origin"))
+            or bool(parsed.get("destination"))
+            or has_round_signal_in_turn
+            or has_oneway_signal_in_turn
+        )
+    )
+
+    # Do not carry old itinerary/package budget into a fresh flight-only lookup
+    # unless the current turn explicitly talks about price or we are already
+    # continuing a flight slot-filling flow.
+    has_budget_signal_in_turn = bool(
+        re.search(r"\d[\d,]*\s*(?:원|만원|krw)", msg_raw, re.IGNORECASE)
+        or any(k in msg_l for k in ["예산", "최대", "가격", "요금", "budget", "price", "under", "below"])
+    )
+    continuing_flight_flow = str(prev_state.get("pending_intent") or "") == "flight"
+    if (
+        prev_state.get("max_price") is not None
+        and not has_budget_signal_in_turn
+        and not continuing_flight_flow
+    ):
+        state.pop("max_price", None)
 
     # If user changed route but did not specify date this turn, do not silently reuse old dates.
     if route_changed_without_date:
         state.pop("departure_date", None)
         state.pop("return_date", None)
+        state.pop("travel_checkin", None)
+        state.pop("travel_checkout", None)
+
+    # Fresh flight queries without any date should ask slots from scratch,
+    # even if the same session had old departure/return dates.
+    if fresh_route_flight_query_without_date:
+        state.pop("departure_date", None)
+        state.pop("return_date", None)
+        state.pop("travel_checkin", None)
+        state.pop("travel_checkout", None)
 
     # If user provided destination but omitted origin in this turn, do not silently reuse old origin.
     # Ask origin first to prevent unintended defaults (e.g., previous ICN).
-    if mentioned_destination_without_origin or origin_likely_carried_from_prev:
+    if (mentioned_destination_without_origin or origin_likely_carried_from_prev) and not date_only_followup:
         state.pop("origin", None)
 
     if has_oneway_signal_in_turn:
@@ -290,10 +537,15 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
         state.pop("return_date", None)
     elif has_round_signal_in_turn:
         state["trip_type"] = "round"
+    elif (
+        str(prev_state.get("pending_intent") or "") == "flight"
+        and str(prev_state.get("trip_type") or "").strip() == "round"
+    ):
+        state["trip_type"] = "round"
 
     # If user did not explicitly provide return-date semantics in this turn,
     # clear stale carried return date so we can ask for it.
-    if not has_explicit_return_date_in_turn:
+    if not has_explicit_return_date_in_turn and not (str(prev_state.get("pending_intent") or "") == "flight" and has_only_location):
         state.pop("return_date", None)
 
     # Shared travel dates can come from non-flight intents (hotel/rentalcar).
@@ -305,6 +557,22 @@ def _handle_flight_intent(req: Any, prev_state: dict, context: str, SESSION_STAT
         state["travel_checkin"] = state.get("departure_date")
     if state.get("return_date"):
         state["travel_checkout"] = state.get("return_date")
+    if (
+        str(state.get("trip_type") or "") == "round"
+        and (single_date_followup_only or has_single_calendar_date_in_turn)
+        and str(state.get("departure_date") or "").strip()
+        and str(state.get("return_date") or "").strip() == str(state.get("departure_date") or "").strip()
+        and not has_two_iso_dates
+        and not has_two_mmdd_dates
+        and not has_two_kr_md_dates
+        and not has_relative_range
+        and not has_stay_nights_signal_in_turn
+    ):
+        prev_dep = str(prev_state.get("departure_date") or prev_state.get("travel_checkin") or "").strip()
+        prev_ret = str(prev_state.get("return_date") or prev_state.get("travel_checkout") or "").strip()
+        if not prev_dep and not prev_ret:
+            state["return_date"] = None
+            state["travel_checkout"] = None
     missing = _missing_questions(state)
     if missing:
         # Keep flight slot-filling context for short/date-only follow-up turns.
@@ -429,10 +697,42 @@ def _handle_itinerary_intent(
         or str(state.get("destination") or "").strip()
         or str(state.get("hotel_query") or "").strip()
     )
+    route_destination = _extract_route_destination_city(msg, state)
     msg_compact = re.sub(r"\s+", "", msg).lower()
     alias_destination = ""
     if msg_compact:
         loc_keys = {str(k).strip() for k in list(LOCATION_ALIASES.keys()) + list(COUNTRY_ALIASES.keys()) if str(k).strip()}
+        for pat in [
+            "(.+?)\\uC5D0\\uC11C(.+?)\\uAE4C\\uC9C0",
+            "(.+?)\\uC5D0\\uC11C(.+?)\\uB85C",
+            "(.+?)\\uC5D0\\uC11C(.+?)\\uC73C\\uB85C",
+            "(.+?)\\uC5D0\\uC11C(.+?)\\uD589",
+            "(.+?)\\uC5D0\\uC11C(.+?)\\uC5D0",
+            r"from(.+?)to(.+)",
+        ]:
+            m_route_clean = re.search(pat, msg, re.IGNORECASE)
+            if not m_route_clean:
+                continue
+            route_tail_clean = re.sub(r"\s+", "", str(m_route_clean.group(2) or "")).lower()
+            for k in sorted(loc_keys, key=len, reverse=True):
+                kc = re.sub(r"\s+", "", k).lower()
+                if kc and (route_tail_clean == kc or kc in route_tail_clean):
+                    route_destination = k
+                    break
+            if route_destination:
+                break
+        for pat in [r"(.+?)에서(.+?)까지", r"from(.+?)to(.+)"]:
+            m_route = re.search(pat, msg, re.IGNORECASE)
+            if not m_route:
+                continue
+            route_tail = re.sub(r"\s+", "", str(m_route.group(2) or "")).lower()
+            for k in sorted(loc_keys, key=len, reverse=True):
+                kc = re.sub(r"\s+", "", k).lower()
+                if kc and (route_tail == kc or kc in route_tail):
+                    route_destination = k
+                    break
+            if route_destination:
+                break
         for k in sorted(loc_keys, key=len, reverse=True):
             kc = re.sub(r"\s+", "", k).lower()
             if not kc:
@@ -440,7 +740,9 @@ def _handle_itinerary_intent(
             if msg_compact == kc or kc in msg_compact:
                 alias_destination = k
                 break
-    if alias_destination:
+    if route_destination:
+        destination = route_destination
+    elif alias_destination:
         destination = alias_destination
     elif not destination:
         m_dest = re.search(r"([가-힣A-Za-z\s]+?)\s*(?:여행|일정|코스|플랜|trip|travel)", msg, re.IGNORECASE)
@@ -498,8 +800,8 @@ def _handle_itinerary_intent(
     # Prefer a single, direct budget prompt instead of generic missing-item list.
     if budget_krw is None:
         q_budget = (
-            "<div><b>??? ??? ???.</b></div>"
-            "<div style='margin-top:6px;'>?: ? 250??, 3000000 KRW</div>"
+            "<div><b>총예산을 알려주세요.</b></div>"
+            "<div style='margin-top:6px;'>예: 250만원, 3000000 KRW</div>"
         )
         state["pending_intent"] = "itinerary"
         state["last_intent"] = "itinerary"
@@ -602,6 +904,9 @@ def _handle_itinerary_intent(
     except Exception:
         api_rental_price_krw = None
     selected_hotel_name = str(state.get("bundle_selected_hotel_name") or "").strip()
+    origin_label = str(state.get("origin") or "ICN").strip()
+    if origin_label.upper() == "ICN":
+        origin_label = "\uC778\uCC9C"
 
     try:
         if destination:
@@ -779,17 +1084,17 @@ def _handle_itinerary_intent(
                 # Final deterministic fallback to guarantee theme card section visibility.
                 if need_shopping:
                     places_html = (
-                        "<div style='margin-top:10px;'><b>?? ?? ?? (Fallback)</b></div>"
+                        "<div style='margin-top:10px;'><b>쇼핑 스팟 추천 (Fallback)</b></div>"
                         "<div>1. Shibuya PARCO</div><div>2. Isetan Shinjuku</div><div>3. Ginza Six</div><div>4. Omotesando Hills</div>"
                     )
                 elif need_food:
                     places_html = (
-                        "<div style='margin-top:10px;'><b>?? ?? ?? (Fallback)</b></div>"
+                        "<div style='margin-top:10px;'><b>맛집 스팟 추천 (Fallback)</b></div>"
                         "<div>1. Uobei Shibuya Dogenzaka</div><div>2. Ichiran Shibuya</div><div>3. Tsuta Ramen</div><div>4. Ginza Kagari</div>"
                     )
                 else:
                     places_html = (
-                        "<div style='margin-top:10px;'><b>??? ?? ?? (Fallback)</b></div>"
+                        "<div style='margin-top:10px;'><b>관광지 추천 (Fallback)</b></div>"
                         "<div>1. Senso-ji</div><div>2. Meiji Jingu</div><div>3. Ueno Park</div><div>4. Tokyo Tower</div>"
                     )
             if places_html:
@@ -840,6 +1145,11 @@ def _handle_itinerary_intent(
                 flight_added = True
     except Exception:
         pass
+    if start_date and destination and not flight_added:
+        api_blocks.append(
+            "<div style='margin-top:12px;'><b>\uD56D\uACF5\uD3B8 \uCD94\uCC9C (\uC2E4\uC2DC\uAC04 API)</b></div>"
+            "<div>\uD56D\uACF5\uD3B8 \uC870\uD68C \uACB0\uACFC\uB97C \uC9C0\uAE08\uC740 \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC5B4\uC694. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.</div>"
+        )
 
     try:
         if destination and start_date and end_date and api_hotel_price_krw is None:
@@ -859,6 +1169,8 @@ def _handle_itinerary_intent(
             if hotel_html:
                 try:
                     hotel_prices = [int(x.replace(",", "")) for x in re.findall(r"가격:\s*([0-9,]+)\s*KRW", hotel_html)]
+                    if not hotel_prices:
+                        hotel_prices = [int(x.replace(",", "")) for x in re.findall(r"([0-9][0-9,]*)\s*KRW", hotel_html, flags=re.IGNORECASE)]
                     if hotel_prices:
                         api_hotel_price_krw = min(hotel_prices)
                 except Exception:
@@ -867,6 +1179,11 @@ def _handle_itinerary_intent(
                 hotel_added = True
     except Exception:
         pass
+    if destination and start_date and end_date and not hotel_added:
+        api_blocks.append(
+            "<div style='margin-top:12px;'><b>\uC219\uC18C \uCD94\uCC9C (\uC2E4\uC2DC\uAC04 API)</b></div>"
+            "<div>\uC219\uC18C \uC870\uD68C \uACB0\uACFC\uB97C \uC9C0\uAE08\uC740 \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC5B4\uC694. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.</div>"
+        )
 
     wants_rental_plan = bool(state.get("bundle_wants_rental")) or any(
         k in str(msg or "").lower() for k in ["rental", "car rental", "rent car", "\ub80c\ud130\uce74", "\ub80c\ud2b8\uce74"]
@@ -928,6 +1245,8 @@ def _handle_itinerary_intent(
         "3) Use actual trip dates and provide morning/afternoon/evening plan for each day.\n"
         "4) Keep neighborhood flow efficient to reduce unnecessary transit.\n"
         "5) Do not exceed total budget.\n"
+        "5-1) IMPORTANT: Every itinerary item, hotel mention, seasonal spot, and shopping/food recommendation must be in the Destination city only.\n"
+        "5-2) Never use the origin city as the sightseeing/shopping destination. Origin is only for airport departure/return context.\n"
         "6) In budget allocation, use API prices exactly when available and sum correctly.\n"
         "6-1) If any API price is unavailable, explicitly write '조회 실패/확인 불가' and NEVER invent a number.\n"
         + ("6-2) Rental was requested, so include rental budget line.\n" if wants_rental_plan else "6-2) Rental was NOT requested, so do not mention rental at all.\n")
@@ -935,6 +1254,7 @@ def _handle_itinerary_intent(
         "7) For shopping-focused plan, include 2-3 concrete store/mall names in shopping slots.\n"
         f"8) Reflect seasonal context: {season}.\n"
         "Inputs:\n"
+        + f"- Origin: {str(state.get('origin') or 'ICN')}\n"
         + f"- Destination: {destination}\n"
         + f"- Dates: {start_date} ~ {end_date}\n"
         + f"- Travelers: {adults}\n"
@@ -964,6 +1284,36 @@ def _handle_itinerary_intent(
     )
     content = _strip_markdown_decorations((r.choices[0].message.content or "").strip())
     content = re.sub(r"\s{2,}", " ", content)
+    if destination and origin_label and origin_label.lower() != str(destination).strip().lower():
+        content_text = re.sub(r"<[^>]+>", " ", content)
+        origin_code = str(state.get("origin") or "").strip().upper()
+        if origin_label in content_text or (origin_code and origin_code in content_text) or "\uC778\uCC9C" in content_text:
+            rewrite_prompt = (
+                "Rewrite the following Korean travel itinerary HTML.\n"
+                "Rules:\n"
+                "1) Keep HTML-only output with the same section structure.\n"
+                "2) Every attraction, shopping spot, restaurant, hotel mention, and seasonal recommendation must be in the destination city only.\n"
+                "3) Never use the origin city as a sightseeing or shopping destination.\n"
+                "4) Origin may appear only for airport departure or return context.\n"
+                f"5) Origin: {origin_label}\n"
+                f"6) Destination: {destination}\n\n"
+                "HTML to rewrite:\n"
+                f"{content}"
+            )
+            try:
+                rewrite_resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "Travel itinerary HTML rewriter"},
+                        {"role": "user", "content": rewrite_prompt},
+                    ],
+                    temperature=0.0,
+                )
+                rewritten = _strip_markdown_decorations((rewrite_resp.choices[0].message.content or "").strip())
+                if rewritten:
+                    content = rewritten
+            except Exception:
+                pass
     if not wants_rental_plan:
         content = re.sub(
             r"<div>[^<]*(?:rental|\ub80c\ud130\uce74|\ub80c\ud0c8)[^<]*</div>",
@@ -1143,6 +1493,250 @@ def _country_rag_detail(country_name_ko: str, context: str, prev_state: dict, _a
 
 def _country_reco_html(context: str, prev_state: dict, _answer_knowledge) -> str:
     variant = int(prev_state.get("country_reco_variant") or 0) % 2
+    region_hint = str(prev_state.get("country_reco_region") or "").strip().lower()
+    cards = None
+    if region_hint == "southeast_asia":
+        sea_cards_set = [
+            [
+                {
+                    "name": "베트남 (다낭/호치민)",
+                    "country": "베트남",
+                    "budget": "3박4일 1인 약 50~85만원",
+                    "summary": "물가와 숙박비가 좋아 쇼핑, 미식, 휴양을 예산 안에서 균형 있게 즐기기 좋습니다.",
+                    "photo": "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "태국 (방콕)",
+                    "country": "태국",
+                    "budget": "3박4일 1인 약 55~95만원",
+                    "summary": "야시장, 쇼핑몰, 마사지, 미식이 모두 강해 첫 동남아 여행지로도 무난합니다.",
+                    "photo": "https://images.unsplash.com/photo-1508009603885-50cf7c579365?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "싱가포르",
+                    "country": "싱가포르",
+                    "budget": "3박4일 1인 약 80~130만원",
+                    "summary": "도시 이동이 편하고 치안이 안정적이라 짧은 일정에도 효율적으로 즐기기 좋습니다.",
+                    "photo": "https://images.unsplash.com/photo-1525625293386-3f8f99389edd?auto=format&fit=crop&w=1200&q=80",
+                },
+            ],
+            [
+                {
+                    "name": "말레이시아 (쿠알라룸푸르)",
+                    "country": "말레이시아",
+                    "budget": "3박4일 1인 약 55~90만원",
+                    "summary": "합리적인 물가와 다양한 문화권 음식 덕분에 가성비 여행지로 인기가 높습니다.",
+                    "photo": "https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "베트남 (하노이/다낭)",
+                    "country": "베트남",
+                    "budget": "3박4일 1인 약 50~85만원",
+                    "summary": "항공권과 숙박비 부담이 낮아 예산을 음식과 쇼핑에 더 쓰기 좋습니다.",
+                    "photo": "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "태국 (방콕/치앙마이)",
+                    "country": "태국",
+                    "budget": "3박4일 1인 약 55~95만원",
+                    "summary": "도심 쇼핑과 로컬 감성을 함께 즐길 수 있어 취향별로 일정 짜기가 쉽습니다.",
+                    "photo": "https://images.unsplash.com/photo-1508009603885-50cf7c579365?auto=format&fit=crop&w=1200&q=80",
+                },
+            ],
+        ]
+        cards = sea_cards_set[variant]
+    elif region_hint == "europe":
+        europe_cards_set = [
+            [
+                {
+                    "name": "프랑스 (파리)",
+                    "country": "프랑스",
+                    "budget": "5박7일 1인 약 170~260만원",
+                    "summary": "미술관, 쇼핑, 카페 문화가 강해 첫 유럽 도시 여행지로 인기가 높습니다.",
+                    "photo": "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "이탈리아 (로마/피렌체)",
+                    "country": "이탈리아",
+                    "budget": "5박7일 1인 약 160~250만원",
+                    "summary": "역사 유적과 음식 만족도가 높아 관광과 미식을 함께 챙기기 좋습니다.",
+                    "photo": "https://images.unsplash.com/photo-1525874684015-58379d421a52?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "스페인 (바르셀로나)",
+                    "country": "스페인",
+                    "budget": "5박7일 1인 약 160~245만원",
+                    "summary": "도시 감성, 건축, 해변 분위기를 함께 즐길 수 있어 일정 구성이 다채롭습니다.",
+                    "photo": "https://images.unsplash.com/photo-1543783207-ec64e4d95325?auto=format&fit=crop&w=1200&q=80",
+                },
+            ],
+            [
+                {
+                    "name": "영국 (런던)",
+                    "country": "영국",
+                    "budget": "5박7일 1인 약 180~270만원",
+                    "summary": "뮤지컬, 박물관, 쇼핑이 강하고 대중교통 사용이 비교적 편리합니다.",
+                    "photo": "https://images.unsplash.com/photo-1486299267070-83823f5448dd?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "체코 (프라하)",
+                    "country": "체코",
+                    "budget": "5박7일 1인 약 145~220만원",
+                    "summary": "동화 같은 구시가지 풍경과 합리적 물가 덕분에 만족도가 높은 편입니다.",
+                    "photo": "https://images.unsplash.com/photo-1519677100203-a0e668c92439?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "포르투갈 (리스본)",
+                    "country": "포르투갈",
+                    "budget": "5박7일 1인 약 150~230만원",
+                    "summary": "언덕 도시 풍경과 해산물, 근교 일정까지 묶기 좋아 여유로운 유럽 여행에 잘 맞습니다.",
+                    "photo": "https://images.unsplash.com/photo-1513735492246-483525079686?auto=format&fit=crop&w=1200&q=80",
+                },
+            ],
+        ]
+        cards = europe_cards_set[variant]
+    elif region_hint == "americas":
+        americas_cards_set = [
+            [
+                {
+                    "name": "미국 (뉴욕)",
+                    "country": "미국",
+                    "budget": "5박7일 1인 약 220~340만원",
+                    "summary": "쇼핑, 공연, 미식, 도시 명소가 모두 강해 한 도시 집중 여행에 좋습니다.",
+                    "photo": "https://images.unsplash.com/photo-1499092346589-b9b6be3e94b2?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "캐나다 (밴쿠버)",
+                    "country": "캐나다",
+                    "budget": "5박7일 1인 약 190~290만원",
+                    "summary": "도시와 자연을 함께 즐길 수 있고 치안과 이동 편의도 안정적인 편입니다.",
+                    "photo": "https://images.unsplash.com/photo-1503614472-8c93d56e92ce?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "미국 (로스앤젤레스)",
+                    "country": "미국",
+                    "budget": "5박7일 1인 약 210~320만원",
+                    "summary": "쇼핑과 엔터테인먼트, 근교 드라이브 일정까지 묶기 좋습니다.",
+                    "photo": "https://images.unsplash.com/photo-1534190760961-74e8c1c5c3da?auto=format&fit=crop&w=1200&q=80",
+                },
+            ],
+            [
+                {
+                    "name": "미국 (뉴욕/보스턴)",
+                    "country": "미국",
+                    "budget": "5박7일 1인 약 220~340만원",
+                    "summary": "도시 감성과 문화 일정 비중이 높아 짧은 미주 일정에도 밀도 있게 움직이기 좋습니다.",
+                    "photo": "https://images.unsplash.com/photo-1499092346589-b9b6be3e94b2?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "캐나다 (토론토)",
+                    "country": "캐나다",
+                    "budget": "5박7일 1인 약 190~285만원",
+                    "summary": "대도시 여행 난이도가 높지 않고 주변 근교를 함께 묶기 좋습니다.",
+                    "photo": "https://images.unsplash.com/photo-1517090504586-fde19ea6066f?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "멕시코 (칸쿤)",
+                    "country": "멕시코",
+                    "budget": "5박7일 1인 약 200~320만원",
+                    "summary": "휴양 비중이 크고 리조트 중심 일정이 잘 맞는 여행지입니다.",
+                    "photo": "https://images.unsplash.com/photo-1510097467424-192d713fd8b2?auto=format&fit=crop&w=1200&q=80",
+                },
+            ],
+        ]
+        cards = americas_cards_set[variant]
+    elif region_hint == "japan":
+        japan_cards_set = [
+            [
+                {
+                    "name": "일본 (도쿄)",
+                    "country": "일본",
+                    "budget": "3박4일 1인 약 65~105만원",
+                    "summary": "쇼핑, 미식, 전시와 도시 감성을 가장 고르게 담기 좋은 대표 여행지입니다.",
+                    "photo": "https://images.unsplash.com/photo-1492571350019-22de08371fd3?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "일본 (오사카)",
+                    "country": "일본",
+                    "budget": "3박4일 1인 약 60~95만원",
+                    "summary": "미식 비중이 높고 교토, 고베와 묶어 이동하기 좋아 일정 확장이 쉽습니다.",
+                    "photo": "https://images.unsplash.com/photo-1590559899731-a382839e5549?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "일본 (후쿠오카)",
+                    "country": "일본",
+                    "budget": "3박4일 1인 약 55~90만원",
+                    "summary": "비행시간이 짧고 온천, 먹거리, 쇼핑을 편하게 즐기기 좋습니다.",
+                    "photo": "https://images.unsplash.com/photo-1568084680786-a84f91d1153c?auto=format&fit=crop&w=1200&q=80",
+                },
+            ],
+            [
+                {
+                    "name": "일본 (삿포로)",
+                    "country": "일본",
+                    "budget": "3박4일 1인 약 70~115만원",
+                    "summary": "계절 풍경과 먹거리 만족도가 높아 휴식형 일정에도 잘 맞습니다.",
+                    "photo": "https://images.unsplash.com/photo-1545569341-9eb8b30979d9?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "일본 (오키나와)",
+                    "country": "일본",
+                    "budget": "3박4일 1인 약 75~120만원",
+                    "summary": "바다와 리조트 중심 휴양 일정에 적합하고 가족 여행 만족도도 높습니다.",
+                    "photo": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
+                },
+                {
+                    "name": "일본 (교토)",
+                    "country": "일본",
+                    "budget": "3박4일 1인 약 65~105만원",
+                    "summary": "전통 거리와 문화 체험 위주로 차분한 일정 짜기에 좋습니다.",
+                    "photo": "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=1200&q=80",
+                },
+            ],
+        ]
+        cards = japan_cards_set[variant]
+    elif region_hint == "shopping":
+        shopping_cards_set = [
+            [
+                {"name": "일본 (도쿄)", "country": "일본", "budget": "3박4일 1인 약 65~105만원", "summary": "백화점, 편집숍, 캐릭터 굿즈까지 쇼핑 선택지가 매우 넓습니다.", "photo": "https://images.unsplash.com/photo-1492571350019-22de08371fd3?auto=format&fit=crop&w=1200&q=80"},
+                {"name": "태국 (방콕)", "country": "태국", "budget": "3박4일 1인 약 55~95만원", "summary": "대형 쇼핑몰과 야시장을 함께 즐길 수 있어 쇼핑 만족도가 높습니다.", "photo": "https://images.unsplash.com/photo-1508009603885-50cf7c579365?auto=format&fit=crop&w=1200&q=80"},
+                {"name": "미국 (뉴욕)", "country": "미국", "budget": "5박7일 1인 약 220~340만원", "summary": "브랜드 쇼핑과 빈티지, 라이프스타일 편집숍까지 폭넓게 경험할 수 있습니다.", "photo": "https://images.unsplash.com/photo-1499092346589-b9b6be3e94b2?auto=format&fit=crop&w=1200&q=80"},
+            ],
+            [
+                {"name": "프랑스 (파리)", "country": "프랑스", "budget": "5박7일 1인 약 170~260만원", "summary": "명품 쇼핑과 백화점, 감성 편집숍 중심 일정에 잘 맞습니다.", "photo": "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?auto=format&fit=crop&w=1200&q=80"},
+                {"name": "싱가포르", "country": "싱가포르", "budget": "3박4일 1인 약 80~130만원", "summary": "도심 이동이 편하고 쇼핑몰 동선이 간결해 짧은 일정에도 효율적입니다.", "photo": "https://images.unsplash.com/photo-1525625293386-3f8f99389edd?auto=format&fit=crop&w=1200&q=80"},
+                {"name": "대만 (타이베이)", "country": "대만", "budget": "3박4일 1인 약 55~90만원", "summary": "로드숍, 편집숍, 야시장 쇼핑을 부담 없는 예산으로 즐기기 좋습니다.", "photo": "https://images.unsplash.com/photo-1464979681340-bdd28a61699e?auto=format&fit=crop&w=1200&q=80"},
+            ],
+        ]
+        cards = shopping_cards_set[variant]
+    elif region_hint == "food":
+        food_cards_set = [
+            [
+                {"name": "일본 (오사카)", "country": "일본", "budget": "3박4일 1인 약 60~95만원", "summary": "가볍게 들어가기 좋은 로컬 맛집이 많아 미식 여행 만족도가 높습니다.", "photo": "https://images.unsplash.com/photo-1590559899731-a382839e5549?auto=format&fit=crop&w=1200&q=80"},
+                {"name": "대만 (타이베이)", "country": "대만", "budget": "3박4일 1인 약 55~90만원", "summary": "야시장, 면요리, 디저트까지 음식 중심 여행에 매우 잘 맞습니다.", "photo": "https://images.unsplash.com/photo-1464979681340-bdd28a61699e?auto=format&fit=crop&w=1200&q=80"},
+                {"name": "이탈리아 (로마/볼로냐)", "country": "이탈리아", "budget": "5박7일 1인 약 160~250만원", "summary": "식사 자체가 여행의 중심이 되기 좋은 대표 유럽 미식 여행지입니다.", "photo": "https://images.unsplash.com/photo-1525874684015-58379d421a52?auto=format&fit=crop&w=1200&q=80"},
+            ],
+            [
+                {"name": "태국 (방콕)", "country": "태국", "budget": "3박4일 1인 약 55~95만원", "summary": "스트리트푸드와 트렌디한 카페, 미식 코스를 한 도시에서 즐기기 좋습니다.", "photo": "https://images.unsplash.com/photo-1508009603885-50cf7c579365?auto=format&fit=crop&w=1200&q=80"},
+                {"name": "베트남 (하노이)", "country": "베트남", "budget": "3박4일 1인 약 50~85만원", "summary": "쌀국수, 분짜, 카페 문화가 강해 예산 대비 만족도가 높습니다.", "photo": "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=1200&q=80"},
+                {"name": "프랑스 (리옹/파리)", "country": "프랑스", "budget": "5박7일 1인 약 170~260만원", "summary": "브라세리와 디저트, 와인까지 음식 테마 여행으로 확장하기 좋습니다.", "photo": "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?auto=format&fit=crop&w=1200&q=80"},
+            ],
+        ]
+        cards = food_cards_set[variant]
+    elif region_hint == "relax":
+        relax_cards_set = [
+            [
+                {"name": "베트남 (다낭)", "country": "베트남", "budget": "3박4일 1인 약 50~85만원", "summary": "리조트와 해변 휴양 비중이 높아 쉬는 여행을 계획하기 좋습니다.", "photo": "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=1200&q=80"},
+                {"name": "일본 (오키나와)", "country": "일본", "budget": "3박4일 1인 약 75~120만원", "summary": "짧은 비행시간으로 바다 휴양 분위기를 즐기기 좋은 편입니다.", "photo": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80"},
+                {"name": "태국 (푸켓)", "country": "태국", "budget": "3박4일 1인 약 65~110만원", "summary": "휴양 위주 일정과 액티비티를 적절히 섞기 좋은 대표 해변 여행지입니다.", "photo": "https://images.unsplash.com/photo-1468413253725-0d5181091126?auto=format&fit=crop&w=1200&q=80"},
+            ],
+            [
+                {"name": "싱가포르", "country": "싱가포르", "budget": "3박4일 1인 약 80~130만원", "summary": "이동 피로가 적고 도시 휴양 스타일로 일정 짜기 좋습니다.", "photo": "https://images.unsplash.com/photo-1525625293386-3f8f99389edd?auto=format&fit=crop&w=1200&q=80"},
+                {"name": "포르투갈 (리스본)", "country": "포르투갈", "budget": "5박7일 1인 약 150~230만원", "summary": "느긋한 일정과 풍경 감상 위주 여행에 잘 어울립니다.", "photo": "https://images.unsplash.com/photo-1513735492246-483525079686?auto=format&fit=crop&w=1200&q=80"},
+                {"name": "말레이시아 (코타키나발루)", "country": "말레이시아", "budget": "3박4일 1인 약 60~95만원", "summary": "선셋과 리조트 휴양을 중심으로 가볍게 쉬다 오기 좋습니다.", "photo": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80"},
+            ],
+        ]
+        cards = relax_cards_set[variant]
     cards_set = [
         [
             {
@@ -1191,7 +1785,7 @@ def _country_reco_html(context: str, prev_state: dict, _answer_knowledge) -> str
             },
         ],
     ]
-    cards = cards_set[variant]
+    cards = cards or cards_set[variant]
     lines = [
         "<div><b>나라 추천 카드 (3개)</b></div>",
         "<div style='margin-top:8px;'>예산/이동시간/여행난이도를 같이 보고 고르기 쉬운 후보만 추렸습니다.</div>",
@@ -1268,6 +1862,23 @@ def handle_chat_request(
         # Fast-path: country recommendation (including short follow-up like "다른곳은?")
         if _is_country_reco_query(req.message, _contains) or _is_country_reco_followup(req.message, prev_state, _contains):
             state = dict(prev_state)
+            msg_lc = str(req.message or "").lower()
+            if any(k in msg_lc for k in ["동남아", "동남아시아", "southeast asia", "sea"]):
+                state["country_reco_region"] = "southeast_asia"
+            elif any(k in msg_lc for k in ["유럽", "europe", "eu"]):
+                state["country_reco_region"] = "europe"
+            elif any(k in msg_lc for k in ["미주", "북미", "america", "americas", "usa", "미국", "캐나다"]):
+                state["country_reco_region"] = "americas"
+            elif any(k in msg_lc for k in ["일본", "japan"]):
+                state["country_reco_region"] = "japan"
+            elif any(k in msg_lc for k in ["쇼핑", "shopping"]):
+                state["country_reco_region"] = "shopping"
+            elif any(k in msg_lc for k in ["미식", "맛집", "food", "gourmet"]):
+                state["country_reco_region"] = "food"
+            elif any(k in msg_lc for k in ["휴양", "힐링", "relax", "resort"]):
+                state["country_reco_region"] = "relax"
+            elif not _is_country_reco_followup(req.message, prev_state, _contains):
+                state.pop("country_reco_region", None)
             state["last_intent"] = "knowledge"
             state["country_reco_context"] = True
             state["country_reco_variant"] = (int(prev_state.get("country_reco_variant") or 0) + (1 if _is_country_reco_followup(req.message, prev_state, _contains) else 0)) % 2
@@ -1364,7 +1975,27 @@ def handle_chat_request(
                     "항공권, 숙소, 여행지 정보, 일정 추천까지 안내해드릴게요.</div>"
                 )
             }
+        if _is_smalltalk_greeting(req.message):
+            state = dict(prev_state)
+            state["last_intent"] = "knowledge"
+            SESSION_STATE[sid] = state
+            return {
+                "response": (
+                    "<div>안녕하세요, DESTINO AI 여행 플래너입니다.<br>"
+                    "항공권, 숙소, 여행지 정보, 일정 추천까지 안내해드릴게요.</div>"
+                )
+            }
 
+        if (not active_travel_followup) and domain and (domain.get("is_travel") is False) and float(domain.get("confidence") or 0) >= 0.6 and (not has_travel_signal):
+            state = dict(prev_state)
+            state["last_intent"] = "knowledge"
+            SESSION_STATE[sid] = state
+            return {
+                "response": (
+                    "<div>여행 관련 질문으로 다시 알려주시면 더 정확히 도와드릴 수 있어요.<br>"
+                    "항공권, 숙소, 여행지 정보, 일정, 맛집/명소 추천처럼 여행 주제로 질문해 주세요.</div>"
+                )
+            }
         if (not active_travel_followup) and domain and (domain.get("is_travel") is False) and float(domain.get("confidence") or 0) >= 0.6 and (not has_travel_signal):
             state = dict(prev_state)
             state["last_intent"] = "knowledge"
@@ -1724,6 +2355,39 @@ def handle_chat_request(
         if has_product_signal and not has_flight_signal and not has_hotel_signal:
             intent = "product"
 
+        # One-shot itinerary request override:
+        # route messages with destination/date/budget/travel-style details to itinerary
+        # even when the user didn't explicitly say "일정" or "계획".
+        msg_raw = str(req.message or "")
+        msg_l = msg_raw.lower()
+        has_budget_signal = bool(
+            re.search(r"\d[\d,]*\s*(?:원|만원|krw)", msg_raw, re.IGNORECASE)
+            or any(k in msg_l for k in ["예산", "budget"])
+        )
+        has_party_signal = bool(
+            re.search(r"(?:총\s*)?\d+\s*(?:명|인|people|pax)", msg_raw, re.IGNORECASE)
+            or "\uC778\uC6D0" in msg_raw
+        )
+        has_style_signal = _contains(
+            msg_l,
+            [
+                "\uC1FC\uD551", "\uBBF8\uC2DD", "\uB9DB\uC9D1", "\uD790\uB9C1", "\uC561\uD2F0\uBE44\uD2F0",
+                "shopping", "food", "gourmet", "healing", "activity",
+            ],
+        )
+        has_route_destination_signal = bool(
+            re.search("(.+?)\\uC5D0\\uC11C(.+?)(?:\\uAE4C\\uC9C0|\\uB85C|\\uC73C\\uB85C|\\uD589)", msg_raw)
+            or re.search(r"from(.+?)to(.+)", msg_raw, re.IGNORECASE)
+        )
+        if (
+            _has_date_signal(req.message)
+            and has_budget_signal
+            and (has_party_signal or has_style_signal or has_route_destination_signal)
+            and not has_product_signal
+            and not has_hotel_signal
+        ):
+            intent = "itinerary"
+
         # Keep contextual knowledge follow-ups out of the flight default path.
         if intent == "flight" and _should_keep_knowledge_followup(req.message, prev_state):
             intent = "knowledge"
@@ -1735,6 +2399,28 @@ def handle_chat_request(
         # Route place-to-place guidance questions to travel info (transport) unless flights are explicit.
         if intent == "flight" and _is_route_guidance_query(req.message):
             intent = "knowledge"
+        if _should_return_intent_clarification(
+            req,
+            prev_state,
+            intent,
+            llm_intent,
+            rule_intent,
+            _is_local_place_followup,
+            _should_ask_intent_clarification,
+            _contains,
+        ):
+            state = dict(prev_state)
+            state["last_intent"] = "knowledge"
+            SESSION_STATE[sid] = state
+            if _is_country_reco_query(req.message, _contains):
+                return {"response": _country_reco_html(context, prev_state, _answer_knowledge)}
+            return {
+                "response": (
+                    "<div>좋아요. 무엇을 도와드리면 될지 확인할게요.<br>"
+                    "원하시는 것은 <b>항공권</b> / <b>숙소</b> / <b>렌터카</b> / <b>여행 일정</b> / "
+                    "<b>여행 정보(문화·치안·교통)</b> 중 어떤 것인가요?</div>"
+                )
+            }
         if _should_return_intent_clarification(
             req,
             prev_state,
