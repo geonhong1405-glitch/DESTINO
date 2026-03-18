@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    {% if nickname %}
+    <script>window.nickname = {{ nickname|tojson }};</script>
+    {% else %}
+    <script>window.nickname = '';</script>
+    {% endif %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DESTINO - 렌터카 상세</title>
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+    <link rel="stylesheet" href="/static/rental-detail.css?v=20260303">
+</head>
+<body>
+    <header class="header">
+        <div class="container header-inner">
+            <h1 class="logo"><a href="/">DESTINO</a></h1>
+            <nav class="header-nav">
+                {% if nickname %}
+                <a href="/mypage"><span class="nickname">{{ nickname }}</span></a>
+                <a href="/logout" class="logout">로그아웃</a>
+                {% else %}
+                <a href="/login">로그인</a>
+                {% endif %}
+                <a href="/rental">렌터카 목록</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container page">
+        <section class="main-card">
+            <div class="hero">
+                <img src="{{ car.image or 'https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?q=80&w=1200&auto=format&fit=crop' }}" alt="{{ car.name or '렌터카' }}">
+                <div class="hero-info">
+                    <h1>{{ car.name or '렌터카 상품' }}</h1>
+                    <p>{{ car.supplier or 'Rental Partner' }}</p>
+                    <div class="specs">
+                        {% for s in (car.specs or [])[:4] %}
+                        <span>{{ s }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>차량 상세정보</h2>
+                <ul>
+                    <li>무료 취소 정책은 공급사 조건에 따릅니다.</li>
+                    <li>현장 보증금/추가 옵션 비용은 별도 청구될 수 있습니다.</li>
+                    <li>실시간 재고 기준으로 결제 직전 가격이 달라질 수 있습니다.</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>인수 및 반납</h2>
+                <div class="timeline">
+                    <div>
+                        <strong>차량 인수</strong>
+                        <p>{{ car.pickup_at or '-' }}</p>
+                        <p>{{ car.pickup_name or '-' }}</p>
+                    </div>
+                    <div>
+                        <strong>차량 반납</strong>
+                        <p>{{ car.dropoff_at or '-' }}</p>
+                        <p>{{ car.dropoff_name or '-' }}</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="side-card">
+            <h3>요금 내역</h3>
+            <div class="price-row"><span>렌터카 요금</span><strong id="basePriceText">{{ '{:,}'.format(car.price|int) if car.price else '요금 확인 필요' }} {{ car.currency or 'KRW' }}</strong></div>
+            <div class="price-row"><span>추가 보험</span><strong id="addonPriceText">+ 0 KRW</strong></div>
+            <div class="price-row total"><span>총 결제금액</span><strong id="totalPriceText">{{ '{:,}'.format(car.price|int) if car.price else '요금 확인 필요' }} {{ car.currency or 'KRW' }}</strong></div>
+            <p class="muted">실시간 공급가 기준이라 결제 직전 금액이 바뀔 수 있습니다.</p>
+            <div class="check-row">
+                <input id="agreeTerms" type="checkbox">
+                <label for="agreeTerms">만 18세 이상 및 이용약관 동의(필수)</label>
+            </div>
+            <button id="rentalReserveBtn" class="reserve-btn">지금 예약</button>
+        </aside>
+    </main>
+
+    <section class="container addon-section">
+        <div class="addon-card">
+            <h2>보장 패키지</h2>
+            <div class="addon-item">
+                <div>
+                    <strong>기본 보장</strong>
+                    <p>대인/대물 기본 담보, 현지 약관 기준 적용</p>
+                </div>
+                <div class="addon-price">포함</div>
+            </div>
+            <div class="addon-item">
+                <div>
+                    <strong>프리미엄 추가 보험</strong>
+                    <p>자기부담금 경감, 타이어/유리 손상 보장, 긴급출동 확대</p>
+                </div>
+                <label class="switch">
+                    <input id="premiumInsurance" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <p class="muted">API에서 보험 상세 금액이 제공되지 않는 경우, 기본값(1일 44,000원)으로 계산됩니다.</p>
+        </div>
+
+        <div class="addon-card">
+            <h2>부가서비스</h2>
+            <ul>
+                <li>추가 운전자 1명 (현장 결제 가능)</li>
+                <li>카시트/부스터 시트 (재고 확인 필요)</li>
+                <li>GPS 내비게이션 (일부 국가 무료 제공)</li>
+                <li>연료 정책: {{ car.fuel_policy or '공급사 정책 확인 필요' }}</li>
+            </ul>
+        </div>
+    </section>
+
+    <div id="driverModal" class="modal" aria-hidden="true">
+        <div class="modal-backdrop" data-close-modal></div>
+        <section class="modal-panel">
+            <h3>운전자 정보 입력</h3>
+            <p class="muted">여권/면허 정보 입력 후 결제로 이동합니다.</p>
+            <form id="rentalCheckoutForm">
+                <div class="grid">
+                    <input name="last_name" placeholder="성(영문)" required>
+                    <input name="first_name" placeholder="이름(영문)" required>
+                    <input name="birth_date" type="date" required>
+                    <input name="email" type="email" placeholder="이메일" required>
+                    <input name="phone" placeholder="휴대폰 번호" required>
+                    <input name="license_country" placeholder="면허 발급 국가 (예: KR)" value="KR" required>
+                    <input name="license_number" placeholder="운전면허 번호" required>
+                </div>
+                <div class="actions">
+                    <button type="button" class="btn cancel" data-close-modal>취소</button>
+                    <button type="submit" class="btn primary">결제 진행</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    <script>
+        window.__RENTAL_DETAIL__ = {
+            car: {{ (car or {})|tojson }},
+        };
+    </script>
+    <script src="/static/rental-detail.js?v=20260305a"></script>
+</body>
+</html>

@@ -1,0 +1,737 @@
+﻿/* 웹폰트 임포트 */
+@import url("https://cdn.jsdelivr.net/gh/fonts-archive/Pretendard/Pretendard.css");
+
+:root {
+  --blue-600: #00aaff;
+  --primary-hover: #008cd2;
+  --bg-color: #f9fafb;
+  --text-main: #333;
+  --text-sub: ##6b7280;
+  --border-color: #e0e4e8;
+  --white: #ffffff;
+  --red-accent: #f43f5e;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --header-height: 70px;
+  --gnb-height: 56px;
+  --max-width: 1280px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Pretendard";
+}
+body {
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  line-height: 1.5;
+}
+a {
+  text-decoration: none;
+  color: inherit;
+}
+ul {
+  list-style: none;
+}
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: "Pretendard";
+}
+
+/* Header */
+.header {
+  height: 70px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 999;
+}
+.header-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+.logo {
+  color: var(--blue-600);
+  font-size: 24px;
+  font-weight: 800;
+}
+.header-nav a {
+  margin-left: 15px;
+  font-size: 14px;
+  color: #666;
+}
+
+/* Hero Section */
+.hero-section {
+  background: url("https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=2073&auto=format&fit=crop")
+    center/cover no-repeat;
+  padding: 120px 20px 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 60px;
+  position: relative;
+}
+
+.hero-title {
+  color: var(--white);
+  font-size: 42px;
+  font-weight: 800;
+  margin-bottom: 35px;
+  text-align: center;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  line-height: 1.3;
+}
+
+/* 패키지 상품카드 위시리스트 버튼 스타일을 투어에도 동일하게 적용 */
+.tour-wishlist-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #ff5252;
+  border: 1px solid #eee;
+  transition: box-shadow 0.2s, color 0.2s;
+  z-index: 2;
+}
+.tour-wishlist-btn:hover {
+  color: #e60026;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+}
+/* 패키지 상품카드 버튼 스타일을 투어 상품카드 버튼에 적용 (클래스명 유지) */
+.tour-action-btns {
+  display: flex;
+  gap: 10px;
+}
+.tour-cart-text-btn {
+  display: inline-block;
+  width: 48%;
+  margin-top: 18px;
+  margin-right: 2%;
+  padding: 10px 0;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #2563eb;
+  font-size: 15px;
+  font-weight: 700;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  cursor: pointer;
+}
+.tour-cart-text-btn:hover {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+.tour-pay-btn {
+  display: inline-block;
+  width: 48%;
+  margin-top: 18px;
+  padding: 10px 0;
+  border-radius: 8px;
+  box-sizing: border-box;
+  background: #00aaff;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.tour-pay-btn:hover {
+  background: var(--primary-hover);
+}
+
+/* Tour Card Wishlist Heart */
+.tour-image {
+  position: relative;
+}
+.tour-wishlist-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #ff5555;
+  border: 1px solid #eee;
+  transition:
+    box-shadow 0.2s,
+    color 0.2s;
+  z-index: 2;
+}
+.tour-wishlist-btn .wishlist-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  stroke: currentColor;
+  fill: #ccc;
+  transition: fill 0.2s, stroke 0.2s;
+}
+.tour-wishlist-btn.in-wishlist {
+  border-color: #fda4af;
+  color: #ff5252;
+  background: #fff1f2;
+}
+.tour-wishlist-btn.in-wishlist .wishlist-icon {
+  fill: #ff5252;
+  stroke: #ff5252;
+}
+.tour-wishlist-btn:hover .wishlist-icon {
+  fill: #ff5252;
+  stroke: #ff5252;
+}
+.tour-wishlist-btn:hover {
+  color: #e60026;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+/* airport drawer 스타일을 tour drawer로 복사 (클래스명만 tour로 변경) */
+.tour-saved-fab {
+  width: 88px;
+  height: 88px;
+  position: fixed;
+  right: 30px;
+  bottom: 30px;
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff url("../static/image/shopping_cart_1.png") no-repeat center /
+    160% auto;
+  cursor: pointer;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+}
+.tour-saved-fab:hover {
+  background: url("../static/image/shopping_cart_2.png") no-repeat center -6px /160% auto;
+}
+.tour-saved-fab.is-open {
+    background: url("../static/image/shopping_cart_2.png") no-repeat center -6px /160% auto;
+  }
+.tour-saved-fab__label {
+  font-size: 0;
+}
+.tour-saved-fab__count {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background-color: var(--blue-600);
+  color: #fff;
+  display: inline-block;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 5px;
+  position: absolute;
+  top: 0px;
+  right: 0px;
+  line-height: 24px;
+  text-align: center;
+}
+
+.tour-saved-drawer {
+  position: fixed;
+  right: 48px;
+  bottom: 60px;
+  z-index: 1199;
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(60vh, 560px);
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
+  padding: 10px 12px 12px;
+  overflow: hidden;
+  display: none;
+}
+.tour-saved-drawer.is-open {
+  display: block;
+}
+/* .tour-saved-drawer__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.22);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.tour-saved-drawer.is-open .tour-saved-drawer__backdrop {
+  opacity: 1;
+}
+.tour-saved-drawer__panel {
+  /* airport drawer panel 스타일은 display:none이므로 필요 없음 
+}
+.tour-saved-drawer.is-open .tour-saved-drawer__panel {
+  transform: translateY(0);
+  opacity: 1;
+} */
+.tour-saved-drawer__grab {
+  width: 46px;
+  height: 4px;
+  border-radius: 999px;
+  background: #d1d5db;
+  margin: 0 auto 10px;
+}
+.tour-saved-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tour-saved-drawer__close {
+  border: 0;
+  background: #eef2ff;
+  color: #274690;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tour-saved-tabs {
+  display: inline-flex;
+  background: #f3f4f6;
+  padding: 4px;
+  border-radius: 12px;
+  gap: 4px;
+}
+.tour-saved-tab {
+  border: 0;
+  background: transparent;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.tour-saved-tab.is-active {
+  background: #fff;
+  color: #0d2b5b;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.tour-saved-list {
+  margin-top: 8px;
+  display: grid;
+  gap: 10px;
+  max-height: calc(min(60vh, 560px) - 92px);
+  overflow: auto;
+  padding-right: 4px;
+}
+.tour-saved-empty {
+  color: #64748b;
+  font-size: 13px;
+  padding: 14px 6px 6px;
+}
+.tour-saved-item {
+  display: grid;
+  grid-template-columns: 84px 1fr auto;
+  gap: 10px;
+  align-items: start;
+  border: 1px solid #eef2f7;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff;
+}
+.tour-saved-thumb {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #dbeafe, #e5e7eb);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.tour-saved-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.tour-saved-meta {
+  min-width: 0;
+}
+.tour-saved-kind {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+.tour-saved-name {
+  font-size: 14px;
+  color: #010101;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+.tour-saved-line {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.tour-saved-price {
+  color: var(--blue-600);
+  font-weight: 800;
+}
+.tour-saved-item__remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+}
+.tour-saved-item__remove:hover {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+.section-padding {
+  padding: 60px 0;
+}
+.section-title {
+  font-size: 26px;
+  font-weight: 800;
+  margin-bottom: 30px;
+  letter-spacing: -0.5px;
+}
+.section-title span {
+  color: var(--primary-color);
+}
+.tour-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+.tour-card {
+  background: var(--white);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.3s;
+  cursor: pointer;
+}
+.tour-card:hover {
+  transform: translateY(-5px);
+}
+.tour-image {
+  height: 200px;
+  position: relative;
+}
+
+.tImg1 {
+  background: url("https://cdn.pixabay.com/photo/2017/04/30/13/36/disneyland-paris-2272907_1280.jpg")
+    no-repeat center / auto 100%;
+}
+.tImg2 {
+  background: url("https://cdn.pixabay.com/photo/2020/08/12/11/16/norway-5482384_1280.jpg")
+    no-repeat center / auto 100%;
+}
+.tImg3 {
+  background: url("https://media.istockphoto.com/id/1129048899/ko/%EC%82%AC%EC%A7%84/%EB%84%A4%EB%8D%9C%EB%9E%80%EB%93%9C-%EC%95%94%EC%8A%A4%ED%85%8C%EB%A5%B4%EB%8B%B4-%EB%B4%84-%ED%8A%A4%EB%A6%BD-%EA%BD%83%EA%B3%BC-%EC%9A%B4%ED%95%98-%EB%AC%BC%EA%B0%80%EC%97%90%EC%84%9C-%EB%8F%84%EC%8B%9C-%EC%8A%A4%EC%B9%B4%EC%9D%B4-%EB%9D%BC%EC%9D%B8-%EB%84%A4%EB%8D%9C%EB%9E%80%EB%93%9C-%EC%A7%91.jpg?b=1&s=1024x1024&w=0&k=20&c=GYqfDlR2ZMuvVLjIzIIjJTp1JWCEyhNyHKlBmsqXl_0=")
+    no-repeat center / auto 100%;
+}
+.tImg4 {
+  background: url("https://cdn.pixabay.com/photo/2015/08/05/12/38/prague-castle-876467_1280.jpg")
+    no-repeat center / auto 100%;
+}
+.tImg5 {
+  background: url("https://cdn.pixabay.com/photo/2022/02/23/17/05/belgium-7031044_1280.jpg")
+    no-repeat center / auto 100%;
+}
+.tImg6 {
+  background: url("https://media.istockphoto.com/id/885511008/ko/%EC%82%AC%EC%A7%84/%ED%80%B8-%EC%8A%A4-%ED%83%80%EC%9A%B4-%EB%B0%8F-%ED%98%B8%EC%88%98-wakaitipu-%EB%89%B4%EC%A7%88%EB%9E%9C%EB%93%9C-%ED%8C%A8%EB%9F%AC%EA%B8%80%EB%9D%BC%EC%9D%B4%EB%94%A9.webp?b=1&s=612x612&w=0&k=20&c=qR3D7Eb8T4b_R0XdXC4hheFCd6-HkFrzSY5erDoYfgM=")
+    no-repeat center / auto 100%;
+}
+.tImg7 {
+  background: url("https://media.istockphoto.com/id/1995062084/ko/%EC%82%AC%EC%A7%84/%ED%95%80%EB%9E%80%EB%93%9C-%EB%9D%BC%ED%94%8C%EB%9E%80%EB%93%9C%EC%9D%98-%ED%99%94%EB%A0%A4%ED%95%9C-%EC%A1%B0%EB%AA%85.jpg?b=1&s=1024x1024&w=0&k=20&c=U51OLwSRQryF5Jq-38FWNMl71cEw5YDYIBvGvAv4bus=")
+    no-repeat center / 100% auto;
+}
+.tImg8 {
+  background: url("https://cdn.pixabay.com/photo/2016/12/18/03/12/usj-1914942_1280.jpg")
+    no-repeat center / auto 100%;
+}
+.tImg9 {
+  background: url("https://media.istockphoto.com/id/1167728454/ko/%EC%82%AC%EC%A7%84/%ED%85%8C%EA%B0%88%EB%9E%91-%EC%9A%B0%EB%B6%93%EC%97%90%EC%84%9C-%EB%B0%9C%EB%A6%AC-%EB%85%BC%EC%9D%84-%EB%B0%A9%EB%AC%B8-%ED%95%98%EB%8A%94-%EC%95%84%EB%A6%84-%EB%8B%A4%EC%9A%B4-%EC%86%8C%EB%85%80-%EC%A0%95%EA%B8%80%EC%9D%84-%ED%86%B5%ED%95%B4-%EC%8A%A4%EC%9C%99%EC%9D%84-%EC%82%AC%EC%9A%A9%ED%95%98%EC%97%AC-%EC%82%AC%EB%9E%8C-%EB%B0%A9%EB%9E%91%EC%9E%90-%EC%97%AC%ED%96%89-%EB%B0%8F-%EA%B4%80%EA%B4%91-%EB%9D%BC%EC%9D%B4%ED%94%84-%EC%8A%A4%ED%83%80%EC%9D%BC%EC%97%90-%EB%8C%80%ED%95%9C-%EA%B0%9C%EB%85%90.jpg?b=1&s=1024x1024&w=0&k=20&c=clhfvqAfw2I0bhAIXVt3OZRLRKXNHqeeW14CzIWZyd0=")
+    no-repeat center / 100% auto;
+}
+.tImg10 {
+  background: url("https://cdn.pixabay.com/photo/2019/08/31/00/24/glacier-hike-4442543_1280.jpg")
+    no-repeat center / auto 100%;
+}
+.tImg11 {
+  background: url("https://cdn.pixabay.com/photo/2014/07/24/10/28/desert-400881_1280.jpg")
+    no-repeat center / auto 100%;
+}
+.tImg12 {
+  background: url("https://cdn.pixabay.com/photo/2023/06/19/15/45/paraglider-8074916_1280.jpg")
+    no-repeat center / auto 100%;
+}
+.tImg13 {
+  background: url("https://media.istockphoto.com/id/1340007371/ko/%EC%82%AC%EC%A7%84/%EA%B3%A0%EC%96%B4%EB%A9%94%EC%9D%98-%EC%9D%BC%EC%B6%9C.jpg?b=1&s=1024x1024&w=0&k=20&c=wWL56oWS5IGaz6GVa-6DrKd-0g-MSWW2WU-WKLoqhX0=")
+    no-repeat center / auto 100%;
+}
+.tImg14 {
+  background: url("https://media.istockphoto.com/id/1194071526/ko/%EC%82%AC%EC%A7%84/%EC%9D%BC%EB%B3%B8-%EC%86%8C%EB%85%80%EB%8A%94-%EA%B2%A8%EC%9A%B8%EC%B2%A0%EC%97%90-%EC%A0%84%ED%86%B5-%EA%B8%B0%EB%AA%A8%EB%85%B8-%EB%93%9C%EB%A0%88%EC%8A%A4%EB%A5%BC-%EC%9E%85%EA%B3%A0-%EA%B1%B7%EA%B3%A0-%EA%B5%90%ED%86%A0%EC%8B%9C%EC%9D%98-%EB%88%88%EC%9D%84-%EB%B3%B4%ED%98%B8%ED%95%98%EA%B8%B0-%EC%9C%84%ED%95%B4-%EC%9A%B0%EC%82%B0%EC%9D%84-%EC%82%AC%EC%9A%A9%ED%95%A9%EB%8B%88%EB%8B%A4.jpg?b=1&s=1024x1024&w=0&k=20&c=IfqDhqA2K88H3WwAMSEg0xTAysz27ffoELdX2gLLf48=")
+    no-repeat center / auto 100%;
+}
+.tImg15 {
+  background: url("https://cdn.pixabay.com/photo/2017/03/28/16/36/hogwarts-2182636_1280.jpg")
+    no-repeat center / auto 100%;
+}
+.tImg16 {
+  background: url("https://cdn.pixabay.com/photo/2022/10/30/14/03/underwater-7557528_1280.jpg")
+    no-repeat center / auto 100%;
+}
+
+.badge {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.tour-body {
+  padding: 20px;
+}
+.tour-loc {
+  font-size: 12px;
+  color: var(--primary-color);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.tour-name {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+  margin-bottom: 15px;
+  height: 48px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.tour-price {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-top: 1px solid #f0f0f0;
+  padding-top: 15px;
+}
+.price-val {
+  font-size: 19px;
+  font-weight: 800;
+  color: #00aaff;
+}
+
+/* Footer */
+.footer {
+  background-color: #f9f9f9;
+  padding: 60px 0 40px;
+  color: #666;
+  font-size: 14px;
+  border-top: 1px solid #eee;
+}
+
+.footer-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.footer-top {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 30px;
+  margin-bottom: 40px;
+}
+
+.footer-column h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.footer-column p {
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+.footer-column ul {
+  list-style: none;
+  padding: 0;
+}
+.footer-column ul li {
+  margin-bottom: 8px;
+}
+.footer-column ul li a:hover {
+  text-decoration: underline;
+}
+
+/* CS 버튼 스타일 */
+.cs-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.btn-cs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 6px 14px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #333;
+  min-width: 120px;
+}
+
+.btn-cs .icon {
+  font-size: 18px;
+}
+
+/* 구분선 */
+.footer-divider {
+  border: 0;
+  border-top: 1px solid #eee;
+  margin-bottom: 30px;
+}
+
+/* 하단 섹션 */
+.footer-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.company-info p {
+  font-size: 13px;
+  color: #999;
+  margin-bottom: 5px;
+}
+
+.company-info .disclaimer {
+  margin: 15px 0;
+  max-width: 800px;
+}
+
+.footer-policy {
+  margin-top: 20px;
+  display: flex;
+  gap: 20px;
+}
+
+.footer-policy a {
+  color: #333;
+  text-decoration: none;
+}
+
+/* 반응형 모바일 대응 */
+@media (max-width: 768px) {
+  .footer-top {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .social-links {
+    order: -1; /* 모바일에서 소셜 링크를 위로 */
+    margin-bottom: 20px;
+  }
+}
+
+/* 오른쪽 상단 위시리스트 플로팅 버튼 스타일 */
+.tour-wishlist-fab {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 1200;
+  background: linear-gradient(135deg, #f472b6, #a21caf);
+  color: #fff;
+  border-radius: 999px;
+  padding: 10px 14px;
+  border: none;
+  box-shadow: 0 8px 24px rgba(162, 28, 175, 0.18);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.tour-wishlist-fab__icon {
+  font-size: 16px;
+  line-height: 1;
+}
+.tour-wishlist-fab__label {
+  font-size: 12px;
+  font-weight: 700;
+}
+.tour-wishlist-fab__count {
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 5px;
+}
+.tour-wishlist-fab:hover {
+  filter: brightness(1.04);
+}

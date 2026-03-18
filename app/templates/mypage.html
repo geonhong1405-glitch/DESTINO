@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -8,21 +8,19 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- 외부 스타일시트 연결 -->
-    <link rel="stylesheet" href="../static/mypage.css">
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="/static/mypage.css?v=20260227a">
 </head>
-<body>
+<body data-user-id="{{ name or "" }}" data-user-name="{{ name or "" }}" data-user-nickname="{{ nickname or "" }}" data-user-email="{{ email or "" }}" data-user-phone="{{ phone or "" }}">
 
-    <!-- Header -->
     <header class="header">
-        <div class="container header-inner">
-            <h1 class="logo"><a href="/">DESTINO</a></h1>
-            <div class="header-search-bar">
-                <input type="text" placeholder="어디로 떠나시나요?" />
-            </div>
-            <nav class="header-nav">
+            <div class="container header-inner">
+                <h1 class="logo"><a href="/">DESTINO</a></h1>
+                <nav class="header-nav">
                     {% if nickname %}
-                    <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                    <a href="/mypage">
+                        <span style="font-weight: 700; color: #00aaff">{{ nickname }}</span>
+                    </a>
                     <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
                     {% else %}
                     <a href="/login">로그인</a>
@@ -30,9 +28,9 @@
                     <a href="#">이용안내</a>
                     <a href="#">고객센터</a>
                     <a href="#">KOR</a>
-            </nav>
-        </div>
-    </header>
+                </nav>
+            </div>
+        </header>
 
     <div class="main-layout">
         
@@ -50,15 +48,37 @@
                 <i data-lucide="shopping-bag" size="20"></i>
                 <span class="font-medium">예약 내역</span>
             </button>
+            <button onclick="switchTab('wishlist')" id="tab-btn-wishlist" class="sidebar-item">
+                <i data-lucide="heart" size="20"></i>
+                <span class="font-medium">위시리스트</span>
+            </button>
+            <button onclick="switchTab('cart')" id="tab-btn-cart" class="sidebar-item">
+                <i data-lucide="shopping-cart" size="20"></i>
+                <span class="font-medium">장바구니</span>
+            </button>
+            <button onclick="switchTab('vouchers')" id="tab-btn-vouchers" class="sidebar-item">
+                <i data-lucide="ticket" size="20"></i>
+                <span class="font-medium">이용권</span>
+            </button>
+            <button onclick="switchTab('post')" id="tab-btn-post" class="sidebar-item">
+                <i data-lucide="sticky-note" size="20"></i>
+                <span class="font-medium">내 게시물</span>
+            </button>
+
             <div class="sidebar-divider">
+                <p class="sidebar-group-label">고객지원</p>
+                <button onclick="switchTab('cs')" id="tab-btn-cs" class="sidebar-item">
+                    <i data-lucide="headphones" size="20"></i>
+                    <span class="font-medium">고객센터</span>
+                </button>
                 <button onclick="switchTab('settings')" id="tab-btn-settings" class="sidebar-item">
                     <i data-lucide="settings" size="20"></i>
                     <span class="font-medium">회원정보 수정</span>
                 </button>
-                <button class="sidebar-item logout-btn">
+                <a href="/logout" class="sidebar-item logout-btn">
                     <i data-lucide="log-out" size="20"></i>
                     <span class="font-medium">로그아웃</span>
-                </button>
+                </a>
             </div>
         </aside>
 
@@ -73,26 +93,30 @@
                     </div>
                     <div>
                         <div class="user-name-wrapper">
-                            <h3 class="user-name-text"><span class="user-name-display">{{ nickname }}</span>님</h3>
+                            <h3 class="user-name-text"><span class="user-name-display">{{ nickname or "김데스티노" }}</span>님</h3>
                             <span class="user-badge">VIP</span>
                         </div>
-                        <p class="user-email-text user-email-display">traveler@destino.com</p>
+                        <p class="user-email-text user-email-display">{{ email or "traveler@destino.com" }}</p>
                     </div>
                 </div>
                 
                 <div class="user-stats-section">
-                    <div class="stat-box">
-                        <p class="stat-label">포인트</p>
-                        <p class="stat-value">12,500P</p>
+                    <div class="stat-box clickable" onclick="switchTab('bookings')">
+                        <p class="stat-label">예약</p>
+                        <p id="mypage-booking-count" class="stat-value">0건</p>
                     </div>
-                    <div class="stat-box">
-                        <p class="stat-label">쿠폰</p>
-                        <p class="stat-value">3장</p>
+                    <div class="stat-box clickable" onclick="switchTab('wishlist')">
+                        <p class="stat-label">위시리스트</p>
+                        <p id="mypage-wishlist-count" class="stat-value">0개</p>
+                    </div>
+                    <div class="stat-box clickable" onclick="switchTab('cart')">
+                        <p class="stat-label">장바구니</p>
+                        <p id="mypage-cart-count" class="stat-value">0개</p>
                     </div>
                 </div>
             </div>
 
-            <!-- TAB: Summary (마이 홈) -->
+            <!-- TAB: Summary -->
             <div id="content-summary" class="tab-content active">
                 <section>
                     <div class="section-header">
@@ -100,12 +124,21 @@
                             <i data-lucide="calendar" class="destino-blue-icon" size="20"></i>
                             최근 예약 내역
                         </h4>
-                        <button onclick="switchTab('bookings')" class="view-all-btn">
-                            전체보기 <i data-lucide="chevron-right" size="16"></i>
-                        </button>
                     </div>
                     <div id="recent-bookings-list">
-                        <!-- JS에서 렌더링 -->
+                        <!-- JS render -->
+                    </div>
+                </section>
+
+                <section class="mt-8">
+                    <div class="section-header">
+                        <h4 class="section-title">
+                            <i data-lucide="shopping-cart" class="destino-blue-icon" size="20"></i>
+                            최근 장바구니
+                        </h4>
+                    </div>
+                    <div id="recent-cart-list">
+                        <!-- JS render -->
                     </div>
                 </section>
 
@@ -113,7 +146,7 @@
                 <div class="promo-banner group">
                     <div class="promo-content">
                         <span class="promo-tag">AI 추천 여행지</span>
-                        <h4 class="promo-title"><span class="user-name-display">김데스티노</span>님께 딱 맞는<br>유럽 항공권 특가를 찾았어요!</h4>
+                        <h4 class="promo-title"><span class="user-name-display">{{ nickname or "김데스티노" }}</span>님께 딱 맞는<br>유럽 항공권 특가를 찾았어요!</h4>
                         <p class="promo-subtitle">지금 확인하고 최대 15% 할인 쿠폰 받기</p>
                     </div>
                     <div class="promo-bg-icon">
@@ -122,17 +155,110 @@
                 </div>
             </div>
 
-            <!-- TAB: Bookings (예약 내역) -->
+            <!-- TAB: Bookings -->
             <div id="content-bookings" class="tab-content">
                 <div class="card-container min-h-card">
                     <h4 class="card-title">전체 예약 내역</h4>
                     <div id="all-bookings-list">
-                        <!-- JS에서 렌더링 -->
+                        <!-- JS render -->
                     </div>
                 </div>
             </div>
 
-            <!-- TAB: Settings (내 정보 관리) -->
+            <!-- TAB: Wishlist -->
+            <div id="content-wishlist" class="tab-content">
+                <div class="card-container min-h-card">
+                    <div class="section-header">
+                        <h4 id="mypage-wishlist-title" class="card-title mb-0">위시리스트 (0)</h4>
+                    </div>
+                    <div id="mypage-wishlist-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: Cart -->
+            <div id="content-cart" class="tab-content">
+                <div class="card-container min-h-card">
+                    <div class="section-header">
+                        <h4 id="mypage-cart-title" class="card-title mb-0">장바구니 (0)</h4>
+                        <div class="inline-flex bg-gray-100 rounded-xl p-1">
+                            <button id="mypage-cart-subtab-cart" type="button" onclick="switchCartSubTab('cart')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-white text-[#00AEEF]">장바구니</button>
+                            <button id="mypage-cart-subtab-alerts" type="button" onclick="switchCartSubTab('alerts')" class="px-3 py-1.5 text-xs font-bold rounded-lg text-gray-500">알림</button>
+                        </div>
+                    </div>
+                    <div id="mypage-cart-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4"></div>
+                    <div id="mypage-cart-alerts-list" class="grid grid-cols-1 gap-3 mt-4 hidden"></div>
+                </div>
+            </div>
+
+            <!-- TAB: Vouchers -->
+            <div id="content-vouchers" class="tab-content">
+                <div class="card-container min-h-card">
+                    <div class="section-header">
+                        <h4 id="mypage-voucher-title" class="card-title mb-0">이용권 (0)</h4>
+                        <a href="/chat-pass/purchase" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#00AEEF] text-white">이용권 구매</a>
+                    </div>
+                    <div id="mypage-voucher-list" class="grid grid-cols-1 gap-3 mt-4"></div>
+                </div>
+            </div>
+
+            <!-- TAB: GroupBuy -->
+            <div id="content-post" class="tab-content">
+                <div class="card-container min-h-card">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h4 class="card-title mb-1">내가 만든 공동구매</h4>
+                            <p class="text-sm text-gray-400">직접 등록하여 동행을 모집 중인 여행 목록입니다.</p>
+                        </div>
+                        <a href="/travelGroup" class="px-4 py-2 bg-[#00AEEF]/10 text-[#00AEEF] rounded-xl text-xs font-bold hover:bg-[#00AEEF] hover:text-white transition-all">
+                            + 새 모집글 쓰기
+                        </a>
+                    </div>
+                    <div id="my-trip-posts-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                </div>
+            </div>
+
+            <!-- TAB: CS -->
+            <div id="content-cs" class="tab-content">
+                <div class="card-container">
+                    <h4 class="card-title">무엇을 도와드릴까요?</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                        <div class="cs-category-btn">
+                            <i data-lucide="plane" size="24"></i>
+                            <span>항공</span>
+                        </div>
+                        <div class="cs-category-btn">
+                            <i data-lucide="hotel" size="24"></i>
+                            <span>숙소</span>
+                        </div>
+                        <div class="cs-category-btn">
+                            <i data-lucide="ticket" size="24"></i>
+                            <span>투어</span>
+                        </div>
+                        <div class="cs-category-btn">
+                            <i data-lucide="alert-circle" size="24"></i>
+                            <span>취소/환불</span>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="p-4 bg-gray-50 rounded-2xl flex justify-between items-center cursor-pointer">
+                            <p class="text-sm font-medium">자주 묻는 질문 (FAQ)</p>
+                            <i data-lucide="chevron-right" size="18" class="text-gray-400"></i>
+                        </div>
+                        <div class="p-4 bg-gray-50 rounded-2xl flex justify-between items-center cursor-pointer">
+                            <p class="text-sm font-medium">1:1 문의 내역</p>
+                            <i data-lucide="chevron-right" size="18" class="text-gray-400"></i>
+                        </div>
+                        <div class="p-6 border border-[#00AEEF] rounded-3xl bg-[#00AEEF]/5 mt-4">
+                            <h5 class="font-bold text-gray-800">상담이 필요하신가요?</h5>
+                            <p class="text-sm text-gray-500 mt-1">실시간 채팅 상담으로 빠르게 연결해드립니다.</p>
+                            <button class="mt-4 w-full py-3 bg-[#00AEEF] text-white rounded-xl font-bold">실시간 상담 시작하기</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: Settings -->
             <div id="content-settings" class="tab-content">
                 <div class="card-container no-padding">
                     <div class="card-header">
@@ -152,35 +278,33 @@
                         <div class="info-grid">
                             <div class="form-group">
                                 <label class="label-muted">아이디</label>
-                                <p id="info-id" class="readonly-field">destino_traveler</p>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="label-default">이름</label>
-                                <div id="name-field-container">
-                                    <p class="static-field">김데스티노</p>
-                                </div>
+                                <p id="info-id" class="readonly-field">{{ (name|trim) or "destino_traveler" }}</p>
                             </div>
 
                             <div class="form-group">
                                 <label class="label-default">닉네임</label>
                                 <div id="nickname-field-container">
-                                    <p class="static-field">여행자김씨</p>
+                                    <p class="static-field">{{ nickname or "김데스티노" }}</p>
                                 </div>
                             </div>
 
                             <div class="form-group">
                                 <label class="label-default">이메일</label>
                                 <div id="email-field-container">
-                                    <p class="static-field">traveler@destino.com</p>
+                                    <p class="static-field">{{ email or "traveler@destino.com" }}</p>
                                 </div>
                             </div>
 
-                            <div class="form-group full-width">
+                            <div class="form-group">
                                 <label class="label-default">전화번호</label>
                                 <div id="phone-field-container">
-                                    <p class="static-field">010-1234-5678</p>
+                                    <p class="static-field">{{ phone or "010-0000-0000" }}</p>
                                 </div>
+                            </div>
+
+                            <div class="form-group full-width" id="password-check-container">
+                                <label class="label-default">비밀번호 확인</label>
+                                <p class="static-field">저장을 위해 비밀번호 확인이 필요합니다.</p>
                             </div>
                         </div>
 
@@ -197,96 +321,83 @@
         </main>
     </div>
 
-    <!-- Footer -->
-    <footer class="footer">
-            <div class="footer-container">
-                <div class="footer-top">
-                    <div class="footer-column">
-                        <h3>고객센터</h3>
-                        <p>오전 9시 ~ 새벽 3시 운영</p>
-                        <p>채팅 상담 문의: 24시간 운영</p>
-                        <div class="cs-buttons">
-                            <a href="tel:1670-0000" class="btn-cs">
-                                <span class="icon">📞</span>
-                                <div class="text">
-                                    <strong>1670-0000</strong>
-                                </div>
-                            </a>
-                            <a href="#" class="btn-cs">
-                                <span class="icon">💬</span>
-                                <div class="text">
-                                    <strong>채팅 상담</strong>
-                                </div>
-                            </a>
-                        </div>
-                    </div>
-
-                    <div class="footer-column">
-                        <h3>회사</h3>
-                        <ul>
-                            <li><a href="#">회사소개</a></li>
-                            <li><a href="#">채용정보</a></li>
-                            <li><a href="#">제휴문의</a></li>
-                        </ul>
-                    </div>
-
-                    <div class="footer-column">
-                        <h3>서비스</h3>
-                        <ul>
-                            <li><a href="#">공지사항</a></li>
-                            <li><a href="#">자주 묻는 질문</a></li>
-                            <li><a href="#">여행 매거진</a></li>
-                        </ul>
-                    </div>
-
-                    <div class="footer-column">
-                        <h3>혜택</h3>
-                        <ul>
-                            <li><a href="#">멤버십 안내</a></li>
-                            <li><a href="#">공동예매 가이드</a></li>
-                            <li><a href="#">포인트 정책</a></li>
-                        </ul>
-                    </div>
-
-                    <div class="footer-column">
-                        <h3>모든 여행</h3>
-                        <ul>
-                            <li><a href="#">국내 숙소</a></li>
-                            <li><a href="#">해외 숙소</a></li>
-                            <li><a href="#">항공권</a></li>
-                            <li><a href="#">렌터카</a></li>
-                        </ul>
+    <<footer class="footer">
+        <div class="footer-container">
+            <div class="footer-top">
+                <div class="footer-column">
+                    <h3>고객센터</h3>
+                    <p>오전 9시 ~ 새벽 3시 운영</p>
+                    <p>채팅 상담 문의: 24시간 운영</p>
+                    <div class="cs-buttons">
+                        <a href="tel:1670-0000" class="btn-cs">
+                            <span class="icon">📞</span>
+                            <div class="text">
+                                <strong>전화 상담</strong>
+                            </div>
+                        </a>
+                        <a href="#" class="btn-cs">
+                            <span class="icon">✉️</span>
+                            <div class="text">
+                                <strong>메일 문의</strong>
+                            </div>
+                        </a>
                     </div>
                 </div>
-
-                <hr class="footer-divider" />
-
-                <div class="footer-bottom">
-                    <div class="company-info">
-                        <p>(주)데스티노 컴퍼니 | 대표이사: 김여행 | 사업자등록번호: 000-00-00000</p>
-                        <p>주소: 서울특별시 강남구 테헤란로 123 | 이메일: help@destino.com</p>
-                        <p class="disclaimer">
-                            데스티노는 통신판매중개자로서 통신판매의 당사자가 아니며, 상품의 예약, 이용 및 환불 등과
-                            관련한 의무와 책임은 각 판매자에게 있습니다.
-                        </p>
-
-                        <div class="footer-policy">
-                            <a href="#">이용약관</a>
-                            <a href="#"><strong>개인정보처리방침</strong></a>
-                            <a href="#">소비자 분쟁해결 기준</a>
-                        </div>
-                    </div>
-
-                    <div class="social-links">
-                        <a href="#" class="social-icon">YouTube</a>
-                        <a href="#" class="social-icon">Instagram</a>
-                        <a href="#" class="social-icon">Facebook</a>
+                <div class="footer-column">
+                    <h3>회사</h3>
+                    <ul>
+                        <li><a href="#">회사소개</a></li>
+                        <li><a href="#">채용정보</a></li>
+                        <li><a href="#">제휴문의</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>서비스</h3>
+                    <ul>
+                        <li><a href="#">공지사항</a></li>
+                        <li><a href="#">자주 묻는 질문</a></li>
+                        <li><a href="#">여행 매거진</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>혜택</h3>
+                    <ul>
+                        <li><a href="#">멤버십 안내</a></li>
+                        <li><a href="#">공동예매 가이드</a></li>
+                        <li><a href="#">포인트 정책</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h3>모든 여행</h3>
+                    <ul>
+                        <li><a href="#">항공</a></li>
+                        <li><a href="#">숙소</a></li>
+                        <li><a href="#">패키지</a></li>
+                        <li><a href="#">티켓</a></li>
+                        <li><a href="#">렌터카</a></li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="footer-divider" />
+            <div class="footer-bottom">
+                <div class="company-info">
+                    <p>(주)데스티노 컴퍼니 | 대표이사: 김여행 | 사업자등록번호: 000-00-00000</p>
+                    <p>주소: 서울특별시 강남구 테헤란로 123 | 이메일: help@destino.com</p>
+                    <p class="disclaimer">
+                        데스티노는 통신판매중개자로서 통신판매의 당사자가 아니며, 상품의 예약, 이용 및 환불 등과
+                        관련한 의무와 책임은 각 판매자에게 있습니다.
+                    </p>
+                    <div class="footer-policy">
+                        <a href="#">이용약관</a>
+                        <a href="#"><strong>개인정보처리방침</strong></a>
+                        <a href="#">소비자 분쟁해결 기준</a>
                     </div>
                 </div>
             </div>
-        </footer>
+        </div>
+    </footer>
 
-    <!-- 외부 스크립트 연결 -->
-    <script src="../static/mypage.js"></script>
+    <!-- Custom Script -->
+    <script src="/static/mypage.js?v=20260306d"></script>
 </body>
 </html>

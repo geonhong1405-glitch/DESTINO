@@ -1,0 +1,229 @@
+﻿<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DESTINO - 여행 공동구매</title>
+    <link rel="stylesheet" href="/static/travel-group.css?v=20260303a" />
+    <link rel="stylesheet" href="/static/saved-drawer-unified.css?v=20260306n" />
+    <script src="https://unpkg.com/lucide@latest"></script>
+  </head>
+  <body>
+    <header class="header">
+      <div class="container header-inner">
+        <h1 class="logo"><a href="/">DESTINO</a></h1>
+        <nav class="header-nav">
+          {% if nickname %}
+          <a href="/mypage"><span style="font-weight: 700; color: #00aaff">{{ nickname }}</span></a>
+          <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
+          {% else %}
+          <a href="/login">로그인</a>
+          {% endif %}
+          <a href="#">이용안내</a>
+          <a href="#">고객센터</a>
+          <a href="#">KOR</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="overlay" id="overlay"></div>
+
+      <section class="hero-section">
+        <h1 class="hero-title">함께하면 더 가벼운 여행, 공동구매</h1>
+        <p class="hero-sub">동행과 비용을 같이 맞추는 공동구매 모집 글을 확인해보세요.</p>
+      </section>
+
+      <section class="container">
+        <div class="section-header">
+          <h2 class="section-title">공동구매 모집 중</h2>
+          <button class="btn-write" type="button">
+            <i data-lucide="plus-circle" width="18"></i>
+            모집 글쓰기
+          </button>
+        </div>
+
+        <div class="board-list" id="boardList"></div>
+        <div class="pagination" id="pagination"></div>
+      </section>
+    </main>
+
+    <div class="modal-overlay" id="writeModal">
+      <div class="modal-content">
+        <span class="close-modal" onclick="closeModal('writeModal')">&times;</span>
+        <div class="modal-header"><h2>공동구매 모집글 작성</h2></div>
+        <div class="modal-scroll-area">
+          <form id="writeForm" onsubmit="handleFormSubmit(event)">
+            <div class="form-group">
+              <label>카테고리</label>
+              <select id="formCategory" onchange="toggleFormDates()">
+                <option value="package">호텔 + 항공권(패키지)</option>
+                <option value="hotel">호텔 전용</option>
+                <option value="flight">항공권(편도)</option>
+                <option value="roundtrip">항공권(왕복)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>제목</label>
+              <input type="text" id="formTitle" placeholder="예) 오사카 벚꽃투어 공동구매 4명 모집" required />
+            </div>
+            <div class="form-group">
+              <label>모집 인원</label>
+              <input type="number" id="formMaxPeople" min="2" step="1" value="4" placeholder="모집 인원 숫자 입력" required />
+            </div>
+            <div class="form-row-split" style="margin-bottom: 20px">
+              <div class="form-group" style="margin-bottom: 0; position: relative">
+                <label>나라 선택</label>
+                <div class="input-group" id="formCountryTrigger" style="padding: 12px">
+                  <div class="display-text" id="formCountryDisplay">나라 선택</div>
+                  <div class="popover-container" id="formCountryPopover" style="width: 100%">
+                    <div class="popover-input-wrapper">
+                      <input type="text" id="formCountryInput" class="popover-input" placeholder="나라 입력" />
+                    </div>
+                    <div class="recommend-list" id="formCountryList"></div>
+                    <div style="padding: 0 18px">
+                      <button type="button" class="btn-popover-done" id="formCountryDoneBtn">완료</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom: 0; position: relative">
+                <label>도시 선택</label>
+                <div class="input-group disabled" id="formCityTrigger" style="padding: 12px">
+                  <div class="display-text" id="formCityDisplay">도시 입력</div>
+                  <div class="popover-container" id="formCityPopover" style="width: 100%">
+                    <div class="popover-input-wrapper">
+                      <input type="text" id="formCityInput" class="popover-input" placeholder="도시 입력" />
+                    </div>
+                    <div class="recommend-list" id="formCityList"></div>
+                    <div style="padding: 0 18px">
+                      <button type="button" class="btn-popover-done" id="formCityDoneBtn">완료</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row-split">
+              <div class="form-group">
+                <label>출발일</label>
+                <input type="date" id="formDateStart" required onchange="updateMinEndDate()" />
+              </div>
+              <div class="form-group" id="formEndDateWrapper">
+                <label>종료일</label>
+                <input type="date" id="formDateEnd" required />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="formBudget">예상 가격(1인)</label>
+              <div style="position: relative; display: flex; align-items: center">
+                <input
+                  type="text"
+                  id="formBudget"
+                  placeholder="0"
+                  oninput="formatCurrency(this)"
+                  style="width: 100%; padding-right: 30px; text-align: right"
+                  required
+                />
+                <span style="position: absolute; right: 10px; color: #666; font-weight: bold">원</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>연결할 상품 선택 (장바구니/위시)</label>
+              <div class="attach-source-tabs">
+                <button type="button" class="attach-source-tab is-active" data-attach-source="cart">장바구니</button>
+                <button type="button" class="attach-source-tab" data-attach-source="wishlist">위시리스트</button>
+              </div>
+              <div id="formLinkedItemsList" class="linked-items-picker"></div>
+              <div class="linked-items-summary">
+                <span id="formLinkedItemsCount">0개 선택</span>
+                <button type="button" id="formLinkedItemsSelectAll">전체 선택/해제</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>상세 설명</label>
+              <textarea id="formDesc" rows="4" placeholder="상세 내용을 입력해주세요" required style="resize: none"></textarea>
+            </div>
+
+            <button type="submit" class="btn-detail-apply btn-submit" style="width: 100%; margin-top: 10px">모집 게시글 등록</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="detailModal">
+      <div class="modal-content">
+        <span class="close-modal" onclick="closeModal('detailModal')">&times;</span>
+        <div class="modal-header" id="detailHeader"></div>
+        <div class="modal-scroll-area">
+          <div id="detailBody"></div>
+          <div style="margin-top: 20px; border-top: 1px solid #f0f0f0; padding-top: 20px">
+            <label class="privacy-box">
+              <input type="checkbox" id="privacyCheck" class="custom-checkbox" />
+              <span style="font-size: 13px; font-weight: 600">(필수) 개인정보 수집 및 이용에 동의합니다.</span>
+            </label>
+          </div>
+          <div class="detail-actions" id="detailActions"></div>
+        </div>
+      </div>
+    </div>
+
+    <button id="groupSavedFab" class="group-saved-fab" type="button" aria-expanded="false" aria-controls="groupSavedDrawer" title="저장 목록 열기">
+      <span class="group-saved-fab__icon">🧺</span>
+      <span class="group-saved-fab__label">장바구니</span>
+      <span id="groupSavedFabCount" class="group-saved-fab__count" hidden>0</span>
+    </button>
+
+    <div id="groupSavedDrawer" class="group-saved-drawer" aria-hidden="true">
+      <div class="group-saved-drawer__backdrop" data-group-saved-close></div>
+      <section class="group-saved-drawer__panel">
+        <div class="group-saved-drawer__grab"></div>
+        <div class="group-saved-drawer__header">
+          <div class="group-saved-tabs" role="tablist" aria-label="저장 항목 탭">
+            <button type="button" class="group-saved-tab is-active" data-group-saved-tab="cart" aria-selected="true">장바구니</button>
+            <button type="button" class="group-saved-tab" data-group-saved-tab="wishlist" aria-selected="false">위시리스트</button>
+            <button type="button" class="group-saved-tab" data-group-saved-tab="alerts" aria-selected="false">알림</button>
+          </div>
+          <button type="button" class="group-saved-drawer__close" data-group-saved-close>닫기</button>
+        </div>
+        <ul id="groupSavedList" class="group-saved-list"></ul>
+        <div id="groupSavedEmpty" class="group-saved-empty">저장된 항목이 없습니다.</div>
+      </section>
+    </div>
+
+    <footer class="footer">
+      <div class="footer-container">
+        <div class="footer-top">
+          <div class="footer-column">
+            <h3>고객센터</h3>
+            <p>평일 9시 ~ 18시 운영</p>
+            <p>채팅 문의: 24시간 접수</p>
+          </div>
+          <div class="footer-column">
+            <h3>회사</h3>
+            <ul>
+              <li><a href="#">회사소개</a></li>
+              <li><a href="#">채용정보</a></li>
+            </ul>
+          </div>
+          <div class="footer-column">
+            <h3>서비스</h3>
+            <ul>
+              <li><a href="#">공지사항</a></li>
+              <li><a href="#">자주 묻는 질문</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      window.__AUTH__ = { nickname: {{ (nickname or '')|tojson }} };
+    </script>
+    <script src="/static/saved-drawer-common.js?v=20260308a"></script>
+    <script src="/static/travel-group.js?v=20260308a"></script>
+  </body>
+</html>

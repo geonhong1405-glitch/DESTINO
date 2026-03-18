@@ -1,43 +1,64 @@
-﻿from fastapi import APIRouter
-from pydantic import BaseModel
-import requests
+﻿import json
 import os
 import re
-from dotenv import load_dotenv
-from openai import OpenAI
-import json
+import uuid
+import base64
 from datetime import datetime, timedelta
-from typing import Optional
-from app.api.amadeus_api import (
-    resolve_location_to_iata as amadeus_resolve_location_to_iata,
-    search_flight_offers_raw,
-)
+from typing import Any, Optional
+from zoneinfo import ZoneInfo
+import requests
+
+from dotenv import load_dotenv
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse
+from openai import OpenAI
+from pydantic import BaseModel
+
+from app.services import flight_search_service
+from app.services import chat_renderers
+from app.services import hotel_service
+from app.services import place_search_service
+from app.services import place_followup_service
+from app.services import chat_parsing_service
+from app.services import date_parsing_service
+from app.services import intent_router_service
+from app.services import knowledge_service
+from app.services import knowledge_helpers_service
+from app.services import chat_orchestrator_service
+from app.services import chat_heuristics_service
+from app.endpoints.rag_api import answer_rag_question
+from app.session import get_user_id_from_session
+from app.services.booking_history_service import save_booking, get_user_bookings
+from app.services.chat_pass_service import consume_for_chat
+
 try:
     from pinecone import Pinecone
 except Exception:
     Pinecone = None
 
 load_dotenv()
-
 router = APIRouter()
-
-AMADEUS_API_KEY = os.getenv("AMADEUS_API_KEY") or os.getenv("AMADEUS_CLIENT_ID")
-AMADEUS_API_SECRET = os.getenv("AMADEUS_API_SECRET") or os.getenv("AMADEUS_CLIENT_SECRET")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
 PINECONE_NAMESPACE = os.getenv("PINECONE_NAMESPACE", "travel-knowledge")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 RAG_TOP_K = int(os.getenv("RAG_TOP_K", "5"))
+
+SESSION_STATE: dict[str, dict[str, Any]] = {}
+SESSION_HISTORY: dict[str, list[dict[str, str]]] = {}
 pinecone_index = None
-SESSION_STATE = {}
-SESSION_HISTORY = {}
+PENDING_FLIGHT_ORDERS: dict[str, dict[str, Any]] = {}
+
 SLOT_KEYS = [
     "origin",
     "destination",
     "departure_date",
     "return_date",
     "adults",
+    "children",
+    "infants",
     "max_price",
     "limit",
     "sort_by",
@@ -48,78 +69,129 @@ SLOT_KEYS = [
 ]
 
 LOCATION_ALIASES = {
-    "서울": "SEL",
-    "인천": "ICN",
-    "김포": "GMP",
-    "부산": "PUS",
-    "제주": "CJU",
-    "도쿄": "TYO",
-    "오사카": "OSA",
-    "후쿠오카": "FUK",
-    "삿포로": "SPK",
-    "나리타": "NRT",
-    "하네다": "HND",
-    "뉴욕": "NYC",
-    "런던": "LON",
-    "파리": "PAR",
-    "로마": "ROM",
-    "방콕": "BKK",
-    "다낭": "DAD",
-    "하노이": "HAN",
-    "호치민": "SGN",
-    "싱가포르": "SIN",
+    "\uc11c\uc6b8": "SEL",
+    "\uc778\ucc9c": "ICN",
+    "\uae40\ud3ec": "GMP",
+    "\ubd80\uc0b0": "PUS",
+    "\uc81c\uc8fc": "CJU",
+    "\ub3c4\ucfc4": "TYO",
+    "\uc624\uc0ac\uce74": "OSA",
+    "\ud6c4\ucfe0\uc624\uce74": "FUK",
+    "\uc0bf\ud3ec\ub85c": "SPK",
+    "\ub098\ub9ac\ud0c0": "NRT",
+    "\ud558\ub124\ub2e4": "HND",
+    "\ub274\uc695": "NYC",
+    "\ub7f0\ub358": "LON",
+    "\ud30c\ub9ac": "PAR",
+    "\ubc29\ucf55": "BKK",
+    "\uc2f1\uac00\ud3ec\ub974": "SIN",
+    "\uc2dc\ub4dc\ub2c8": "SYD",
+    "seoul": "SEL",
+    "incheon": "ICN",
+    "gimpo": "GMP",
+    "busan": "PUS",
+    "jeju": "CJU",
+    "tokyo": "TYO",
+    "osaka": "OSA",
+    "fukuoka": "FUK",
+    "sapporo": "SPK",
+    "narita": "NRT",
+    "haneda": "HND",
+    "new york": "NYC",
+    "london": "LON",
+    "paris": "PAR",
+    "bangkok": "BKK",
+    "singapore": "SIN",
+    "sydney": "SYD",
+    "\ubcb3\ubd80": "OIT",
+    "beppu": "OIT",
 }
 
 COUNTRY_ALIASES = {
-    "한국": "SEL",
-    "대한민국": "SEL",
-    "일본": "TYO",
-    "중국": "BJS",
-    "대만": "TPE",
-    "홍콩": "HKG",
-    "미국": "NYC",
-    "캐나다": "YTO",
-    "영국": "LON",
-    "프랑스": "PAR",
-    "이탈리아": "ROM",
-    "스페인": "MAD",
-    "독일": "BER",
-    "태국": "BKK",
-    "베트남": "SGN",
-    "싱가포르": "SIN",
-    "인도": "DEL",
-    "말레이시아": "KUL",
-    "인도네시아": "JKT",
-    "필리핀": "MNL",
-    "호주": "SYD",
-    "뉴질랜드": "AKL",
+    "\ud55c\uad6d": "SEL",
+    "\ub300\ud55c\ubbfc\uad6d": "SEL",
+    "\uc77c\ubcf8": "TYO",
+    "\ubbf8\uad6d": "NYC",
+    "\uc601\uad6d": "LON",
+    "\ud504\ub791\uc2a4": "PAR",
+    "\ud0dc\uad6d": "BKK",
+    "\ubca0\ud2b8\ub0a8": "SGN",
+    "\uc2f1\uac00\ud3ec\ub974": "SIN",
+    "\ub9d0\ub808\uc774\uc2dc\uc544": "KUL",
+    "\ud544\ub9ac\ud540": "MNL",
+    "\ud638\uc8fc": "SYD",
     "japan": "TYO",
-    "korea": "SEL",
-    "south korea": "SEL",
-    "usa": "NYC",
-    "united states": "NYC",
-    "france": "PAR",
-    "uk": "LON",
-    "england": "LON",
-    "united kingdom": "LON",
-    "thailand": "BKK",
-    "vietnam": "SGN",
     "australia": "SYD",
     "india": "DEL",
-    "indonesia": "JKT",
-    "philippines": "MNL",
-    "malaysia": "KUL",
-    "germany": "BER",
-    "spain": "MAD",
-    "italy": "ROM",
-    "canada": "YTO",
-    "hong kong": "HKG",
-    "taiwan": "TPE",
-    "new zealand": "AKL",
 }
 
-LOCATION_ALIASES_NORM = {re.sub(r"\s+", "", k).lower(): v for k, v in LOCATION_ALIASES.items()}
-COUNTRY_ALIASES_NORM = {re.sub(r"\s+", "", k).lower(): v for k, v in COUNTRY_ALIASES.items()}
+RAG_COUNTRY_CODE_ALIASES = {
+    "\ud55c\uad6d": "KR",
+    "\ub300\ud55c\ubbfc\uad6d": "KR",
+    "\uc77c\ubcf8": "JP",
+    "\ubbf8\uad6d": "US",
+    "\uc601\uad6d": "GB",
+    "\ud504\ub791\uc2a4": "FR",
+    "\ud0dc\uad6d": "TH",
+    "\ubca0\ud2b8\ub0a8": "VN",
+    "\uc2f1\uac00\ud3ec\ub974": "SG",
+    "\ub9d0\ub808\uc774\uc2dc\uc544": "MY",
+    "\ud544\ub9ac\ud540": "PH",
+    "\ud638\uc8fc": "AU",
+    "japan": "JP",
+    "korea": "KR",
+    "south korea": "KR",
+    "usa": "US",
+    "us": "US",
+    "u.s.": "US",
+    "united states": "US",
+    "uk": "GB",
+    "u.k.": "GB",
+    "united kingdom": "GB",
+    "england": "GB",
+    "france": "FR",
+    "thailand": "TH",
+    "vietnam": "VN",
+    "singapore": "SG",
+    "malaysia": "MY",
+    "philippines": "PH",
+    "australia": "AU",
+    "india": "IN",
+}
+
+
+def _normalize_rag_country_code(v: Any) -> Optional[str]:
+    if not v:
+        return None
+    raw = str(v).strip()
+    if not raw:
+        return None
+    key = raw.lower()
+    key_compact = re.sub(r"\s+", " ", key)
+    if key_compact in RAG_COUNTRY_CODE_ALIASES:
+        return RAG_COUNTRY_CODE_ALIASES[key_compact]
+    up = raw.upper().strip()
+    if up in {"JP", "KR", "US", "GB", "FR", "TH", "VN", "SG", "MY", "PH", "AU", "IN"}:
+        return up
+    if up == "USA":
+        return "US"
+    if up in {"UK", "GBR"}:
+        return "GB"
+    if up == "KOR":
+        return "KR"
+    if up == "JPN":
+        return "JP"
+    return None
+
+
+def _infer_rag_country_code(texts: list[str]) -> Optional[str]:
+    for txt in texts:
+        t = txt or ""
+        tl = t.lower()
+        for k, code in RAG_COUNTRY_CODE_ALIASES.items():
+            if k in tl or k in t:
+                return code
+    return None
 
 
 class ChatRequest(BaseModel):
@@ -127,837 +199,971 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
 
 
+class FlightPassengerInput(BaseModel):
+    last_name: str
+    first_name: str
+    birth_date: str
+    nationality: str
+    passport_number: str
+    passport_expiry: str
+
+
+class FlightCheckoutOfferInput(BaseModel):
+    airline: str | None = None
+    airline_code: str | None = None
+    price: dict[str, Any] | None = None
+    itineraries: list[dict[str, Any]] | None = None
+
+
+class FlightCheckoutRequest(BaseModel):
+    offer: FlightCheckoutOfferInput
+    customer_name: str
+    customer_email: str
+    customer_phone: str | None = None
+    passengers: list[FlightPassengerInput]
+
+
+class TossConfirmRequest(BaseModel):
+    paymentKey: str
+    orderId: str
+    amount: int
+
+
 class NeedMoreInfoError(Exception):
     pass
 
 
-def init_pinecone_index():
-    global pinecone_index
-    if pinecone_index is not None:
-        return pinecone_index
-    if not Pinecone or not PINECONE_API_KEY or not PINECONE_INDEX_NAME:
-        return None
+def _country_currency_hint(country_code: Optional[str]) -> str:
+    cc = (country_code or "").upper().strip()
+    mapping = {
+        "JP": "\uc5d4\ud654(JPY)",
+        "US": "\ub2ec\ub7ec(USD)",
+        "GB": "\ud30c\uc6b4\ub4dc(GBP)",
+        "FR": "\uc720\ub85c(EUR)",
+        "DE": "\uc720\ub85c(EUR)",
+        "IT": "\uc720\ub85c(EUR)",
+        "ES": "\uc720\ub85c(EUR)",
+        "PT": "\uc720\ub85c(EUR)",
+        "NL": "\uc720\ub85c(EUR)",
+        "BE": "\uc720\ub85c(EUR)",
+        "AT": "\uc720\ub85c(EUR)",
+        "IE": "\uc720\ub85c(EUR)",
+        "TH": "\ubc14\ud2b8(THB)",
+        "VN": "\ub3d9(VND)",
+        "SG": "\uc2f1\uac00\ud3ec\ub974 \ub2ec\ub7ec(SGD)",
+        "MY": "\ub9c1\uae43(MYR)",
+        "PH": "\ud398\uc18c(PHP)",
+        "AU": "\ud638\uc8fc \ub2ec\ub7ec(AUD)",
+        "IN": "\ub8e8\ud53c(INR)",
+        "KR": "\uc6d0\ud654(KRW)",
+    }
+    return mapping.get(cc, "\ud604\uc9c0\ud1b5\ud654")
+
+def _to_float(v: Any) -> Optional[float]:
     try:
-        pc = Pinecone(api_key=PINECONE_API_KEY)
-        pinecone_index = pc.Index(PINECONE_INDEX_NAME)
-        return pinecone_index
+        return float(v)
     except Exception:
         return None
 
 
-def embed_text(text):
-    response = client.embeddings.create(
-        model=EMBEDDING_MODEL,
-        input=text,
+def _clean_json(s: str) -> str:
+    return (s or "").replace("```json", "").replace("```", "").strip()
+
+
+def _strip_markdown_decorations(text: str) -> str:
+    t = str(text or "")
+    # Remove markdown headings/bold markers for chat readability
+    t = re.sub(r"^\s{0,3}#{1,6}\s*", "", t, flags=re.MULTILINE)
+    t = t.replace("**", "")
+    t = t.replace("__", "")
+    t = re.sub(r"`([^`]*)`", r"\1", t)
+    # Normalize list item spacing like "1.  "
+    t = re.sub(r"(?m)^(\d+)\.\s+", r"\1. ", t)
+    return t.strip()
+
+
+def _contains(text: str, kws: list[str]) -> bool:
+    return any(k in (text or "") for k in kws)
+
+
+def _parse_rel_date(text: str):
+    return date_parsing_service.parse_rel_date(text)
+
+def _has_date_signal(text: str) -> bool:
+    return date_parsing_service.has_date_signal(text, contains_fn=_contains)
+
+def _parse_abs_monthday_range(text: str, now_dt: Optional[datetime] = None) -> dict[str, Optional[str]]:
+    return date_parsing_service.parse_abs_monthday_range(text, now_dt=(now_dt or datetime.now(KST)))
+
+def _is_date_correction_message(text: str) -> bool:
+    return date_parsing_service.is_date_correction_message(
+        text,
+        contains_fn=_contains,
+        has_date_signal_fn=_has_date_signal,
     )
-    return response.data[0].embedding
+
+def _parse_rel_date_for_correction(text: str):
+    return date_parsing_service.parse_rel_date_for_correction(text, parse_rel_date_fn=_parse_rel_date)
 
 
-def retrieve_knowledge_chunks(query, top_k=RAG_TOP_K):
-    index = init_pinecone_index()
-    if index is None:
-        return []
+def _has_location_signal(text: str) -> bool:
+    """
+    Broad location hints; if absent on correction utterance, keep existing route slots unchanged.
+    """
+    t = text or ""
 
-    vector = embed_text(query)
-    res = index.query(
-        vector=vector,
-        top_k=top_k,
-        include_metadata=True,
-        namespace=PINECONE_NAMESPACE,
-    )
+    # keywords: \ucd9c\ubc1c\uc9c0, \ub3c4\ucc29\uc9c0, \uacf5\ud56d
+    if _contains(t, ["\ucd9c\ubc1c\uc9c0", "\ub3c4\ucc29\uc9c0", "\uacf5\ud56d", "from", "to"]):
+        return True
 
-    matches = getattr(res, "matches", None)
-    if matches is None and isinstance(res, dict):
-        matches = res.get("matches", [])
-    if not matches:
-        return []
+    compact = re.sub(r"\s+", "", t)
 
-    chunks = []
-    for m in matches:
-        meta = getattr(m, "metadata", None)
-        if meta is None and isinstance(m, dict):
-            meta = m.get("metadata", {}) or {}
-        score = getattr(m, "score", None)
-        if score is None and isinstance(m, dict):
-            score = m.get("score")
-        text = (meta or {}).get("text") or (meta or {}).get("content")
-        if text:
-            chunks.append(
-                {
-                    "text": text,
-                    "source": (meta or {}).get("source", "unknown"),
-                    "score": score,
-                }
-            )
-    return chunks
+    if compact in LOCATION_ALIASES or compact in COUNTRY_ALIASES:
+        return True
+
+    # NOTE: this can over-match if you have very short english keys.
+    # If that becomes an issue, add word-boundary matching for short alpha keys.
+    return any(name in t for name in list(LOCATION_ALIASES.keys()) + list(COUNTRY_ALIASES.keys()))
 
 
-def is_knowledge_query(user_input):
-    text = (user_input or "").lower().strip()
-    knowledge_keywords = [
-        "어디",
-        "위치",
-        "수도",
-        "언어",
-        "문화",
-        "환율",
-        "환전",
-        "비자",
-        "입국",
-        "출입국",
-        "교통",
-        "치안",
-        "주의",
-        "날씨",
-        "기후",
-        "언제 가",
-        "여행하기",
-        "얼마나 걸려",
-        "비행시간",
-        "시간 얼마나",
-        "시차",
-        "추천 명소",
-        "맛집",
-        "여행 팁",
-        "주의사항",
-    ]
-    flight_keywords = [
-        "항공편",
-        "비행기",
-        "검색",
-        "가격",
-        "예매",
-        "예약",
-        "왕복",
-        "편도",
-        "출발",
-        "도착",
-    ]
-    general_question_patterns = [
-        "뭐야",
-        "무엇",
-        "어때",
-        "어떤",
-        "알려줘",
-        "설명",
-        "정보",
-    ]
-    has_knowledge = any(k in text for k in knowledge_keywords) or any(p in text for p in general_question_patterns)
-    has_flight = any(k in text for k in flight_keywords)
-    return has_knowledge and not has_flight
+def _should_show_place_distance(message: str, location_query: Optional[str], city_name: Optional[str]) -> bool:
+    """
+    거리 표시는 '근처/역/주변' 같은 근접 탐색 의도가 분명할 때만 노출한다.
+    도시 전체 질의(예: 파리 맛집)에서 도시 중심점 기준 직선거리를 보여주면 오해를 줄 수 있다.
+    """
+    msg = message or ""
+    lq = (location_query or "").strip().lower()
+    city = (city_name or "").strip().lower()
+
+    # Explicit proximity intent from user utterance.
+    if _contains(msg, ["근처", "주변", "근방", "역", "앞", "도보", "걸어서"]):
+        return True
+
+    # If the extracted location itself contains a proximity/landmark cue, distance is still useful.
+    if any(k in lq for k in ["station", " st.", "역", "near", "nearby", "공항", "airport"]):
+        return True
+
+    # Broad city-level queries should not show center-point straight-line distance.
+    if lq and city and (lq == city or lq in city or city in lq):
+        return False
+
+    return False
 
 
-def is_itinerary_query(user_input):
-    text = (user_input or "").lower().strip()
-    itinerary_keywords = [
-        "일정",
-        "코스",
-        "루트",
-        "플랜",
-        "day 1",
-        "day1",
-        "1일차",
-        "2일차",
-        "여행 계획",
-    ]
-    return any(k in text for k in itinerary_keywords)
+def _is_landmark_like_location_query(location_query: Optional[str]) -> bool:
+    q = (location_query or "").strip().lower()
+    if not q:
+        return False
+    return any(k in q for k in ["station", "역", "airport", "공항", "terminal", "터미널"])
 
 
-def detect_intent(user_input):
-    if is_itinerary_query(user_input):
-        return "itinerary"
-    if is_knowledge_query(user_input):
-        return "knowledge"
-    return "flight"
+def _place_search_radius_m(message: str, location_query: Optional[str] = None) -> int:
+    """
+    사용자 질의의 근접 의도를 반영해 장소 검색 반경을 조절한다.
+    - 근처/역/도보/주변: 좁은 반경
+    - 일반 도시 추천: 넓은 반경
+    """
+    msg = message or ""
+    lq = (location_query or "").lower()
+    if _contains(msg, ["근처", "주변", "근방", "역", "도보", "걸어서", "근접"]):
+        return 2000
+    if any(k in lq for k in ["station", "역", "tower", "탑", "airport", "공항"]):
+        return 2500
+    return 7000
+
+def _build_context(history: list[dict[str, str]], max_items: int = 16) -> str:
+    return "\n".join(f"{x.get('role')}: {x.get('text')}" for x in history[-max_items:])
 
 
-def is_ascii_text(value):
-    return all(ord(ch) < 128 for ch in value)
-
-
-def normalize_location_keyword(keyword):
-    cleaned = (keyword or "").strip()
-    if not cleaned:
-        return cleaned
-
-    norm_key = re.sub(r"\s+", "", cleaned).lower()
-    if norm_key in LOCATION_ALIASES_NORM:
-        return LOCATION_ALIASES_NORM[norm_key]
-    if norm_key in COUNTRY_ALIASES_NORM:
-        return COUNTRY_ALIASES_NORM[norm_key]
-
-    if len(cleaned) == 3 and cleaned.isalpha():
-        return cleaned.upper()
-
-    if is_ascii_text(cleaned):
-        return cleaned
-
-    # Non-ASCII 도시명은 영문 키워드 또는 IATA 코드로 변환해 위치 검색 실패를 줄인다.
+def _llm_json(system: str, prompt: str) -> dict[str, Any]:
     try:
-        prompt = (
-            "다음 지명을 Amadeus Location API용 영문 도시명 또는 3글자 IATA 코드로 변환해라. "
-            "나라명이면 대표 허브 도시 IATA(예: Japan->TYO, USA->NYC)를 사용해라. "
-            'JSON만 출력: {"keyword":"..."}\n'
-            f"입력: {cleaned}"
-        )
-        response = client.chat.completions.create(
+        res = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "변환 결과 JSON만 출력"},
-                {"role": "user", "content": prompt},
-            ],
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
             temperature=0,
         )
-        content = (response.choices[0].message.content or "").strip()
-        content = content.replace("```json", "").replace("```", "").strip()
-        parsed = json.loads(content)
-        converted = (parsed.get("keyword") or "").strip()
-        return converted or cleaned
+        return json.loads(_clean_json(res.choices[0].message.content))
     except Exception:
-        return cleaned
+        return {}
 
 
-def resolve_location_to_iata(keyword, token=None):
-    keyword = normalize_location_keyword(keyword)
-    if not keyword:
-        return None
+KST = ZoneInfo("Asia/Seoul")
 
-    if len(keyword) == 3 and keyword.isalpha():
-        return keyword.upper()
-    return amadeus_resolve_location_to_iata(keyword, token=token)
+# assumes you already have:
+# - _llm_json(system: str, prompt: str) -> dict[str, Any]
+# - _parse_rel_date(text: str) -> Optional[date]
+# - _normalize_rag_country_code(v: Any) -> Optional[str]
 
+def _today_kst_str() -> str:
+    return date_parsing_service.today_kst_str(now_dt=datetime.now(KST))
 
-def search_flights(
-    origin,
-    destination,
-    departure_date,
-    return_date=None,
-    adults=1,
-    max_price=None,
-    api_max=30,
-):
-    origin_iata = resolve_location_to_iata(origin)
-    destination_iata = resolve_location_to_iata(destination)
+def _coerce_int(v: Any, default: int = 0, lo: int = 0, hi: int = 365) -> int:
+    return date_parsing_service.coerce_int(v, default=default, lo=lo, hi=hi)
 
-    if not origin_iata or not destination_iata:
-        raise ValueError(
-            f"출발/도착지를 공항 코드로 해석하지 못했습니다. origin={origin}, destination={destination}"
-        )
-    data = search_flight_offers_raw(
-        origin_code=origin_iata,
-        destination_code=destination_iata,
-        departure_date=departure_date,
-        return_date=return_date,
-        adults=adults,
-        max_results=api_max,
+def _normalize_date_semantics(parsed: Any) -> dict[str, Any]:
+    return date_parsing_service.normalize_date_semantics(parsed)
+
+def _extract_date_expr_with_llm(message: str, context: str = "") -> dict[str, Any]:
+    return date_parsing_service.extract_date_expr_with_llm(
+        message,
+        context,
+        llm_json_fn=_llm_json,
+        today_str=_today_kst_str(),
     )
 
-    if max_price:
-        filtered = []
-        for offer in data.get("data", []):
-            price = float(offer["price"]["total"])
-            if price <= float(max_price):
-                filtered.append(offer)
-        data["data"] = filtered
-
-    data["meta_query"] = {
-        "origin": origin_iata,
-        "destination": destination_iata,
-        "departure_date": departure_date,
-        "return_date": return_date,
-        "adults": adults,
-        "max_price": max_price,
-    }
-    return data
-
-
-def duration_to_minutes(duration_text):
-    if not duration_text or not isinstance(duration_text, str):
-        return 10**9
-    match = re.match(r"^PT(?:(\d+)H)?(?:(\d+)M)?$", duration_text)
-    if not match:
-        return 10**9
-    hours = int(match.group(1) or 0)
-    minutes = int(match.group(2) or 0)
-    return hours * 60 + minutes
-
-
-def parse_iso_datetime(value):
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(value)
-    except Exception:
-        return None
-
-
-def simplify(raw_data):
-    results = []
-    seen = set()
-
-    for offer in raw_data.get("data", []):
-        itinerary_key = json.dumps(offer["itineraries"], ensure_ascii=False)
-        if itinerary_key in seen:
-            continue
-        seen.add(itinerary_key)
-
-        price = offer["price"]["total"]
-        price_value = float(price)
-        currency = offer["price"]["currency"]
-        airline_codes = offer.get("validatingAirlineCodes", [])
-        itinerary_duration = (
-            offer.get("itineraries", [{}])[0].get("duration")
-            if offer.get("itineraries")
-            else None
-        )
-        segments_info = []
-
-        for itin in offer.get("itineraries", []):
-            for seg in itin.get("segments", []):
-                segments_info.append(
-                    {
-                        "airline": seg.get("carrierCode", "-"),
-                        "departure": seg.get("departure", {}).get("at", "-"),
-                        "arrival": seg.get("arrival", {}).get("at", "-"),
-                        "duration": seg.get("duration", "-"),
-                    }
-                )
-
-        first_departure = segments_info[0]["departure"] if segments_info else None
-        first_itinerary_segments = offer.get("itineraries", [{}])[0].get("segments", [])
-        stops = max(len(first_itinerary_segments) - 1, 0)
-        primary_airline = segments_info[0]["airline"] if segments_info else "-"
-        results.append(
-            {
-                "price": price,
-                "price_value": price_value,
-                "currency": currency,
-                "segments": segments_info,
-                "airline_codes": airline_codes,
-                "itinerary_duration": itinerary_duration,
-                "duration_min": duration_to_minutes(itinerary_duration),
-                "first_departure": first_departure,
-                "stops": stops,
-                "primary_airline": primary_airline,
-            }
-        )
-
-    return results
-
-
-def format_html(results, query_meta):
-    if not results:
-        return "<p>조건에 맞는 항공편을 찾지 못했습니다.</p>"
-
-    html = ""
-    html += (
-        "<div style='margin-bottom:10px;padding:8px;background:#f7f7f7;border:1px solid #ddd;'>"
-        f"<b>API 조회조건</b> | 출발: {query_meta.get('origin')} / 도착: {query_meta.get('destination')} / "
-        f"출발일: {query_meta.get('departure_date')} / 복귀일: {query_meta.get('return_date') or '-'} / "
-        f"인원: {query_meta.get('adults')} / 최대가격: {query_meta.get('max_price') or '-'}"
-        "</div>"
+def _resolve_date_expr(expr: Any, now_dt: Optional[datetime] = None) -> Optional[str]:
+    return date_parsing_service.resolve_date_expr(
+        expr,
+        parse_rel_date_fn=_parse_rel_date,
+        now_dt=(now_dt or datetime.now(KST)),
     )
 
-    html += "<table border='1' style='border-collapse:collapse; width:100%;'>"
-    html += "<tr><th>항공사</th><th>출발</th><th>도착</th><th>소요시간</th><th>가격</th></tr>"
 
-    for r in results:
-        for seg in r["segments"]:
-            html += (
-                f"<tr><td>{seg['airline']}</td><td>{seg['departure']}</td><td>{seg['arrival']}</td>"
-                f"<td>{seg['duration']}</td><td>{r['price']} {r['currency']}</td></tr>"
-            )
-        html += "<tr><td colspan='5' style='text-align:center;background:#f0f0f0;'>-----</td></tr>"
-
-    html += "</table>"
-    return html
-
-
-def build_conversational_answer(user_input, state, results):
-    if not results:
-        return (
-            "<p>조건에 맞는 항공편을 찾지 못했어요.</p>"
-            "<p>원하면 날짜를 하루 앞뒤로 넓혀서 다시 찾아볼까요?</p>"
-        )
-
-    best = results[0]
-    top3 = select_diverse_recommendations(results, 3)
-    first_seg = best["segments"][0] if best.get("segments") else {}
-    dep = first_seg.get("departure", "-")
-    arr = first_seg.get("arrival", "-")
-    dur = best.get("itinerary_duration") or first_seg.get("duration", "-")
-    price = f"{best.get('price')} {best.get('currency')}"
-
-    sort_label = {
-        "price_asc": "저렴한 순",
-        "price_desc": "비싼 순",
-        "fastest": "가장 빠른 순",
-        "fastest_cheap": "빠르고 저렴한 순",
-    }.get(state.get("sort_by"), "조건 기반")
-
-    filter_bits = []
-    if state.get("departure_window") == "morning":
-        filter_bits.append("오전 출발")
-    elif state.get("departure_window") == "afternoon":
-        filter_bits.append("오후 출발")
-    elif state.get("departure_window") == "evening":
-        filter_bits.append("저녁 출발")
-    elif state.get("departure_window") == "night":
-        filter_bits.append("야간 출발")
-    if state.get("direct_only") is True:
-        filter_bits.append("직항만")
-    filter_text = f" / 추가조건: {', '.join(filter_bits)}" if filter_bits else ""
-
-    lines = []
-    for i, row in enumerate(top3, start=1):
-        seg = row["segments"][0] if row.get("segments") else {}
-        lines.append(
-            f"{i}) {row.get('primary_airline', '-')}: {seg.get('departure', '-')} 출발, "
-            f"{row.get('itinerary_duration') or seg.get('duration', '-')}, {row.get('price')} {row.get('currency')}"
-        )
-    picks_html = "<br>".join(lines)
-
-    intro = (
-        "<div style='margin-bottom:10px;padding:10px;border:1px solid #dbeafe;background:#eff6ff;'>"
-        f"<b>요청 이해</b>: {sort_label}으로 {state.get('origin')} → {state.get('destination')} 항공편을 찾았어요{filter_text}.<br>"
-        f"<b>추천 1순위</b>: {dep} 출발 / {arr} 도착 / {dur} / {price}<br>"
-        f"<b>추천 바리에이션</b><br>{picks_html}<br>"
-        "원하면 지금 결과에서 <b>직항만</b>, <b>수하물 포함</b>, <b>출발 시간대</b> 조건으로 더 좁혀드릴게요."
-        "</div>"
-    )
-    return intro
-
-
-def llm_parse_partial(user_input, conversation_context=""):
-    today = datetime.now().strftime("%Y-%m-%d")
-    prompt = f"""
-너는 항공권 검색 파라미터 추출기다.
-오늘 날짜는 {today} 이다.
-사용자 입력에서 아래 JSON만 출력해라(설명 금지):
-{{
-  "origin": "출발 도시명 또는 IATA 코드",
-  "destination": "도착 도시명 또는 IATA 코드",
-  "departure_date": "YYYY-MM-DD 또는 null",
-  "return_date": "YYYY-MM-DD 또는 null",
-  "adults": 숫자,
-  "max_price": 숫자 또는 null,
-  "limit": 숫자 또는 null,
-  "sort_by": "price_asc 또는 price_desc 또는 fastest 또는 fastest_cheap 또는 null",
-  "trip_type": "round 또는 oneway 또는 null",
-  "time_pref": "after_now 또는 null",
-  "departure_window": "morning/afternoon/evening/night 또는 null",
-  "direct_only": true/false/null
-}}
-규칙:
-- origin/destination은 가능하면 IATA(예: ICN, TYO, JFK) 또는 영문 도시명으로 출력
-- 편도면 trip_type은 oneway, 왕복이면 round
-- 인원 언급이 없으면 adults=1
-- 최대가격 언급이 없으면 max_price=null
-- 출발지/도착지/날짜가 입력에 없으면 null로 둔다
-- 자연어 날짜(예: 다음 주 금요일, 3월 15일)를 반드시 YYYY-MM-DD로 변환
-- 통화단위는 제거하고 숫자만 넣어라
-- "저렴", "싼", "가성비" 표현이 있으면 sort_by는 price_asc
-- "비싼", "고가", "높은 가격", "비싼순" 표현이 있으면 sort_by는 price_desc
-- "가장 빨리", "최단", "빨리 갈 수 있는" 표현이 있으면 sort_by는 fastest
-- "가장 빨리"와 "저렴"이 함께 있으면 sort_by는 fastest_cheap
-- "N개", "상위 N개" 표현이 있으면 limit=N, 없으면 null
-- "지금", "지금 시간 기준", "오늘 중", "당장" 표현이 있고 날짜가 없으면 departure_date는 오늘 날짜로 추정하고 time_pref는 after_now
-- "오전/아침"이면 departure_window는 morning
-- "오후"면 departure_window는 afternoon
-- "저녁"이면 departure_window는 evening
-- "밤/야간"이면 departure_window는 night
-- "직항만/경유 없이"면 direct_only=true
-- 이전 질문에 대한 짧은 답변이면 언급된 필드만 채우고 나머지는 null
-
-사용자 입력:
-{user_input}
-
-최근 대화(있으면 참고):
-{conversation_context}
-"""
-
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "항공권 검색 JSON만 출력"},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0,
+def _resolve_knowledge_context_with_llm(
+    message: str,
+    context: str,
+    prev_state: Optional[dict[str, Any]] = None
+) -> dict[str, Any]:
+    return knowledge_helpers_service.resolve_knowledge_context_with_llm(
+        message,
+        context,
+        prev_state,
+        llm_json_fn=_llm_json,
+        today_kst_str_fn=_today_kst_str,
+        normalize_rag_country_code_fn=_normalize_rag_country_code,
     )
 
-    content = (response.choices[0].message.content or "").strip()
-    content = content.replace("```json", "").replace("```", "").strip()
-    parsed = json.loads(content)
+def _parse_flight_slots(message: str, context: str) -> dict[str, Any]:
+    return chat_parsing_service.parse_flight_slots(
+        message,
+        context,
+        llm_json_fn=_llm_json,
+        contains_fn=_contains,
+        is_date_correction_message_fn=_is_date_correction_message,
+        has_location_signal_fn=_has_location_signal,
+        parse_rel_date_fn=_parse_rel_date,
+        extract_date_expr_with_llm_fn=_extract_date_expr_with_llm,
+        resolve_date_expr_fn=_resolve_date_expr,
+        parse_rel_date_for_correction_fn=_parse_rel_date_for_correction,
+        parse_abs_monthday_range_fn=_parse_abs_monthday_range,
+    )
 
-    parsed.setdefault("origin", None)
-    parsed.setdefault("destination", None)
-    parsed.setdefault("departure_date", None)
-    parsed.setdefault("adults", 1)
-    parsed.setdefault("return_date", None)
-    parsed.setdefault("max_price", None)
-    parsed.setdefault("limit", None)
-    parsed.setdefault("sort_by", None)
-    parsed.setdefault("trip_type", None)
-    parsed.setdefault("time_pref", None)
-    parsed.setdefault("departure_window", None)
-    parsed.setdefault("direct_only", None)
+def _parse_hotel_slots(message: str, context: str) -> dict[str, Any]:
+    return chat_parsing_service.parse_hotel_slots(
+        message,
+        context,
+        llm_json_fn=_llm_json,
+        is_date_correction_message_fn=_is_date_correction_message,
+        extract_date_expr_with_llm_fn=_extract_date_expr_with_llm,
+        resolve_date_expr_fn=_resolve_date_expr,
+        parse_rel_date_fn=_parse_rel_date,
+        location_alias_keys=list(LOCATION_ALIASES.keys()),
+    )
 
-    lowered = (user_input or "").lower()
-    wants_fast = any(k in user_input for k in ["가장 빨리", "최단", "빨리 갈 수", "빠르게", "가장 빠르게"])
-    wants_cheap = any(k in user_input for k in ["저렴", "싼", "가성비", "저가", "저렴한순", "싼순"]) or "cheap" in lowered
-    wants_now = any(k in user_input for k in ["지금", "지금 시간 기준", "오늘 중", "당장"]) or "asap" in lowered
+def _detect_intent(message: str, prev_state: dict[str, Any]) -> str:
+    return intent_router_service.detect_intent(message, prev_state, contains_fn=_contains)
 
-    if any(k in user_input for k in ["비싼", "고가", "높은 가격", "비싼순"]) or "expensive" in lowered:
-        parsed["sort_by"] = "price_desc"
-    elif wants_fast and wants_cheap:
-        parsed["sort_by"] = "fastest_cheap"
-    elif wants_fast:
-        parsed["sort_by"] = "fastest"
-    elif wants_cheap:
-        parsed["sort_by"] = "price_asc"
+def _resolve_intent_with_llm(message: str, context: str, prev_state: Optional[dict[str, Any]] = None) -> Optional[str]:
+    return intent_router_service.resolve_intent_with_llm(
+        message,
+        context,
+        prev_state,
+        llm_json_fn=_llm_json,
+        contains_fn=_contains,
+    )
 
-    if wants_now and not parsed.get("departure_date"):
-        parsed["departure_date"] = datetime.now().strftime("%Y-%m-%d")
-        parsed["time_pref"] = "after_now"
+def _classify_travel_domain_with_llm(message: str, context: str = "") -> Optional[dict[str, Any]]:
+    return intent_router_service.classify_travel_domain_with_llm(message, context, llm_json_fn=_llm_json)
 
-    if any(k in user_input for k in ["오전", "아침"]):
-        parsed["departure_window"] = "morning"
-    elif "오후" in user_input:
-        parsed["departure_window"] = "afternoon"
-    elif "저녁" in user_input:
-        parsed["departure_window"] = "evening"
-    elif any(k in user_input for k in ["밤", "야간"]):
-        parsed["departure_window"] = "night"
-
-    if any(k in user_input for k in ["직항만", "직항으로", "경유 없이", "논스톱", "nonstop"]):
-        parsed["direct_only"] = True
-
-    if any(k in user_input for k in ["왕복", "round trip", "roundtrip"]):
-        parsed["trip_type"] = "round"
-
-    # Fallback: explicit passenger count like "성인 2명", "2명"
-    pax_match = re.search(r"(?:성인\s*)?(\d+)\s*명", user_input)
-    if pax_match:
-        try:
-            parsed["adults"] = max(1, int(pax_match.group(1)))
-        except Exception:
-            pass
-
-    # "일주일 다녀올게" 같은 표현은 출발일 기준 +7일 복귀로 보정
-    if any(k in user_input for k in ["일주일", "7일", "7박"]) and parsed.get("departure_date"):
-        try:
-            dep_dt = datetime.strptime(parsed["departure_date"], "%Y-%m-%d")
-            parsed["return_date"] = (dep_dt + timedelta(days=7)).strftime("%Y-%m-%d")
-            parsed["trip_type"] = "round"
-        except Exception:
-            pass
-
-    # Disambiguate India from IND (Indianapolis) when user clearly asked for India.
-    lowered_full = (user_input or "").lower()
-    if ("인도" in user_input or "india" in lowered_full):
-        destination = (parsed.get("destination") or "").strip().upper()
-        if destination in {"IND", "IN"} or not destination:
-            parsed["destination"] = "DEL"
-
-    return parsed
+def _is_smalltalk_greeting(message: str) -> bool:
+    return chat_heuristics_service.is_smalltalk_greeting(message)
 
 
-def has_explicit_date_signal(text: str) -> bool:
-    if not text:
+def _should_ask_intent_clarification(message: str, prev_state: Optional[dict[str, Any]] = None) -> bool:
+    _ = prev_state
+    return intent_router_service.should_ask_intent_clarification(message, contains_fn=_contains)
+
+def _is_route_guidance_query(message: str) -> bool:
+    return intent_router_service.is_route_guidance_query(message, contains_fn=_contains)
+
+def _should_keep_knowledge_followup(message: str, prev_state: Optional[dict[str, Any]] = None) -> bool:
+    return intent_router_service.should_keep_knowledge_followup(message, prev_state, contains_fn=_contains)
+
+def _merge_state(prev: dict[str, Any], cur: dict[str, Any]) -> dict[str, Any]:
+    return chat_heuristics_service.merge_state(prev, cur, slot_keys=SLOT_KEYS)
+
+
+def _missing_questions(state: dict[str, Any]) -> list[str]:
+    return chat_heuristics_service.missing_questions(state)
+
+
+def _build_knowledge_retrieval_query(
+    message: str,
+    country_code: Optional[str],
+    city_name: Optional[str],
+    topic: Optional[str],
+    subtopic: Optional[str],
+) -> str:
+    return knowledge_helpers_service.build_knowledge_retrieval_query(
+        message, country_code, city_name, topic, subtopic
+    )
+
+def _is_food_place_followup(message: str, prev_state: Optional[dict[str, Any]] = None) -> bool:
+    m = (message or "")
+    if not _contains(m, ["맛집", "식당", "레스토랑", "라멘집", "국밥집", "밥집", "restaurant"]):
         return False
-    lowered = text.lower()
-    if re.search(r"\b20\d{2}-\d{2}-\d{2}\b", text):
+    # "그 음식 맛집" 같은 후속질문 또는 도시+음식+맛집 직접 질문
+    if _contains(m, ["그 음식", "그거", "어디", "근처", "추천"]):
         return True
-    date_keywords = [
-        "오늘",
-        "내일",
-        "모레",
-        "글피",
-        "이번주",
-        "다음주",
-        "주말",
-        "월요일",
-        "화요일",
-        "수요일",
-        "목요일",
-        "금요일",
-        "토요일",
-        "일요일",
-        "tomorrow",
-        "today",
-        "next week",
-        "this week",
+    if prev_state and (prev_state.get("last_intent") == "knowledge"):
+        return True
+    return False
+
+
+def _is_local_place_followup(message: str, prev_state: Optional[dict[str, Any]] = None) -> bool:
+    m = message or ""
+    # 장소 추천 전반: 맛집/명소/놀거리/카페/쇼핑
+    place_kws = [
+        "맛집", "식당", "레스토랑", "라멘집", "밥집", "먹을만한", "먹을 만한",
+        "명소", "관광지", "놀거리", "가볼만", "즐길만", "핫플",
+        "카페",
+        "쇼핑", "쇼핑몰", "백화점", "마켓", "시장",
+        "restaurant", "attraction", "things to do", "cafe", "shopping", "mall", "market",
     ]
-    return any(k in lowered for k in date_keywords)
-
-
-def sanitize_slot_value(value):
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"", "null", "none", "unknown", "n/a", "-"}:
-            return None
-    return value
-
-
-def merge_with_session(previous, current):
-    merged = dict(previous or {})
-    for key in SLOT_KEYS:
-        value = sanitize_slot_value(current.get(key))
-        if value is not None and value != "":
-            merged[key] = value
-    merged.setdefault("adults", 1)
-    return merged
-
-
-def build_missing_questions(state):
-    missing = []
-    if not state.get("origin"):
-        missing.append("출발지를 알려주세요. (예: 서울, 부산, ICN)")
-    if not state.get("destination"):
-        missing.append("도착지를 알려주세요. (예: 도쿄, 부산, NRT)")
-    if not state.get("departure_date"):
-        missing.append("출발일을 알려주세요. (YYYY-MM-DD 또는 예: 3월 15일)")
-    if state.get("trip_type") == "round" and not state.get("return_date"):
-        missing.append("왕복 일정이므로 복귀일을 알려주세요. (YYYY-MM-DD)")
-    return missing
-
-
-def pick_next_question(missing_questions):
-    if not missing_questions:
-        return None
-    return missing_questions[0]
-
-
-def is_in_window(hour, window):
-    if window == "morning":
-        return 6 <= hour < 12
-    if window == "afternoon":
-        return 12 <= hour < 18
-    if window == "evening":
-        return 18 <= hour < 22
-    if window == "night":
-        return hour >= 22 or hour < 6
-    return True
-
-
-def apply_preference_filters(results, state):
-    filtered = results
-
-    if state.get("time_pref") == "after_now":
-        now = datetime.now()
-        temp = []
-        for row in filtered:
-            dep_dt = parse_iso_datetime(row.get("first_departure"))
-            if dep_dt and dep_dt >= now:
-                temp.append(row)
-        if temp:
-            filtered = temp
-
-    dep_window = state.get("departure_window")
-    if dep_window:
-        temp = []
-        for row in filtered:
-            dep_dt = parse_iso_datetime(row.get("first_departure"))
-            if dep_dt and is_in_window(dep_dt.hour, dep_window):
-                temp.append(row)
-        if temp:
-            filtered = temp
-
-    if state.get("direct_only") is True:
-        temp = [row for row in filtered if row.get("stops", 0) == 0]
-        if temp:
-            filtered = temp
-
-    return filtered
-
-
-def select_diverse_recommendations(sorted_rows, limit):
-    if not sorted_rows:
-        return []
-
-    selected = []
-    used_airlines = set()
-
-    for row in sorted_rows:
-        airline = row.get("primary_airline")
-        if airline not in used_airlines:
-            selected.append(row)
-            used_airlines.add(airline)
-        if len(selected) >= limit:
-            return selected
-
-    for row in sorted_rows:
-        if row not in selected:
-            selected.append(row)
-        if len(selected) >= limit:
-            break
-    return selected
-
-
-def build_session_context(history, max_items=16):
-    items = history[-max_items:]
-    lines = []
-    for item in items:
-        role = item.get("role", "user")
-        text = item.get("text", "")
-        lines.append(f"{role}: {text}")
-    return "\n".join(lines)
-
-
-def answer_travel_knowledge(user_input, state, conversation_context):
-    chunks = retrieve_knowledge_chunks(user_input)
-    if not chunks:
-        return (
-            "<div>관련 여행 지식 문서를 찾지 못했습니다. "
-            "원하시면 질문을 조금 더 구체적으로 말씀해 주세요. "
-            "또는 날짜/예산/인원을 알려주시면 항공편 검색부터 도와드릴게요.</div>"
+    if not _contains(m, place_kws):
+        brand_shop = (
+            _contains(m, ["브랜드", "매장", "파는곳", "파는 곳", "판매처", "편집샵", "셀렉트샵", "brand", "store", "shop"])
+            and _contains(m, ["어디", "추천", "알려", "파는", "구할", "살"])
         )
+        if not brand_shop:
+            return False
+    if _contains(m, ["어디", "근처", "추천", "찾아", "알려"]):
+        return True
+    if prev_state and prev_state.get("last_intent") == "knowledge":
+        return True
+    return False
 
-    context_text = "\n\n".join(
-        [f"[문서{i+1}] {c['text']}" for i, c in enumerate(chunks)]
+
+def _extract_local_place_request_with_llm(message: str, context: str, prev_state: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    prev_k = (prev_state or {}).get("knowledge_state", {}) if isinstance(prev_state, dict) else {}
+    prompt = (
+        "너는 여행 장소 추천 요청 파서다. JSON만 출력해라.\n"
+        '{'
+        '"city_name":"영문 도시명 또는 null",'
+        '"location_query":"사용자가 말한 위치 원문(지역/동네/랜드마크 포함) 또는 null",'
+        '"keyword":"장소/음식/주제 키워드 또는 null",'
+        '"brand_or_theme":"brand name/theme or null",'
+        '"category":"restaurant|attraction|cafe|shopping|generic"'
+        '}\n'
+        "규칙:\n"
+        "- 맛집/식당/레스토랑 질문은 category=restaurant\n"
+        "- 명소/관광지/놀거리/가볼만한 곳 질문은 category=attraction\n"
+        "- 카페 질문은 category=cafe\n"
+        "- 쇼핑/쇼핑몰/백화점/시장 질문은 category=shopping\n"
+        "- city_name은 영문 표준명 (Tokyo, Osaka, Busan, Berlin 등)\n"
+        "- '그 음식/그거' 같은 표현이면 최근 대화 문맥에서 keyword 추론\n\n"
+        f"이전 지식 상태: {json.dumps(prev_k, ensure_ascii=False)}\n"
+        f"최근 대화:\n{context}\n\n"
+        f"사용자 질문:\n{message}"
     )
-    source_text = ", ".join(sorted(set([c["source"] for c in chunks])))
-    prompt = f"""
-아래 검색 문맥에 근거해서만 사용자 질문에 답변해 주세요.
-문맥에 없는 내용은 추측하지 말고, 모른다고 분명히 말해 주세요.
-한국어 존댓말로 간결하게 답해 주세요.
-마지막 한 줄에는 "원하시면 조건(날짜/예산/인원)을 알려주시면 항공편도 찾아드릴게요."를 포함해 주세요.
-출력은 HTML <div> 하나로만 해 주세요.
+    parsed = _llm_json("장소 추천 요청 JSON만 출력", prompt)
+    out = {
+        "city_name": (parsed.get("city_name") if isinstance(parsed, dict) else None) or None,
+        "location_query": (parsed.get("location_query") if isinstance(parsed, dict) else None) or None,
+        "keyword": (parsed.get("keyword") if isinstance(parsed, dict) else None) or None,
+        "brand_or_theme": (parsed.get("brand_or_theme") if isinstance(parsed, dict) else None) or None,
+        "category": (parsed.get("category") if isinstance(parsed, dict) else None) or "generic",
+    }
+    if isinstance(out["city_name"], str):
+        out["city_name"] = out["city_name"].strip() or None
+    if isinstance(out["location_query"], str):
+        out["location_query"] = out["location_query"].strip() or None
+    if isinstance(out["keyword"], str):
+        out["keyword"] = out["keyword"].strip() or None
+    if isinstance(out["brand_or_theme"], str):
+        out["brand_or_theme"] = out["brand_or_theme"].strip() or None
+    out["category"] = str(out["category"]).strip().lower()
+    if out["category"] not in {"restaurant", "attraction", "cafe", "shopping", "generic"}:
+        out["category"] = "generic"
+    return out
 
-사용자 질문:
-{user_input}
 
-최근 대화:
-{conversation_context}
+def _extract_food_place_request_with_llm(message: str, context: str, prev_state: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    prev_k = (prev_state or {}).get("knowledge_state", {}) if isinstance(prev_state, dict) else {}
+    prompt = (
+        "너는 여행 맛집 검색 요청 파서다. JSON만 출력해라.\n"
+        '{'
+        '"city_name":"영문 도시명 또는 null",'
+        '"food_keyword":"음식명/키워드 또는 null",'
+        '"wants_restaurant":true'
+        '}\n'
+        "규칙:\n"
+        "- '그 음식' 같은 표현이면 최근 대화 문맥에서 음식명을 추론\n"
+        "- city_name은 영문 표준명 (Tokyo, Osaka, Busan, Berlin 등)\n"
+        "- 음식명을 모르겠으면 null\n"
+        "- 맛집/식당 추천 의도면 wants_restaurant=true\n\n"
+        f"이전 지식 상태: {json.dumps(prev_k, ensure_ascii=False)}\n"
+        f"최근 대화:\n{context}\n\n"
+        f"사용자 질문:\n{message}"
+    )
+    parsed = _llm_json("맛집 검색 요청 JSON만 출력", prompt)
+    out = {
+        "city_name": (parsed.get("city_name") if isinstance(parsed, dict) else None) or None,
+        "food_keyword": (parsed.get("food_keyword") if isinstance(parsed, dict) else None) or None,
+        "wants_restaurant": bool((parsed or {}).get("wants_restaurant", True)) if isinstance(parsed, dict) else True,
+    }
+    if isinstance(out["city_name"], str):
+        out["city_name"] = out["city_name"].strip() or None
+    if isinstance(out["food_keyword"], str):
+        out["food_keyword"] = out["food_keyword"].strip() or None
+    return out
 
-검색 문맥:
-{context_text}
 
-참고 출처:
-{source_text}
+def _answer_food_place_followup(message: str, context: str, prev_state: Optional[dict[str, Any]] = None):
+    return place_followup_service.answer_food_place_followup(
+        message,
+        context,
+        prev_state,
+        extract_food_place_request_with_llm_fn=_extract_food_place_request_with_llm,
+        normalize_rag_country_code_fn=_normalize_rag_country_code,
+        place_search_radius_m_fn=_place_search_radius_m,
+        should_show_place_distance_fn=_should_show_place_distance,
+        rewrite_place_recommendation_fallback_fn=_rewrite_place_recommendation_fallback,
+    )
+
+
+def _answer_local_place_followup(message: str, context: str, prev_state: Optional[dict[str, Any]] = None):
+    return place_followup_service.answer_local_place_followup(
+        message,
+        context,
+        prev_state,
+        extract_local_place_request_with_llm_fn=_extract_local_place_request_with_llm,
+        normalize_rag_country_code_fn=_normalize_rag_country_code,
+        place_search_radius_m_fn=_place_search_radius_m,
+        should_show_place_distance_fn=_should_show_place_distance,
+        rewrite_place_recommendation_fallback_fn=_rewrite_place_recommendation_fallback,
+        contains_fn=_contains,
+    )
+
+
+def _rewrite_place_recommendation_fallback(
+    city_name: str,
+    category: str,
+    keyword: Optional[str],
+    message: str,
+    context: str,
+) -> Optional[str]:
+    return knowledge_helpers_service.rewrite_place_recommendation_fallback(
+        city_name, category, keyword, message, context, client=client
+    )
+
+def _knowledge_top_k(message: str, topic: Optional[str], subtopic: Optional[str]) -> int:
+    return chat_heuristics_service.knowledge_top_k(message, topic, subtopic, rag_top_k=RAG_TOP_K)
+
+
+def _is_budget_destination_recommendation_query(message: str) -> bool:
+    m = (message or "").lower()
+    budget = ["\uac00\uc131\ube44", "\uc608\uc0b0", "\ub9cc\uc6d0", "\uc6d0 \uc774\ud558", "\uc800\ub834", "\uc2f8\uac8c", "budget", "cheap", "affordable"]
+    rec = ["\ucd94\ucc9c", "\ucd94\ucc9c\uc9c0", "\uc5ec\ud589\uc9c0", "\uc5b4\ub514", "\uac08\ub9cc", "\uac00고\uc2f6", "trip", "destination"]
+    region = ["\ub3d9\ub0a8\uc544", "\uc77c\ubcf8", "\uc720\ub7fd", "\ud574\uc678", "southeast asia", "asia"]
+    return (_contains(m, budget) and _contains(m, rec)) or (_contains(m, ["\ub3d9\ub0a8\uc544"]) and _contains(m, rec)) or (_contains(m, region) and _contains(m, ["\uac00\uc131\ube44", "\ucd94\ucc9c"]))
+
+
+def _rewrite_budget_destination_fallback(message: str, context: str) -> Optional[str]:
+    return knowledge_helpers_service.rewrite_budget_destination_fallback(message, context, client=client)
+
+def _answer_knowledge(message: str, context: str, prev_state: Optional[dict[str, Any]] = None):
+    return knowledge_service.answer_knowledge(
+        message,
+        context,
+        prev_state,
+        _is_local_place_followup=_is_local_place_followup,
+        _answer_local_place_followup=_answer_local_place_followup,
+        _resolve_knowledge_context_with_llm=_resolve_knowledge_context_with_llm,
+        _infer_rag_country_code=_infer_rag_country_code,
+        _build_knowledge_retrieval_query=_build_knowledge_retrieval_query,
+        _knowledge_top_k=_knowledge_top_k,
+        answer_rag_question=answer_rag_question,
+        _strip_markdown_decorations=_strip_markdown_decorations,
+    )
+
+
+def _extract_checkout_amount_krw(offer: FlightCheckoutOfferInput) -> int:
+    price = offer.price or {}
+    try:
+        krw_total = price.get("krwTotal")
+        if krw_total is not None:
+            amount = int(round(float(krw_total)))
+            if amount > 0:
+                return amount
+    except Exception:
+        pass
+
+    ccy = str(price.get("currency") or "").upper().strip()
+    total = price.get("total")
+    if ccy == "KRW":
+        try:
+            amount = int(round(float(total)))
+            if amount > 0:
+                return amount
+        except Exception:
+            pass
+    raise HTTPException(status_code=400, detail="결제 금액을 확정할 수 없습니다. KRW 금액이 있는 항공권으로 다시 시도해 주세요.")
+
+
+def _build_flight_order_name(offer: FlightCheckoutOfferInput) -> str:
+    itineraries = offer.itineraries or []
+    dep = ""
+    arr = ""
+    try:
+        dep = str((((itineraries[0] or {}).get("segments") or [])[0].get("departure") or {}).get("iataCode") or "")
+        outbound_itin = itineraries[0] or {}
+        outbound_segs = outbound_itin.get("segments") or []
+        arr = str(((outbound_segs[-1].get("arrival") or {}).get("iataCode") if outbound_segs else "") or "")
+    except Exception:
+        dep = ""
+        arr = ""
+    route = f"{dep}-{arr}".strip("-")
+    airline = str(offer.airline or "항공권").strip() or "항공권"
+    if route:
+        return f"{airline} {route}"
+    return airline
+
+
+@router.post("/api/flight/checkout")
+def api_flight_checkout(payload: FlightCheckoutRequest, request: Request):
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+
+    if not payload.passengers:
+        raise HTTPException(status_code=400, detail="탑승자 정보가 필요합니다.")
+
+    amount = _extract_checkout_amount_krw(payload.offer)
+    order_id = f"FLT-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    order_name = _build_flight_order_name(payload.offer)
+    toss_client_key = (os.getenv("TOSS_PAYMENTS_CLIENT_KEY") or os.getenv("TOSS_CLIENT_KEY") or "").strip()
+    base_url = str(request.base_url).rstrip("/")
+
+    PENDING_FLIGHT_ORDERS[order_id] = {
+        "user_id": str(user_id),
+        "amount": amount,
+        "order_name": order_name,
+        "customer_name": payload.customer_name,
+        "customer_email": payload.customer_email,
+        "customer_phone": payload.customer_phone,
+        "passengers": [p.model_dump() for p in payload.passengers],
+        "offer": payload.offer.model_dump(),
+        "created_at": datetime.now().isoformat(),
+    }
+
+    return {
+        "order_id": order_id,
+        "order_name": order_name,
+        "amount": amount,
+        "currency": "KRW",
+        "payment_mode": "toss" if toss_client_key else "mock",
+        "toss_client_key": toss_client_key,
+        "success_url": f"{base_url}/payment/flight/success",
+        "fail_url": f"{base_url}/payment/flight/fail",
+        "message": "결제 준비가 완료되었습니다." if toss_client_key else "토스 클라이언트 키가 없어 모의 결제 모드로 동작합니다.",
+    }
+
+
+@router.post("/api/payments/toss/confirm")
+def api_toss_confirm(payload: TossConfirmRequest):
+    pending = PENDING_FLIGHT_ORDERS.get(payload.orderId)
+    if not pending:
+        raise HTTPException(status_code=404, detail="주문 정보를 찾을 수 없습니다.")
+    if int(pending.get("amount") or 0) != int(payload.amount):
+        raise HTTPException(status_code=400, detail="결제 금액 검증에 실패했습니다.")
+
+    secret_key = (os.getenv("TOSS_PAYMENTS_SECRET_KEY") or os.getenv("TOSS_SECRET_KEY") or "").strip()
+    if not secret_key:
+        pending["status"] = "confirmed_mock"
+        pending["payment_key"] = payload.paymentKey
+        pending["confirmed_at"] = datetime.now().isoformat()
+        save_booking(
+            user_id=int(pending.get("user_id") or 0),
+            item_type="flight",
+            order_id=payload.orderId,
+            order_name=str(pending.get("order_name") or "항공권"),
+            amount=int(payload.amount),
+            currency="KRW",
+            status="confirmed_mock",
+            status_label="예약 확정(모의 결제)",
+            route=_extract_flight_route_from_offer(pending.get("offer")),
+            payment_key=payload.paymentKey,
+            payload=pending,
+            created_at_iso=str(pending.get("created_at") or ""),
+            confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+        )
+        return {
+            "status": "confirmed_mock",
+            "order_id": payload.orderId,
+            "amount": payload.amount,
+            "message": "토스 시크릿 키가 없어 모의 승인 처리되었습니다.",
+        }
+
+    auth = base64.b64encode(f"{secret_key}:".encode("utf-8")).decode("ascii")
+    try:
+        res = requests.post(
+            "https://api.tosspayments.com/v1/payments/confirm",
+            headers={
+                "Authorization": f"Basic {auth}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "paymentKey": payload.paymentKey,
+                "orderId": payload.orderId,
+                "amount": payload.amount,
+            },
+            timeout=15,
+        )
+        data = res.json() if res.content else {}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"토스 승인 요청 실패: {e}")
+
+    if not res.ok:
+        msg = (data or {}).get("message") if isinstance(data, dict) else None
+        raise HTTPException(status_code=400, detail=msg or f"토스 승인 실패 ({res.status_code})")
+
+    pending["status"] = "confirmed"
+    pending["payment_key"] = payload.paymentKey
+    pending["confirmed_at"] = datetime.now().isoformat()
+    pending["toss_response"] = data
+    save_booking(
+        user_id=int(pending.get("user_id") or 0),
+        item_type="flight",
+        order_id=payload.orderId,
+        order_name=str(pending.get("order_name") or "항공권"),
+        amount=int(payload.amount),
+        currency="KRW",
+        status="confirmed",
+        status_label="예약 확정",
+        route=_extract_flight_route_from_offer(pending.get("offer")),
+        payment_key=payload.paymentKey,
+        payload=pending,
+        created_at_iso=str(pending.get("created_at") or ""),
+        confirmed_at_iso=str(pending.get("confirmed_at") or ""),
+    )
+    return {"status": "confirmed", "order_id": payload.orderId, "amount": payload.amount, "payment": data}
+
+
+def _extract_flight_route_from_offer(offer: Any) -> str:
+    if not isinstance(offer, dict):
+        return ""
+    itineraries = offer.get("itineraries") if isinstance(offer.get("itineraries"), list) else []
+    out_segs = itineraries[0].get("segments") if itineraries and isinstance(itineraries[0], dict) else []
+    first_seg = out_segs[0] if out_segs and isinstance(out_segs[0], dict) else {}
+    last_seg = out_segs[-1] if out_segs and isinstance(out_segs[-1], dict) else {}
+    dep = ((first_seg.get("departure") or {}).get("iataCode") if isinstance(first_seg, dict) else "") or ""
+    arr = ((last_seg.get("arrival") or {}).get("iataCode") if isinstance(last_seg, dict) else "") or ""
+    return f"{dep} -> {arr}".strip(" ->")
+
+
+@router.get("/api/flight/bookings")
+def api_flight_bookings(request: Request, limit: int = Query(20, ge=1, le=100)):
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+
+    rows = [row for row in get_user_bookings(int(user_id), limit=limit) if str(row.get("item_type") or "") == "flight"]
+    return {"bookings": rows[:limit]}
+
+
+@router.get("/payment/flight/success", response_class=HTMLResponse)
+def payment_flight_success_page():
+    return """
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>DESTINO | 결제 확인</title>
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+    <style>
+        :root {
+            --primary-blue: #00AEEF;
+            --dark-navy: #1A202C;
+            --bg-gray: #F8F9FA;
+            --text-muted: #718096;
+        }
+        * { box-sizing: border-box; font-family: 'Pretendard', -apple-system, sans-serif; }
+        body {
+            background-color: var(--bg-gray);
+            display: flex; align-items: center; justify-content: center;
+            height: 100vh; margin: 0; color: var(--dark-navy);
+        }
+        .container {
+            background: #fff;
+            width: 100%;
+            max-width: 480px;
+            padding: 40px 24px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        .status-icon {
+            width: 64px; height: 64px;
+            background: #f0f9ff;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 24px;
+        }
+        .spinner {
+            width: 24px; height: 24px;
+            border: 3px solid #e2e8f0;
+            border-top-color: var(--primary-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        h2 { font-size: 24px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.5px; }
+        p { color: var(--text-muted); line-height: 1.6; margin-bottom: 32px; }
+        .info-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 32px;
+            text-align: left;
+            display: none;
+        }
+        .info-row {
+            display: flex; justify-content: space-between; margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .info-row span:first-child { color: var(--text-muted); }
+        .info-row span:last-child { font-weight: 600; }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-primary { background-color: var(--primary-blue); color: white; }
+        .btn-primary:hover { background-color: #0096ce; }
+        .btn-outline { border: 1px solid #e2e8f0; color: var(--text-muted); margin-top: 12px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status-icon" id="icon-box">
+            <div class="spinner" id="spinner"></div>
+        </div>
+        <h2 id="title">결제 확인 중</h2>
+        <p id="msg">안전한 결제 승인을 위해 잠시만 기다려 주세요.</p>
+        <div class="info-card" id="info-card">
+            <div class="info-row">
+                <span>주문번호</span>
+                <span id="res-orderId">-</span>
+            </div>
+            <div class="info-row">
+                <span>결제금액</span>
+                <span id="res-amount">-</span>
+            </div>
+        </div>
+        <a href="/airport" class="btn btn-primary" id="main-btn">항공 상품 페이지로 돌아가기</a>
+        <a href="/" class="btn btn-outline">메인페이지로 이동</a>
+    </div>
+    <script>
+        const qs = new URLSearchParams(location.search);
+        const orderId = qs.get('orderId');
+        const amount = Number(qs.get('amount') || 0);
+        const body = { paymentKey: qs.get('paymentKey'), orderId: orderId, amount: amount };
+        fetch('/api/payments/toss/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        })
+        .then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))
+        .then(x => {
+            const iconBox = document.getElementById('icon-box');
+            const title = document.getElementById('title');
+            const msg = document.getElementById('msg');
+            const infoCard = document.getElementById('info-card');
+            if (x.ok) {
+                iconBox.innerHTML = '✅';
+                iconBox.style.fontSize = '32px';
+                title.textContent = '결제가 완료되었습니다!';
+                msg.textContent = '항공권 예약이 완료되었습니다. 마이페이지에서 상세 내역을 확인하세요.';
+                infoCard.style.display = 'block';
+                document.getElementById('res-orderId').textContent = orderId;
+                document.getElementById('res-amount').textContent = amount.toLocaleString() + '원';
+                document.getElementById('main-btn').textContent = '항공 상품 페이지로 돌아가기';
+            } else {
+                iconBox.innerHTML = '❌';
+                iconBox.style.fontSize = '32px';
+                title.textContent = '결제에 실패했습니다';
+                msg.textContent = x.data?.detail || x.data?.message || '알 수 없는 오류가 발생했습니다.';
+            }
+        })
+        .catch(() => {
+            document.getElementById('title').textContent = '오류 발생';
+            document.getElementById('msg').textContent = '서버와의 통신 중 문제가 발생했습니다.';
+        });
+    </script>
+</body>
+</html>
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "RAG 문맥 기반 여행 도우미"},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.2,
-    )
-    content = (response.choices[0].message.content or "").strip()
-    if not content.startswith("<div"):
-        content = f"<div>{content}</div>"
-    return content
 
+@router.get("/payment/flight/confirmed", response_class=HTMLResponse)
+def payment_flight_confirmed_page(orderId: str | None = Query(None)):
+    oid = (orderId or "").strip()
+    row = PENDING_FLIGHT_ORDERS.get(oid) if oid else None
+    amount = int(row.get("amount") or 0) if isinstance(row, dict) else 0
+    order_name = str(row.get("order_name") or "항공권") if isinstance(row, dict) else "항공권"
+    status = str(row.get("status") or "confirmed") if isinstance(row, dict) else "confirmed"
+    confirmed_at = str(row.get("confirmed_at") or "") if isinstance(row, dict) else ""
+    status_label = "예약 확정"
+    if status == "confirmed_mock":
+        status_label = "예약 확정(모의 결제)"
 
-def answer_itinerary_plan(user_input, state, conversation_context):
-    chunks = retrieve_knowledge_chunks(user_input)
-    context_text = "\n\n".join([f"[문서{i+1}] {c['text']}" for i, c in enumerate(chunks)]) if chunks else "관련 문서 없음"
-    destination = state.get("destination") or "요청 목적지"
-
-    prompt = f"""
-사용자 요청과 문맥을 보고 여행 일정을 제안해 주세요.
-- 한국어 존댓말
-- Day 1~Day 3 형식으로 간단한 일정
-- 각 day마다 아침/점심/저녁 또는 오전/오후/저녁 활동 제시
-- 마지막에 짧은 팁 2개
-- HTML <div> 하나로만 출력
-
-목적지: {destination}
-사용자 요청: {user_input}
-최근 대화: {conversation_context}
-문맥:
-{context_text}
+    return f"""
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>예약 확정</title>
+<style>
+body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a}}
+.box{{max-width:640px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px}}
+.ok{{display:inline-block;padding:4px 10px;border-radius:999px;background:#dcfce7;color:#166534;font-size:12px;font-weight:700}}
+.row{{margin-top:10px;color:#334155;font-size:14px}}
+.amt{{margin-top:12px;font-size:30px;font-weight:800;color:#0f172a}}
+.actions{{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}}
+.btn{{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;text-decoration:none;font-weight:700}}
+.btn-primary{{background:#1d4ed8;color:#fff}}
+.btn-ghost{{border:1px solid #cbd5e1;color:#0f172a;background:#fff}}
+</style>
+</head>
+<body>
+  <div class="box">
+    <span class="ok">{status_label}</span>
+    <h2 style="margin:10px 0 4px;">예약이 완료되었습니다.</h2>
+    <div class="row">상품: {order_name}</div>
+    <div class="row">주문번호: {oid or '-'}</div>
+    <div class="row">승인시각: {confirmed_at or '-'}</div>
+    <div class="amt">KRW {amount:,}</div>
+    <div class="row">2초 후 마이페이지로 이동합니다.</div>
+    <div class="actions">
+      <a class="btn btn-primary" href="/airport">항공 상품 페이지로 돌아가기</a>
+      <a class="btn btn-ghost" href="/">메인페이지로 돌아가기</a>
+    </div>
+  </div>
+  <script>
+    setTimeout(function () {{
+      window.location.replace('/mypage');
+    }}, 2000);
+  </script>
+</body></html>
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "여행 일정 설계 도우미"},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.3,
-    )
-    content = (response.choices[0].message.content or "").strip()
-    if not content.startswith("<div"):
-        content = f"<div>{content}</div>"
-    return content
+
+@router.get("/payment/flight/fail", response_class=HTMLResponse)
+def payment_flight_fail_page(code: str | None = Query(None), message: str | None = Query(None)):
+    c = (code or "").strip()
+    m = (message or "").strip()
+    return f"""
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>결제 실패</title>
+<style>body{{font-family:Pretendard,sans-serif;padding:24px;background:#f8fafc;color:#0f172a}} .box{{max-width:560px;margin:24px auto;background:#fff;border:1px solid #fecaca;border-radius:12px;padding:18px}} .muted{{color:#64748b;font-size:14px}}</style>
+</head><body><div class="box"><h2>결제가 완료되지 않았습니다.</h2><p class="muted">코드: {c or '-'}</p><p class="muted">메시지: {m or '-'}</p><a href="/airport">항공 페이지로 돌아가기</a></div></body></html>
+"""
+
+
+@router.get("/api/flight-search")
+def api_flight_search(
+    origin: str = Query(...),
+    destination: str = Query(...),
+    departure_date: str = Query(...),
+    return_date: Optional[str] = Query(None),
+    adults: int = Query(1),
+    child: int = Query(0),
+    infant: int = Query(0),
+    cabin: Optional[str] = Query(None),
+    max_price: Optional[float] = Query(None),
+):
+    try:
+        amadeus_base = str(os.getenv("AMADEUS_BASE_URL") or "https://test.api.amadeus.com").strip().lower()
+        pricing_mode = "test" if "test.api.amadeus.com" in amadeus_base else "live"
+        raw = flight_search_service._search_flights(
+            origin=origin,
+            destination=destination,
+            departure_date=departure_date,
+            return_date=return_date,
+            adults=adults,
+            children=child,
+            infants=infant,
+            max_price=max_price,
+            cabin=cabin,
+            max_results=30,
+        )
+        rates = flight_search_service._attach_krw(raw)
+        return {
+            "results": raw.get("data", []),
+            "simplified": flight_search_service._simplify(raw),
+            "meta_query": raw.get("meta_query", {}),
+            "booking_reference": raw.get("booking_reference", []),
+            "exchange_rates": rates,
+            "pricing_mode": pricing_mode,
+            "pricing_notice": "테스트 요금(참고용)" if pricing_mode == "test" else "",
+            "raw": raw,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"항공권 검색 실패: {e}")
 
 
 @router.post("/chat")
-def chat(req: ChatRequest):
-    try:
-        session_id = (req.session_id or "default").strip() or "default"
-        history = SESSION_HISTORY.setdefault(session_id, [])
-        history.append({"role": "user", "text": req.message})
-        context = build_session_context(history)
-
-        parsed = llm_parse_partial(req.message, context)
-        prev_state = SESSION_STATE.get(session_id, {})
-
-        # Follow-up query without date expression should keep previous travel date.
-        if not has_explicit_date_signal(req.message):
-            if prev_state.get("departure_date"):
-                parsed["departure_date"] = None
-            if prev_state.get("return_date"):
-                parsed["return_date"] = None
-        state = merge_with_session(prev_state, parsed)
-
-        intent = detect_intent(req.message)
-
-        if intent == "knowledge":
-            SESSION_STATE[session_id] = state
-            knowledge_html = answer_travel_knowledge(req.message, state, context)
-            history.append({"role": "assistant", "text": "여행 지식 답변을 반환했습니다."})
-            return {"response": knowledge_html}
-        if intent == "itinerary":
-            SESSION_STATE[session_id] = state
-            itinerary_html = answer_itinerary_plan(req.message, state, context)
-            history.append({"role": "assistant", "text": "여행 일정 답변을 반환했습니다."})
-            return {"response": itinerary_html}
-
-        missing_questions = build_missing_questions(state)
-        if missing_questions:
-            SESSION_STATE[session_id] = state
-            question_text = pick_next_question(missing_questions)
-            history.append({"role": "assistant", "text": f"추가 정보가 필요합니다: {question_text}"})
-            raise NeedMoreInfoError(question_text)
-
-        raw = search_flights(
-            state["origin"],
-            state["destination"],
-            state["departure_date"],
-            state.get("return_date"),
-            state.get("adults", 1),
-            state.get("max_price"),
-            30,
+def chat(req: ChatRequest, request: Request):
+    session_token = request.cookies.get("session_token")
+    user_id = get_user_id_from_session(session_token) if session_token else None
+    if not user_id:
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+    pass_state = consume_for_chat(int(user_id), commit=False)
+    if not pass_state.get("ok"):
+        detail_code = pass_state.get("reason") or "PASS_REQUIRED"
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": detail_code,
+                "message": "챗봇 이용권이 필요합니다.",
+                "purchase_url": "/chat-pass/purchase",
+            },
         )
-        simplified = simplify(raw)
-        simplified = apply_preference_filters(simplified, state)
 
-        if state.get("sort_by") == "price_asc":
-            simplified.sort(key=lambda x: x.get("price_value", float("inf")))
-        elif state.get("sort_by") == "price_desc":
-            simplified.sort(key=lambda x: x.get("price_value", float("-inf")), reverse=True)
-        elif state.get("sort_by") in ("fastest", "fastest_cheap"):
-            simplified.sort(key=lambda x: (x.get("duration_min", 10**9), x.get("price_value", float("inf"))))
-
-        limit = state.get("limit")
-        if not isinstance(limit, int) or limit <= 0:
-            limit = 8
-        if isinstance(limit, int) and limit > 0:
-            simplified = simplified[:limit]
-
-        SESSION_STATE[session_id] = state
-        convo_html = build_conversational_answer(req.message, state, simplified)
-        html = convo_html + format_html(simplified, raw.get("meta_query", {}))
-        history.append({"role": "assistant", "text": "항공편 검색 결과를 반환했습니다."})
-        return {"response": html}
-    except NeedMoreInfoError as e:
-        return {"response": f"<p>좋아요, 이어서 찾을게요. {str(e)}</p>"}
-    except Exception as e:
-        session_id = (req.session_id or "default").strip() or "default"
-        history = SESSION_HISTORY.setdefault(session_id, [])
-        history.append({"role": "assistant", "text": f"요청 처리 실패: {str(e)}"})
-        return {"response": f"<pre>요청 처리 실패: {str(e)}</pre>"}
+    result = chat_orchestrator_service.handle_chat_request(
+        req,
+        SESSION_HISTORY=SESSION_HISTORY,
+        SESSION_STATE=SESSION_STATE,
+        NeedMoreInfoError=NeedMoreInfoError,
+        _build_context=_build_context,
+        _is_smalltalk_greeting=_is_smalltalk_greeting,
+        _classify_travel_domain_with_llm=_classify_travel_domain_with_llm,
+        _resolve_intent_with_llm=_resolve_intent_with_llm,
+        _detect_intent=_detect_intent,
+        _has_date_signal=_has_date_signal,
+        _contains=_contains,
+        _should_keep_knowledge_followup=_should_keep_knowledge_followup,
+        _is_local_place_followup=_is_local_place_followup,
+        _is_route_guidance_query=_is_route_guidance_query,
+        _should_ask_intent_clarification=_should_ask_intent_clarification,
+        _answer_knowledge=_answer_knowledge,
+        _parse_hotel_slots=_parse_hotel_slots,
+        hotel_service=hotel_service,
+        client=client,
+        _strip_markdown_decorations=_strip_markdown_decorations,
+        _parse_flight_slots=_parse_flight_slots,
+        _merge_state=_merge_state,
+        _missing_questions=_missing_questions,
+        flight_search_service=flight_search_service,
+        chat_renderers=chat_renderers,
+        place_search_service=place_search_service,
+    )
+    consume_for_chat(int(user_id), commit=True)
+    return result

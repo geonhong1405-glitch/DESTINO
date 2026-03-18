@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DESTINO - 호텔 상세</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/gloval-hotel.css" />
+    <link rel="stylesheet" href="/static/saved-drawer-unified.css?v=20260306q" />
+    <style>
+        .detail-page { max-width: 1280px; margin: 0 auto; padding: 24px 20px 72px; }
+        .detail-back { display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 14px; font-weight: 700; color: #0f172a; }
+        .detail-error { background: #fff; border: 1px solid #fecaca; color: #991b1b; border-radius: 14px; padding: 14px; }
+
+        .gallery-shell { background: #fff; border: 1px solid #e2e8f0; border-radius: 18px; padding: 14px; }
+        .gallery-grid { display: grid; grid-template-columns: 1.45fr 1fr; gap: 10px; }
+        .gallery-grid.single { grid-template-columns: 1fr; }
+        .gallery-main img, .gallery-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 14px; background: #e2e8f0; }
+        .gallery-main { min-height: 340px; }
+        .gallery-side { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .gallery-side.single-col { grid-template-columns: 1fr; }
+        .gallery-thumb { min-height: 165px; position: relative; }
+        .gallery-more {
+            position: absolute; inset: 0; border-radius: 14px; background: rgba(15, 23, 42, .55);
+            color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px;
+        }
+
+        .detail-grid-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; margin-top: 18px; align-items: start; }
+        .detail-main { display: flex; flex-direction: column; gap: 16px; }
+        .detail-sidebar { position: sticky; top: 86px; display: flex; flex-direction: column; gap: 14px; }
+        .section-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px; }
+        .section-title { font-size: 17px; font-weight: 800; margin-bottom: 12px; color: #0f172a; }
+
+        .hero-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+        .hero-title { font-size: 30px; font-weight: 900; line-height: 1.2; color: #0f172a; }
+        .hero-sub { margin-top: 6px; color: #64748b; }
+        .hero-sub + .hero-sub { margin-top: 4px; }
+        .hero-tags { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+        .chip { border: 1px solid #cbd5e1; background: #f8fafc; color: #0f172a; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 700; }
+        .chip.alert { border-color: #fda4af; background: #fff1f2; color: #be123c; }
+        .chip.good { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+        .hero-price { text-align: right; min-width: 180px; }
+        .hero-price .orig { color: #64748b; text-decoration: line-through; font-size: 14px; }
+        .hero-price .final { font-size: 38px; font-weight: 900; line-height: 1.05; color: #111827; }
+        .hero-price .caption { font-size: 12px; color: #64748b; margin-top: 4px; }
+
+        .quick-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+        .quick-fact { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; background: #f8fafc; }
+        .quick-fact .k { display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 700; }
+        .quick-fact .v { font-weight: 700; color: #0f172a; }
+
+        .columns-2 { display: grid; grid-template-columns: 1.2fr .8fr; gap: 14px; }
+        .list-clean { margin: 0; padding: 0; list-style: none; }
+        .list-clean li { padding: 8px 0; border-bottom: 1px dashed #e2e8f0; color: #334155; }
+        .list-clean li:last-child { border-bottom: none; }
+        .amenity-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+        .amenity-item { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; padding: 10px 12px; font-weight: 600; color: #334155; }
+
+        .offer-card { display: grid; grid-template-columns: 1fr 180px; gap: 14px; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px; background: #fff; }
+        .offer-title { font-weight: 800; margin-bottom: 8px; color: #0f172a; }
+        .offer-price-box { border-left: 1px solid #e2e8f0; padding-left: 14px; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; }
+        .offer-price-box .orig { color: #64748b; text-decoration: line-through; font-size: 13px; }
+        .offer-price-box .final { font-weight: 900; font-size: 30px; color: #111827; }
+        .offer-price-box .left-alert { margin-top: 6px; color: #be123c; font-weight: 800; font-size: 13px; }
+        .room-offer-list { display: flex; flex-direction: column; gap: 12px; }
+        .room-offer-card { border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; padding: 14px; display: grid; grid-template-columns: 180px 1fr 180px; gap: 12px; align-items: start; }
+        .room-offer-card.soldout { background: #fafafa; border-color: #e5e7eb; }
+        .room-offer-thumb { width: 100%; height: 120px; border-radius: 10px; background: #e2e8f0; object-fit: cover; display: block; }
+        .room-offer-name { font-size: 18px; font-weight: 800; color: #0f172a; line-height: 1.3; }
+        .room-offer-tags { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+        .room-offer-price { text-align: right; }
+        .room-offer-price .p0 { color: #64748b; text-decoration: line-through; font-size: 13px; }
+        .room-offer-price .p1 { font-size: 28px; font-weight: 900; color: #111827; line-height: 1.05; margin-top: 2px; }
+        .room-offer-empty { color: #64748b; font-size: 13px; margin-top: 8px; }
+        .room-offer-note { margin-top: 10px; color: #64748b; font-size: 12px; }
+
+        .sidebar-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; }
+        .book-cta-price { font-size: 34px; font-weight: 900; color: #111827; line-height: 1.05; }
+        .book-cta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .book-cell { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; background: #f8fafc; }
+        .book-cell .k { display: block; font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: 700; }
+        .book-cell .v { font-size: 13px; font-weight: 700; color: #0f172a; }
+        .cta-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+        .btn-main, .btn-sub {
+            display: inline-flex; justify-content: center; align-items: center; border-radius: 10px; padding: 11px 12px; font-weight: 800; text-decoration: none;
+        }
+        .btn-main { background: #2563eb; color: #fff; }
+        .btn-sub { background: #fff; border: 1px solid #cbd5e1; color: #0f172a; }
+        .score-panel { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
+        .score-big { width: 54px; height: 54px; border-radius: 14px; background: #eff6ff; color: #1d4ed8; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 22px; }
+        .mini-map {
+            border-radius: 12px; border: 1px solid #e2e8f0; background:
+            linear-gradient(135deg, #fef3c7 0%, #fde68a 25%, #e0f2fe 25%, #e0f2fe 50%, #dcfce7 50%, #dcfce7 75%, #fee2e2 75%, #fee2e2 100%);
+            min-height: 140px; position: relative; overflow: hidden; margin-top: 10px;
+        }
+        .mini-map::before {
+            content: ""; position: absolute; inset: 0;
+            background-image:
+              linear-gradient(to right, rgba(255,255,255,.7) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(255,255,255,.7) 1px, transparent 1px);
+            background-size: 32px 32px;
+            opacity: .45;
+        }
+        .mini-map-frame { width: 100%; height: 100%; min-height: 140px; border: 0; display: block; }
+        .mini-map-pin {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -72%);
+            width: 22px; height: 22px; background: #ef4444; border-radius: 50% 50% 50% 0; transform-origin: center;
+            rotate: -45deg; box-shadow: 0 4px 10px rgba(239, 68, 68, .35);
+        }
+        .mini-map-pin::after { content: ""; position: absolute; width: 8px; height: 8px; background: #fff; border-radius: 999px; top: 7px; left: 7px; }
+        .raw-block { white-space: pre-wrap; color: #334155; line-height: 1.55; font-size: 14px; }
+        .muted { color: #64748b; }
+        .warn-note { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; font-size: 13px; }
+
+        @media (max-width: 1080px) {
+            .detail-grid-layout { grid-template-columns: 1fr; }
+            .detail-sidebar { position: static; }
+        }
+        @media (max-width: 900px) {
+            .gallery-grid { grid-template-columns: 1fr; }
+            .gallery-side { grid-template-columns: repeat(2, 1fr); }
+            .hero-head { flex-direction: column; }
+            .hero-price { text-align: left; }
+            .quick-facts { grid-template-columns: 1fr; }
+            .columns-2 { grid-template-columns: 1fr; }
+            .amenity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .offer-card { grid-template-columns: 1fr; }
+            .offer-price-box { border-left: none; border-top: 1px solid #e2e8f0; padding-left: 0; padding-top: 10px; align-items: flex-start; }
+            .room-offer-card { grid-template-columns: 1fr; }
+            .room-offer-thumb { height: 180px; }
+            .room-offer-price { text-align: left; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container header-inner">
+            <h1 class="logo"><a href="/">DESTINO</a></h1>
+            <nav class="header-nav">
+                {% if nickname %}
+                <a href="/mypage"><span style="font-weight: 700; color: #00aaff">{{ nickname }}</span></a>
+                <a href="/logout" style="margin-left: 15px; color: #ff5555; font-weight: 700">로그아웃</a>
+                {% endif %}
+                <a href="/gloval-hotel?city={{ city or '' }}&country={{ country or '' }}&checkin={{ checkin or '' }}&checkout={{ checkout or '' }}">검색 결과</a>
+                {% if not nickname %}
+                <a href="/login">로그인</a>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <div class="detail-page">
+            <a class="detail-back" href="/gloval-hotel?city={{ city or '' }}&country={{ country or '' }}&checkin={{ checkin or '' }}&checkout={{ checkout or '' }}">← 검색 결과로 돌아가기</a>
+
+            {% if error_message %}
+            <div class="detail-error">{{ error_message }}</div>
+            {% endif %}
+
+            {% if hotel %}
+            {% set photos = hotel.photo_gallery if hotel.photo_gallery else [] %}
+            {% set main_photo = (photos[0] if photos else (hotel.image if hotel.image else 'https://images.unsplash.com/photo-1560347876-aeef00ee58a1?auto=format&fit=crop&w=1200&q=80')) %}
+
+            <section class="gallery-shell">
+                <div class="gallery-grid{% if (photos|length) < 2 %} single{% endif %}">
+                    <div class="gallery-main">
+                        <img src="{{ main_photo }}" alt="호텔 대표 이미지" />
+                    </div>
+                    {% if (photos|length) > 1 %}
+                    <div class="gallery-side{% if (photos|length) <= 3 %} single-col{% endif %}">
+                        {% for p in photos[1:5] %}
+                        <div class="gallery-thumb">
+                            <img src="{{ p }}" alt="호텔 사진 {{ loop.index + 1 }}" />
+                            {% if loop.last and photos|length > 5 %}
+                            <div class="gallery-more">+{{ photos|length - 5 }}장 더 보기</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+
+            <div class="detail-grid-layout">
+                <div class="detail-main">
+                    <section class="section-card">
+                        <div class="hero-head">
+                            <div>
+                                <div class="hero-title">{{ hotel.name_ko or hotel.name }}</div>
+                                {% if hotel.name_en and hotel.name_en != (hotel.name_ko or hotel.name) %}
+                                <div class="hero-sub">{{ hotel.name_en }}</div>
+                                {% endif %}
+                                <div class="hero-sub">{{ hotel.google_address or hotel.address or city or '' }}{% if country and not hotel.google_address %}, {{ country }}{% endif %} · {{ hotel.source or 'Booking' }}</div>
+                                <div class="hero-tags">
+                                    {% if hotel.property_type %}<span class="chip">{{ hotel.property_type }}</span>{% endif %}
+                                    {% if hotel.stars %}<span class="chip">{{ hotel.stars }}성급</span>{% endif %}
+                                    {% if hotel.review_score %}<span class="chip good">평점 {{ hotel.review_score }}{% if hotel.review_word %} · {{ hotel.review_word }}{% endif %}</span>{% endif %}
+                                    {% if hotel.review_count %}<span class="chip">후기 {{ hotel.review_count }}건</span>{% endif %}
+                                    {% if hotel.google_rating %}<span class="chip good">Google {{ hotel.google_rating }}{% if hotel.google_user_ratings_total %} · {{ hotel.google_user_ratings_total }}건{% endif %}</span>{% endif %}
+                                    {% if hotel.rooms_left %}<span class="chip alert">남은 객실/옵션 {{ hotel.rooms_left }}개</span>{% endif %}
+                                    {% if hotel.discount_percent %}<span class="chip">{{ hotel.discount_percent }}% 할인</span>{% endif %}
+                                    {% if hotel.distance %}<span class="chip">도심 기준 {{ hotel.distance }}</span>{% endif %}
+                                </div>
+                            </div>
+                            <div class="hero-price">
+                                {% if hotel.price_original and hotel.price and hotel.price_original > hotel.price %}
+                                <div class="orig">{{ '{:,}'.format(hotel.price_original|int) }}원</div>
+                                {% endif %}
+                                {% if hotel.price %}
+                                <div class="final">{{ '{:,}'.format(hotel.price|int) }}원</div>
+                                {% if nights and nights > 0 and hotel.price_per_night %}<div class="caption">총 {{ nights }}박 · 1박당 약 {{ '{:,}'.format(hotel.price_per_night|int) }}원</div>{% endif %}
+                                <div class="caption">총액 기준(세금/수수료 포함 여부는 공급사 표기 기준)</div>
+                                {% else %}
+                                <div class="caption">가격 정보 없음</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="quick-facts">
+                            <div class="quick-fact">
+                                <span class="k">체크인</span>
+                                <div class="v">{{ checkin or '-' }}{% if hotel.checkin_from or hotel.checkin_until %} / {{ hotel.checkin_from or '-' }}~{{ hotel.checkin_until or '-' }}{% endif %}</div>
+                            </div>
+                            <div class="quick-fact">
+                                <span class="k">체크아웃</span>
+                                <div class="v">{{ checkout or '-' }}{% if hotel.checkout_from or hotel.checkout_until %} / {{ hotel.checkout_from or '-' }}~{{ hotel.checkout_until or '-' }}{% endif %}</div>
+                            </div>
+                            <div class="quick-fact">
+                                <span class="k">위치</span>
+                                <div class="v">{{ hotel.google_address or hotel.address or '-' }}</div>
+                            </div>
+                            {% if hotel.room_facts and (hotel.room_facts.area_sqm or hotel.room_facts.beds or hotel.room_facts.bedrooms or hotel.room_facts.bathrooms) %}
+                            <div class="quick-fact">
+                                <span class="k">객실/숙소 크기</span>
+                                <div class="v">{% if hotel.room_facts.area_sqm %}{{ hotel.room_facts.area_sqm }}m²{% else %}-{% endif %}</div>
+                            </div>
+                            <div class="quick-fact">
+                                <span class="k">객실 구성</span>
+                                <div class="v">
+                                    {% if hotel.room_facts.beds %}침대 {{ hotel.room_facts.beds }}개{% endif %}
+                                    {% if hotel.room_facts.bedrooms %}{% if hotel.room_facts.beds %} · {% endif %}침실 {{ hotel.room_facts.bedrooms }}개{% endif %}
+                                    {% if hotel.room_facts.bathrooms %}{% if hotel.room_facts.beds or hotel.room_facts.bedrooms %} · {% endif %}욕실 {{ hotel.room_facts.bathrooms }}개{% endif %}
+                                    {% if not hotel.room_facts.beds and not hotel.room_facts.bedrooms and not hotel.room_facts.bathrooms %}-{% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        {% if hotel.title_is_descriptive %}
+                        <div class="warn-note">이 숙소는 브랜드형 호텔명보다 "설명형 listing 제목"으로 등록된 항목이라 자동번역 결과가 어색할 수 있습니다. 원문 제목도 함께 확인하는 것이 정확합니다.</div>
+                        {% endif %}
+                    </section>
+
+                    <section class="section-card">
+                        <div class="section-title">객실 상품 요약</div>
+                        <div class="offer-card">
+                            <div>
+                                <div class="offer-title">
+                                    {% if hotel.property_type %}{{ hotel.property_type }} 상품{% else %}예약 가능 상품{% endif %}
+                                </div>
+                                <ul class="list-clean">
+                                    {% for p in hotel.policy_badges %}
+                                    <li>{{ p }}</li>
+                                    {% endfor %}
+                                    {% if hotel.rooms_left %}<li>현재 검색 기준 남은 객실/옵션 {{ hotel.rooms_left }}개</li>{% endif %}
+                                    {% if hotel.review_word %}<li>리뷰 상태: {{ hotel.review_word }}{% if hotel.review_score %} ({{ hotel.review_score }}){% endif %}</li>{% endif %}
+                                    {% if hotel.policy_badges|length == 0 and not hotel.rooms_left and not hotel.review_word %}
+                                    <li class="muted">공급사 응답에 표시 가능한 상품 조건이 제한적으로 제공되었습니다.</li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                            <div class="offer-price-box">
+                                {% if hotel.price_original and hotel.price and hotel.price_original > hotel.price %}
+                                <div class="orig">{{ '{:,}'.format(hotel.price_original|int) }}원</div>
+                                {% endif %}
+                                {% if hotel.price %}
+                                <div class="final">{{ '{:,}'.format(hotel.price|int) }}원</div>
+                                {% if nights and nights > 0 and hotel.price_per_night %}<div class="caption">총 {{ nights }}박 · 1박당 약 {{ '{:,}'.format(hotel.price_per_night|int) }}원</div>{% endif %}
+                                {% endif %}
+                                {% if hotel.rooms_left %}
+                                <div class="left-alert">잔여 {{ hotel.rooms_left }}개</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="section-card">
+                        <div class="section-title">객실 옵션 / 마감 객실</div>
+                        {% set room_offers = hotel.room_offers if hotel.room_offers else [] %}
+                        {% if room_offers %}
+                        <div class="room-offer-list">
+                            {% for ro in room_offers %}
+                            <div class="room-offer-card{% if ro.sold_out %} soldout{% endif %}">
+                                <div>
+                                    {% set room_photo = (ro.photos[0] if ro.photos and ro.photos|length > 0 else (photos[((loop.index0 + 1) % (photos|length))] if photos and photos|length > 0 else main_photo)) %}
+                                    <img class="room-offer-thumb" src="{{ room_photo }}" alt="객실 사진" />
+                                </div>
+                                <div>
+                                    <div class="room-offer-name">{{ ro.name or '객실 옵션' }}</div>
+                                    <div class="room-offer-tags">
+                                        {% if ro.sold_out %}<span class="chip alert">마감됨</span>{% else %}<span class="chip good">예약 가능</span>{% endif %}
+                                        {% if ro.room_size_sqm %}<span class="chip">{{ ro.room_size_sqm }}m²</span>{% endif %}
+                                        {% if ro.is_fallback %}<span class="chip">요약 정보</span>{% endif %}
+                                    </div>
+                                    {% if ro.features %}
+                                    <ul class="list-clean" style="margin-top:8px;">
+                                        {% for f in ro.features[:5] %}
+                                        <li>{{ f }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% else %}
+                                    <div class="room-offer-empty">객실 세부 특징 정보가 공급 응답에 충분히 포함되지 않았습니다.</div>
+                                    {% endif %}
+                                </div>
+                                <div class="room-offer-price">
+                                    {% if ro.price_original and ro.price and ro.price_original > ro.price %}<div class="p0">{{ '{:,}'.format(ro.price_original|int) }}원</div>{% endif %}
+                                    {% if ro.price %}
+                                    <div class="p1">{{ '{:,}'.format(ro.price|int) }}원</div>
+                                    {% if nights and nights > 0 and ro.price_per_night %}<div class="room-offer-note">1박당 약 {{ '{:,}'.format(ro.price_per_night|int) }}원</div>{% endif %}
+                                    {% if ro.is_price_fallback %}<div class="room-offer-note">호텔 대표가 기준 추정 표시</div>{% endif %}
+                                    {% elif ro.sold_out %}
+                                    <div class="p1" style="font-size:20px; color:#9ca3af;">판매 완료</div>
+                                    {% else %}
+                                    <div class="p1" style="font-size:20px; color:#9ca3af;">가격 정보 없음</div>
+                                    {% endif %}
+                                    {% if ro.sold_out %}<div class="room-offer-note">선택 날짜 기준 예약 불가로 표시될 수 있습니다.</div>{% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="muted">객실 단위 옵션 정보를 아직 불러오지 못했습니다.</div>
+                        {% endif %}
+                        {% if hotel.room_offer_source %}
+                        <div class="room-offer-note">객실 상세 API: {{ hotel.room_offer_source }}</div>
+                        {% elif hotel.room_offer_error %}
+                        <div class="room-offer-note">객실 상세 API 응답 제한/미지원으로 요약 카드만 표시 중입니다.</div>
+                        {% endif %}
+                    </section>
+
+                    <section class="section-card">
+                        <div class="section-title">주요 특징</div>
+                        <div class="columns-2">
+                            <div>
+                                {% if hotel.highlights %}
+                                <ul class="list-clean">
+                                    {% for line in hotel.highlights %}
+                                    <li>{{ line }}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <div class="muted">공급사 안내 문구에서 추출된 주요 특징이 없습니다.</div>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <div class="section-title" style="font-size:14px; margin-bottom:8px;">핵심 메타</div>
+                                <ul class="list-clean">
+                                <li>공급사: {{ hotel.source or 'Booking' }}</li>
+                                <li>호텔 ID: {{ hotel.hotel_id or '-' }}</li>
+                                <li>통화: {{ hotel.currency or 'KRW' }}</li>
+                                {% if google_place and google_place.match_score %}<li>Google 매칭 점수: {{ google_place.match_score }}</li>{% endif %}
+                                {% if hotel.location_score %}<li>위치 점수: {{ hotel.location_score }}</li>{% endif %}
+                                {% if hotel.latitude and hotel.longitude %}<li>좌표 기반 위치 확인 가능</li>{% endif %}
+                                </ul>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="section-card">
+                        <div class="section-title">편의 시설/서비스</div>
+                        {% if hotel.amenities %}
+                        <div class="amenity-grid">
+                            {% for item in hotel.amenities %}
+                            <div class="amenity-item">{{ item }}</div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="muted">현재 검색 응답에서는 시설 목록이 상세하게 제공되지 않았습니다.</div>
+                        {% endif %}
+                    </section>
+
+                    <section class="section-card">
+                        <div class="section-title">위치 및 주변 정보</div>
+                        <div class="columns-2">
+                            <div>
+                                <div class="mini-map">
+                                    {% if hotel.latitude and hotel.longitude %}
+                                    <iframe class="mini-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q={{ hotel.latitude }},{{ hotel.longitude }}&z=15&output=embed"></iframe>
+                                    {% elif hotel.google_address or hotel.address or hotel.name %}
+                                    <iframe class="mini-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q={{ (hotel.google_address or hotel.address or hotel.name)|urlencode }}&z=15&output=embed"></iframe>
+                                    {% else %}
+                                    <div class="mini-map-pin"></div>
+                                    {% endif %}
+                                </div>
+                                <div class="muted" style="margin-top:8px;">
+                                    {% if hotel.google_address or hotel.address %}
+                                    {{ hotel.google_address or hotel.address }}
+                                    {% else %}
+                                    지도 위치 정보를 확인 중입니다.
+                                    {% endif %}
+                                </div>
+                                {% if google_place and google_place.details and google_place.details.editorial_summary and google_place.details.editorial_summary.overview %}
+                                <div class="warn-note" style="margin-top:10px;">{{ google_place.details.editorial_summary.overview }}</div>
+                                {% endif %}
+                            </div>
+                            <div>
+                                {% if hotel.nearby_points %}
+                                <ul class="list-clean">
+                                    {% for p in hotel.nearby_points %}
+                                    <li>{{ p.name or '-' }}{% if p.distance %} · {{ p.distance }}{% endif %}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% elif hotel.nearby %}
+                                <ul class="list-clean">
+                                    {% for p in hotel.nearby %}
+                                    <li>{{ p }}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <div class="muted">주변 랜드마크 정보가 제공되지 않았습니다.</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </section>
+
+                    {% if google_place and google_place.details %}
+                    <section class="section-card">
+                        <div class="section-title">Google 장소 정보</div>
+                        <div class="columns-2">
+                            <div>
+                                <ul class="list-clean">
+                                    {% if google_place.details.name %}<li>장소명: {{ google_place.details.name }}</li>{% endif %}
+                                    {% if google_place.details.formatted_address %}<li>정식 주소: {{ google_place.details.formatted_address }}</li>{% endif %}
+                                    {% if google_place.details.formatted_phone_number %}<li>전화: {{ google_place.details.formatted_phone_number }}</li>{% endif %}
+                                    {% if google_place.details.international_phone_number %}<li>국제 전화: {{ google_place.details.international_phone_number }}</li>{% endif %}
+                                    {% if google_place.details.website %}<li>웹사이트: <a href="{{ google_place.details.website }}" target="_blank" rel="noopener noreferrer">{{ google_place.details.website }}</a></li>{% endif %}
+                                    {% if google_place.details.business_status %}<li>영업 상태: {{ google_place.details.business_status }}</li>{% endif %}
+                                    {% if google_place.details.price_level is not none %}<li>가격 등급: {{ google_place.details.price_level }}</li>{% endif %}
+                                    {% if google_place.details.types %}<li>장소 타입: {{ google_place.details.types|join(', ') }}</li>{% endif %}
+                                </ul>
+                            </div>
+                            <div>
+                                {% set opening = google_place.details.opening_hours if google_place.details.opening_hours else none %}
+                                {% if opening and opening.weekday_text %}
+                                <div class="section-title" style="font-size:14px; margin-bottom:8px;">영업시간</div>
+                                <ul class="list-clean">
+                                    {% for line in opening.weekday_text %}
+                                    <li>{{ line }}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <div class="muted">영업시간 정보 없음</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </section>
+                    {% endif %}
+
+                    {% if google_place and google_place.details and google_place.details.reviews %}
+                    <section class="section-card">
+                        <div class="section-title">Google 리뷰 하이라이트</div>
+                        <div class="columns-2">
+                            <div>
+                                <ul class="list-clean">
+                                    {% for rv in google_place.details.reviews[:4] %}
+                                    <li>
+                                        <div style="font-weight:800; color:#0f172a;">{{ rv.author_name or '리뷰어' }}{% if rv.rating %} · ★ {{ rv.rating }}{% endif %}</div>
+                                        {% if rv.relative_time_description %}<div class="muted" style="font-size:12px;">{{ rv.relative_time_description }}</div>{% endif %}
+                                        {% if rv.text %}<div style="margin-top:4px;">{{ rv.text }}</div>{% endif %}
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            <div>
+                                <div class="mini-map">
+                                    <div class="mini-map-pin"></div>
+                                </div>
+                                <div class="cta-buttons" style="margin-top:10px;">
+                                    {% if google_place.details.url %}
+                                    <a class="btn-sub" href="{{ google_place.details.url }}" target="_blank" rel="noopener noreferrer">Google 장소 페이지 열기</a>
+                                    {% elif hotel.latitude and hotel.longitude %}
+                                    <a class="btn-sub" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&query={{ hotel.latitude }},{{ hotel.longitude }}">Google 지도에서 보기</a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    {% endif %}
+
+                    <section class="section-card">
+                        <div class="section-title">정책/예약 안내</div>
+                        {% if hotel.policy_badges %}
+                        <div class="hero-tags" style="margin-top:0;">
+                            {% for p in hotel.policy_badges %}
+                            <span class="chip">{{ p }}</span>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="muted">정책 정보는 공급사 페이지에서 최종 확인해 주세요.</div>
+                        {% endif %}
+                        {% if hotel.label_text %}
+                        <div class="raw-block" style="margin-top:12px;">{{ hotel.label_text }}</div>
+                        {% endif %}
+                    </section>
+                </div>
+
+                <aside class="detail-sidebar">
+                    {% set hotel_payload = {
+                        "hotel_id": (hotel.hotel_id|default("")),
+                        "name": ((hotel.name_ko|default("")) or (hotel.name|default(""))),
+                        "address": ((hotel.google_address|default("")) or (hotel.address|default("")) or (city|default(""))),
+                        "city": (city|default("")),
+                        "country": (country|default("")),
+                        "checkin": (checkin|default("")),
+                        "checkout": (checkout|default("")),
+                        "price": (hotel.price|default("")),
+                        "currency": ((hotel.currency|default("")) or "KRW"),
+                        "image": (hotel.image|default("")),
+                        "hotel_url": (hotel.hotel_url|default("")),
+                        "nights": (nights|default("")),
+                        "price_per_night": (hotel.price_per_night|default("")),
+                        "source": (hotel.source|default("Booking"))
+                    } %}
+                    <div class="sidebar-card">
+                        <div class="book-cta-price">{% if hotel.price %}{{ '{:,}'.format(hotel.price|int) }}원{% else %}-{% endif %}</div>
+                        {% if nights and nights > 0 and hotel.price_per_night %}<div class="muted" style="margin-top:4px;">총 {{ nights }}박 · 1박당 약 {{ '{:,}'.format(hotel.price_per_night|int) }}원</div>{% endif %}
+                        <div class="muted" style="margin-top:4px;">{{ city or hotel.address or '' }} · {{ checkin or '-' }} ~ {{ checkout or '-' }}</div>
+                        <div class="book-cta-row">
+                            <div class="book-cell">
+                                <span class="k">체크인</span>
+                                <div class="v">{{ hotel.checkin_from or '-' }} ~ {{ hotel.checkin_until or '-' }}</div>
+                            </div>
+                            <div class="book-cell">
+                                <span class="k">체크아웃</span>
+                                <div class="v">{{ hotel.checkout_from or '-' }} ~ {{ hotel.checkout_until or '-' }}</div>
+                            </div>
+                        </div>
+                        <div class="cta-buttons">
+                            <div class="hotel-detail-actions">
+                                <button type="button" class="hotel-detail-action-btn is-wish" data-hotel-wish='{{ hotel_payload|tojson|e }}' aria-label="위시리스트" title="위시리스트">
+                                    <i data-lucide="heart" width="18" height="18"></i>
+                                </button>
+                                <button type="button" class="hotel-detail-action-btn" data-hotel-cart='{{ hotel_payload|tojson|e }}'>
+                                    장바구니
+                                </button>
+                                <button type="button" class="hotel-detail-action-btn is-reserve" data-hotel-reserve='{{ hotel_payload|tojson|e }}'>
+                                    예약하기
+                                </button>
+                            </div>
+                            {% if hotel.hotel_url %}
+                            <a class="btn-main" href="{{ hotel.hotel_url }}" target="_blank" rel="noopener noreferrer">Booking 공급사 페이지 열기</a>
+                            {% endif %}
+                            <a class="btn-sub" href="/gloval-hotel?city={{ city or '' }}&country={{ country or '' }}&checkin={{ checkin or '' }}&checkout={{ checkout or '' }}">목록으로 돌아가기</a>
+                        </div>
+                        {% if hotel.rooms_left %}
+                        <div class="warn-note" style="margin-top:12px;">현재 검색 조건 기준 남은 객실/옵션 {{ hotel.rooms_left }}개</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="sidebar-card">
+                        <div class="score-panel">
+                            <div>
+                                <div class="section-title" style="margin:0 0 4px; font-size:15px;">이용자 평가</div>
+                                <div class="muted">
+                                    {% if hotel.review_word %}{{ hotel.review_word }}{% else %}평가 문구 없음{% endif %}
+                                    {% if hotel.review_count %} · Booking 후기 {{ hotel.review_count }}건{% endif %}
+                                </div>
+                            </div>
+                            <div class="score-big">{% if hotel.review_score %}{{ hotel.review_score }}{% else %}-{% endif %}</div>
+                        </div>
+                        {% if hotel.google_rating %}
+                        <div class="hero-tags" style="margin-top:10px;">
+                            <span class="chip good">Google 평점 {{ hotel.google_rating }}</span>
+                            {% if hotel.google_user_ratings_total %}<span class="chip">리뷰 {{ hotel.google_user_ratings_total }}건</span>{% endif %}
+                        </div>
+                        {% endif %}
+                        {% if hotel.location_score %}
+                        <div class="hero-tags" style="margin-top:10px;">
+                            <span class="chip good">위치 점수 {{ hotel.location_score }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="sidebar-card">
+                        <div class="section-title" style="margin-bottom:8px; font-size:15px;">위치</div>
+                        <div class="muted">{{ hotel.google_address or hotel.address or '-' }}</div>
+                        <div class="mini-map">
+                            {% if hotel.latitude and hotel.longitude %}
+                            <iframe class="mini-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q={{ hotel.latitude }},{{ hotel.longitude }}&z=15&output=embed"></iframe>
+                            {% elif hotel.google_address or hotel.address or hotel.name %}
+                            <iframe class="mini-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q={{ (hotel.google_address or hotel.address or hotel.name)|urlencode }}&z=15&output=embed"></iframe>
+                            {% else %}
+                            <div class="mini-map-pin"></div>
+                            {% endif %}
+                        </div>
+                        {% if hotel.latitude and hotel.longitude %}
+                        <div class="cta-buttons" style="margin-top:10px;">
+                            <a class="btn-sub" target="_blank" rel="noopener noreferrer" href="{{ (google_place.details.url if google_place and google_place.details and google_place.details.url else ('https://www.google.com/maps/search/?api=1&query=' ~ hotel.latitude ~ ',' ~ hotel.longitude)) }}">Google 지도에서 보기</a>
+                        </div>
+                        {% elif hotel.address or hotel.name %}
+                        <div class="cta-buttons" style="margin-top:10px;">
+                            <a class="btn-sub" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&query={{ (hotel.name_en or hotel.name or '') ~ ' ' ~ (hotel.address or city or '') }}">Google 지도에서 검색</a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </aside>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <button id="hotelSavedFab" class="hotel-saved-fab" type="button" aria-expanded="false" aria-controls="hotelSavedDrawer" title="장바구니 열기">
+        <span class="hotel-saved-fab__icon">🧺</span>
+        <span class="hotel-saved-fab__label">장바구니</span>
+        <span id="hotelSavedFabCount" class="hotel-saved-fab__count" hidden>0</span>
+    </button>
+    <div id="hotelSavedDrawer" class="hotel-saved-drawer" aria-hidden="true">
+        <div class="hotel-saved-drawer__backdrop" data-hotel-saved-close></div>
+        <section class="hotel-saved-drawer__panel">
+            <div class="hotel-saved-drawer__grab"></div>
+            <div class="hotel-saved-drawer__header">
+                <div class="hotel-saved-tabs" role="tablist" aria-label="저장 항목 탭">
+                    <button type="button" class="hotel-saved-tab is-active" data-hotel-saved-tab="cart" aria-selected="true">장바구니</button>
+                    <button type="button" class="hotel-saved-tab" data-hotel-saved-tab="wishlist" aria-selected="false">위시리스트</button>
+                    <button type="button" class="hotel-saved-tab" data-hotel-saved-tab="alerts" aria-selected="false">알림</button>
+                </div>
+                <button type="button" class="hotel-saved-drawer__close" data-hotel-saved-close>닫기</button>
+            </div>
+            <ul id="hotelSavedList" class="hotel-saved-list"></ul>
+            <div id="hotelSavedEmpty" class="hotel-saved-empty">저장된 항목이 없습니다.</div>
+        </section>
+    </div>
+
+<style>
+    .gallery-main img { cursor: zoom-in; }
+    .gallery-thumb { cursor: pointer; }
+    .gallery-thumb.is-active img { outline: 3px solid #2563eb; outline-offset: -3px; }
+    .detail-lightbox {
+        position: fixed; inset: 0; background: rgba(2, 6, 23, .84); z-index: 3500;
+        display: none; align-items: center; justify-content: center; padding: 20px;
+    }
+    .detail-lightbox.is-open { display: flex; }
+    .detail-lightbox-panel {
+        width: min(1120px, 100%); max-height: 92vh;
+        display: grid; grid-template-rows: auto 1fr auto; gap: 10px;
+    }
+    .detail-lightbox-head {
+        color: #fff; display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    }
+    .detail-lightbox-close {
+        border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08); color: #fff;
+        border-radius: 10px; padding: 8px 12px; font-weight: 800; cursor: pointer;
+    }
+    .detail-lightbox-main { background: #0b1220; border-radius: 12px; overflow: hidden; }
+    .detail-lightbox-main img { width: 100%; height: min(72vh, 760px); object-fit: contain; display: block; }
+    .detail-lightbox-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+    .detail-lightbox-thumb { border: 0; background: transparent; padding: 0; border-radius: 10px; overflow: hidden; cursor: pointer; opacity: .85; }
+    .detail-lightbox-thumb img { width: 100%; height: 68px; object-fit: cover; display: block; }
+    .detail-lightbox-thumb.is-active { outline: 2px solid #60a5fa; opacity: 1; }
+    .gallery-main { position: relative; }
+    .gallery-nav {
+        position: absolute; top: 50%; transform: translateY(-50%); z-index: 5;
+        width: 38px; height: 38px; border-radius: 999px; border: 1px solid rgba(255,255,255,.4);
+        background: rgba(15,23,42,.45); color: #fff; font-size: 20px; font-weight: 800; cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center;
+        backdrop-filter: blur(2px);
+    }
+    .gallery-nav:hover { background: rgba(15,23,42,.62); }
+    .gallery-nav.prev { left: 10px; }
+    .gallery-nav.next { right: 10px; }
+    .gallery-count {
+        position: absolute; right: 10px; bottom: 10px; z-index: 5;
+        background: rgba(15,23,42,.6); color:#fff; border-radius: 999px; padding: 6px 10px;
+        font-size: 12px; font-weight: 800;
+    }
+</style>
+<script>
+(() => {
+  const galleryMainImg = document.querySelector('.gallery-main img');
+  if (!galleryMainImg) return;
+  const galleryMain = document.querySelector('.gallery-main');
+  const thumbImgs = Array.from(document.querySelectorAll('.gallery-thumb img'));
+  const galleryImages = [];
+  const seen = new Set();
+  const pushUnique = (src) => {
+    if (!src) return;
+    const s = String(src).trim();
+    if (!s || seen.has(s)) return;
+    seen.add(s);
+    galleryImages.push(s);
+  };
+  pushUnique(galleryMainImg.getAttribute('src'));
+  thumbImgs.forEach((img) => pushUnique(img.getAttribute('src')));
+
+  const thumbWrappers = Array.from(document.querySelectorAll('.gallery-thumb'));
+  let currentIndex = 0;
+  const setMainImage = (src) => {
+    if (!src) return;
+    galleryMainImg.src = src;
+    currentIndex = Math.max(0, galleryImages.indexOf(src));
+    if (countBadge) countBadge.textContent = `${currentIndex + 1} / ${galleryImages.length}`;
+    thumbWrappers.forEach((w) => w.classList.remove('is-active'));
+    thumbWrappers.forEach((w) => {
+      const img = w.querySelector('img');
+      if (img && img.getAttribute('src') === src) w.classList.add('is-active');
+    });
+  };
+  thumbWrappers.forEach((wrap) => {
+    wrap.addEventListener('click', (e) => {
+      const img = wrap.querySelector('img');
+      if (!img) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setMainImage(img.getAttribute('src'));
+    });
+  });
+
+  if (!galleryImages.length) return;
+  let countBadge = null;
+  if (galleryMain && galleryImages.length > 1) {
+    const prevBtn = document.createElement('button');
+    prevBtn.type = 'button';
+    prevBtn.className = 'gallery-nav prev';
+    prevBtn.setAttribute('aria-label', '이전 사진');
+    prevBtn.textContent = '‹';
+    const nextBtn = document.createElement('button');
+    nextBtn.type = 'button';
+    nextBtn.className = 'gallery-nav next';
+    nextBtn.setAttribute('aria-label', '다음 사진');
+    nextBtn.textContent = '›';
+    countBadge = document.createElement('div');
+    countBadge.className = 'gallery-count';
+    countBadge.textContent = `1 / ${galleryImages.length}`;
+    galleryMain.appendChild(prevBtn);
+    galleryMain.appendChild(nextBtn);
+    galleryMain.appendChild(countBadge);
+    prevBtn.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      setMainImage(galleryImages[(currentIndex - 1 + galleryImages.length) % galleryImages.length]);
+    });
+    nextBtn.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      setMainImage(galleryImages[(currentIndex + 1) % galleryImages.length]);
+    });
+  }
+  const lightbox = document.createElement('div');
+  lightbox.className = 'detail-lightbox';
+  lightbox.innerHTML = `
+    <div class="detail-lightbox-panel" role="dialog" aria-modal="true" aria-label="호텔 사진 확대 보기">
+      <div class="detail-lightbox-head">
+        <div class="detail-lightbox-counter">1 / ${galleryImages.length}</div>
+        <button type="button" class="detail-lightbox-close">닫기</button>
+      </div>
+      <div class="detail-lightbox-main"><img alt="호텔 사진 크게 보기"></div>
+      <div class="detail-lightbox-strip"></div>
+    </div>
+  `;
+  document.body.appendChild(lightbox);
+  const lbImg = lightbox.querySelector('.detail-lightbox-main img');
+  const lbCounter = lightbox.querySelector('.detail-lightbox-counter');
+  const lbClose = lightbox.querySelector('.detail-lightbox-close');
+  const lbStrip = lightbox.querySelector('.detail-lightbox-strip');
+  currentIndex = 0;
+
+  galleryImages.forEach((src, idx) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'detail-lightbox-thumb' + (idx === 0 ? ' is-active' : '');
+    btn.innerHTML = `<img src="${src}" alt="">`;
+    btn.addEventListener('click', () => openLightbox(idx));
+    lbStrip.appendChild(btn);
+  });
+  const lbThumbs = Array.from(lightbox.querySelectorAll('.detail-lightbox-thumb'));
+
+  function openLightbox(idx = 0) {
+    currentIndex = Math.max(0, Math.min(idx, galleryImages.length - 1));
+    lbImg.src = galleryImages[currentIndex];
+    lbCounter.textContent = `${currentIndex + 1} / ${galleryImages.length}`;
+    lbThumbs.forEach((t, i) => t.classList.toggle('is-active', i === currentIndex));
+    lightbox.classList.add('is-open');
+    lightbox.setAttribute('aria-hidden', 'false');
+  }
+  function closeLightbox() {
+    lightbox.classList.remove('is-open');
+    lightbox.setAttribute('aria-hidden', 'true');
+  }
+  galleryMainImg.addEventListener('click', () => {
+    const idx = Math.max(0, galleryImages.indexOf(galleryMainImg.getAttribute('src')));
+    openLightbox(idx);
+  });
+  lbClose.addEventListener('click', closeLightbox);
+  lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
+  document.addEventListener('keydown', (e) => {
+    if (!lightbox.classList.contains('is-open')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowRight') openLightbox((currentIndex + 1) % galleryImages.length);
+    if (e.key === 'ArrowLeft') openLightbox((currentIndex - 1 + galleryImages.length) % galleryImages.length);
+  });
+})();
+</script>
+<script src="/static/saved-drawer-common.js?v=20260308a"></script>
+<script src="/static/gloval-hotel.js?v=20260308a"></script>
+</body>
+</html>

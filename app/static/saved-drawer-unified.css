@@ -1,0 +1,648 @@
+/* Unified dinosaur cart UI across pages */
+.flight-saved-fab,
+.tour-saved-fab,
+.hotel-saved-fab,
+.rental-saved-fab,
+.package-saved-fab,
+.group-saved-fab,
+.home-saved-fab {
+  width: 88px !important;
+  height: 88px !important;
+  position: fixed !important;
+  right: 30px !important;
+  bottom: 30px !important;
+  z-index: 1200 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: #fff url("../static/image/shopping_cart_1.png") no-repeat center / 160% auto !important;
+  cursor: pointer !important;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.2) !important;
+  transition: all 0.3s !important;
+}
+
+.flight-saved-fab:hover,
+.tour-saved-fab:hover,
+.hotel-saved-fab:hover,
+.rental-saved-fab:hover,
+.package-saved-fab:hover,
+.group-saved-fab:hover,
+.home-saved-fab:hover {
+  background: url("../static/image/shopping_cart_2.png") no-repeat center -6px / 160% auto !important;
+}
+
+.flight-saved-fab.is-open,
+.tour-saved-fab.is-open,
+.hotel-saved-fab.is-open,
+.rental-saved-fab.is-open,
+.package-saved-fab.is-open,
+.group-saved-fab.is-open,
+.home-saved-fab.is-open {
+  background: #fff url("../static/image/shopping_cart_2.png") no-repeat center -6px / 160% auto !important;
+}
+
+.flight-saved-fab__icon,
+.hotel-saved-fab__icon,
+.group-saved-fab__icon {
+  display: none !important;
+}
+
+.flight-saved-fab__label,
+.tour-saved-fab__label,
+.hotel-saved-fab__label,
+.rental-saved-fab__label,
+.package-saved-fab__label,
+.group-saved-fab__label,
+.home-saved-fab-label {
+  font-size: 0 !important;
+}
+
+.flight-saved-fab__count,
+.tour-saved-fab__count,
+.hotel-saved-fab__count,
+.rental-saved-fab__count,
+.package-saved-fab__count,
+.group-saved-fab__count,
+.home-saved-fab-count {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 999px !important;
+  background-color: var(--blue-600, #0ea5e9) !important;
+  color: #fff !important;
+  display: inline-block !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  padding: 0 5px !important;
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  line-height: 24px !important;
+  text-align: center !important;
+}
+
+.flight-saved-drawer,
+.tour-saved-drawer,
+.hotel-saved-drawer,
+.rental-saved-drawer,
+.package-saved-drawer,
+.group-saved-drawer,
+.home-saved-drawer {
+  position: fixed !important;
+  inset: auto !important;
+  top: auto !important;
+  left: auto !important;
+  right: 48px !important;
+  bottom: 60px !important;
+  z-index: 1199 !important;
+  width: min(420px, calc(100vw - 24px)) !important;
+  max-height: min(72vh, 640px) !important;
+  min-height: 0 !important;
+  background: #fff !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 18px !important;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18) !important;
+  padding: 10px 12px 12px !important;
+  overflow: hidden !important;
+  display: none;
+  font-family: "Pretendard", "Noto Sans KR", sans-serif !important;
+}
+
+.flight-saved-drawer.is-open,
+.tour-saved-drawer.is-open,
+.hotel-saved-drawer.is-open,
+.rental-saved-drawer.is-open,
+.package-saved-drawer.is-open,
+.group-saved-drawer.is-open,
+.home-saved-drawer.is-open {
+  display: block !important;
+}
+
+.flight-saved-drawer__backdrop,
+.tour-saved-drawer__backdrop,
+.hotel-saved-drawer__backdrop,
+.rental-saved-drawer__backdrop,
+.package-saved-drawer__backdrop,
+.group-saved-drawer__backdrop {
+  display: none !important;
+}
+
+.flight-saved-drawer__panel,
+.tour-saved-drawer__panel,
+.hotel-saved-drawer__panel,
+.rental-saved-drawer__panel,
+.package-saved-drawer__panel,
+.group-saved-drawer__panel {
+  position: static !important;
+  width: auto !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+.flight-saved-drawer__grab,
+.tour-saved-drawer__grab,
+.hotel-saved-drawer__grab,
+.rental-saved-drawer__grab,
+.package-saved-drawer__grab,
+.group-saved-drawer__grab,
+.home-saved-drawer-handle {
+  width: 46px !important;
+  height: 4px !important;
+  border-radius: 999px !important;
+  background: #d1d5db !important;
+  margin: 0 auto 10px !important;
+}
+
+.flight-saved-drawer__header,
+.tour-saved-drawer__header,
+.hotel-saved-drawer__header,
+.rental-saved-drawer__header,
+.package-saved-drawer__header,
+.group-saved-drawer__header,
+.home-saved-drawer-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+}
+
+.flight-saved-drawer__close,
+.tour-saved-drawer__close,
+.hotel-saved-drawer__close,
+.rental-saved-drawer__close,
+.package-saved-drawer__close,
+.group-saved-drawer__close,
+.home-saved-close {
+  border: 0 !important;
+  background: #eef2ff !important;
+  color: #274690 !important;
+  border-radius: 10px !important;
+  padding: 8px 10px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+}
+
+.flight-saved-tabs,
+.tour-saved-tabs,
+.hotel-saved-tabs,
+.rental-saved-tabs,
+.package-saved-tabs,
+.group-saved-tabs,
+.home-saved-tabs {
+  display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  background: #f3f4f6 !important;
+  padding: 4px !important;
+  border-radius: 12px !important;
+  gap: 4px !important;
+}
+
+.flight-saved-tab,
+.tour-saved-tab,
+.hotel-saved-tab,
+.rental-saved-tab,
+.package-saved-tab,
+.group-saved-tab,
+.home-saved-tab {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #475569 !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  padding: 8px 12px !important;
+  border-radius: 10px !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+
+.flight-saved-tab.is-active,
+.tour-saved-tab.is-active,
+.hotel-saved-tab.is-active,
+.rental-saved-tab.is-active,
+.package-saved-tab.is-active,
+.group-saved-tab.is-active,
+.home-saved-tab.is-active {
+  background: #fff !important;
+  color: #0d2b5b !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+}
+
+.flight-saved-list,
+.tour-saved-list,
+.hotel-saved-list,
+.rental-saved-list,
+.package-saved-list,
+.group-saved-list,
+.home-saved-list {
+  list-style: none !important;
+  margin: 8px 0 0 !important;
+  padding: 0 4px 0 0 !important;
+  margin-top: 8px !important;
+  display: grid !important;
+  gap: 10px !important;
+  max-height: calc(min(72vh, 640px) - 92px) !important;
+  overflow: auto !important;
+  box-sizing: border-box !important;
+}
+
+.flight-saved-empty,
+.tour-saved-empty,
+.hotel-saved-empty,
+.rental-saved-empty,
+.package-saved-empty,
+.group-saved-empty,
+.home-saved-empty {
+  margin: 0 !important;
+  color: #64748b !important;
+  font-size: 13px !important;
+  padding: 14px 6px 6px !important;
+}
+
+.flight-saved-item,
+.tour-saved-item,
+.hotel-saved-item,
+.rental-saved-item,
+.package-saved-item,
+.group-saved-item,
+.home-saved-item,
+.ai-cart-item {
+  list-style: none !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  display: grid !important;
+  grid-template-columns: 84px minmax(0, 1fr) auto !important;
+  gap: 10px !important;
+  align-items: start !important;
+  border: 1px solid #eef2f7 !important;
+  border-radius: 12px !important;
+  padding: 10px !important;
+  background: #fff !important;
+  position: relative !important;
+  font-family: "Pretendard", "Noto Sans KR", sans-serif !important;
+}
+
+.flight-saved-thumb,
+.tour-saved-thumb,
+.hotel-saved-item__thumb,
+.rental-saved-item__thumb,
+.package-saved-thumb,
+.group-saved-item__thumb,
+.home-saved-thumb,
+.ai-cart-item__thumb {
+  width: 80px !important;
+  height: 80px !important;
+  border-radius: 8px !important;
+  background: linear-gradient(135deg, #dbeafe, #e5e7eb) !important;
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+.flight-saved-thumb img,
+.tour-saved-thumb img,
+.hotel-saved-item__thumb img,
+.rental-saved-item__thumb img,
+.package-saved-thumb img,
+.group-saved-item__thumb img,
+.home-saved-thumb img,
+.ai-cart-item__thumb img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+.flight-saved-item__remove,
+.tour-saved-item__remove,
+.hotel-saved-item__remove,
+.rental-saved-item__remove,
+.package-saved-item__remove,
+.group-saved-item__remove,
+.home-saved-remove,
+.ai-cart-item__remove {
+  border: 0 !important;
+  background: #f8fafc !important;
+  color: #475569 !important;
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 999px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  font-size: 16px !important;
+  line-height: 1 !important;
+  position: static !important;
+  justify-self: end !important;
+  align-self: start !important;
+  margin: 0 !important;
+  padding: 1px 0 0 !important;
+}
+
+.flight-saved-item__remove:hover,
+.tour-saved-item__remove:hover,
+.hotel-saved-item__remove:hover,
+.rental-saved-item__remove:hover,
+.package-saved-item__remove:hover,
+.group-saved-item__remove:hover,
+.home-saved-remove:hover,
+.ai-cart-item__remove:hover {
+  background: #fee2e2 !important;
+  color: #e11d48 !important;
+}
+
+.flight-saved-item__meta,
+.flight-saved-item__content,
+.tour-saved-meta,
+.hotel-saved-item__content,
+.hotel-saved-item__meta,
+.rental-saved-item__meta,
+.package-saved-content,
+.group-saved-item__content,
+.home-saved-meta,
+.ai-cart-item__content {
+  display: block !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+.flight-saved-item__type,
+.flight-saved-alert-title,
+.tour-saved-kind,
+.tour-saved-item__type,
+.hotel-saved-item__type,
+.rental-saved-item__type,
+.package-saved-item__type,
+.group-saved-item__type,
+.home-saved-kind,
+.ai-cart-item__type {
+  font-size: 11px !important;
+  color: #94a3b8 !important;
+  font-weight: 700 !important;
+  margin-bottom: 3px !important;
+  line-height: 1.35 !important;
+  letter-spacing: normal !important;
+  font-family: "Pretendard", "Noto Sans KR", sans-serif !important;
+}
+
+.flight-saved-item__name,
+.tour-saved-name,
+.tour-saved-item__name,
+.hotel-saved-item__name,
+.rental-saved-item__name,
+.package-saved-item__name,
+.group-saved-item__name,
+.home-saved-name,
+.ai-cart-item__name {
+  font-size: 14px !important;
+  color: #010101 !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+  margin-bottom: 4px !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+  font-family: "Pretendard", "Noto Sans KR", sans-serif !important;
+}
+
+.flight-saved-line,
+.flight-saved-alert-desc,
+.tour-saved-line,
+.tour-saved-item__meta,
+.hotel-saved-line,
+.rental-saved-item__meta,
+.package-saved-line,
+.package-saved-item__meta,
+.group-saved-item__meta,
+.home-saved-line,
+.ai-cart-item__line {
+  font-size: 12px !important;
+  color: #64748b !important;
+  line-height: 1.35 !important;
+  font-weight: 400 !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+  font-family: "Pretendard", "Noto Sans KR", sans-serif !important;
+}
+
+.ai-cart-item--flight {
+  grid-template-columns: 84px minmax(0, 1fr) auto !important;
+  padding: 10px !important;
+}
+
+.ai-cart-item__thumb--flight {
+  width: 80px !important;
+  height: 80px !important;
+  border-radius: 8px !important;
+}
+
+.ai-cart-item__content--flight .ai-cart-item__name {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+}
+
+.ai-cart-item__remove--flight {
+  position: static !important;
+  width: 30px !important;
+  height: 30px !important;
+  border: 0 !important;
+  background: #f8fafc !important;
+  color: #475569 !important;
+  justify-self: end !important;
+  align-self: start !important;
+}
+
+.flight-saved-price,
+.tour-saved-price,
+.hotel-saved-price,
+.rental-saved-price,
+.package-saved-price,
+.group-saved-price,
+.home-saved-price,
+.ai-cart-item__price {
+  color: var(--blue-600, #0ea5e9) !important;
+  font-weight: 800 !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+
+.ai-cart-item__content--flight .ai-cart-item__line.ai-cart-item__price {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 1.35 !important;
+}
+
+/* unified alert cards in drawers */
+.saved-alert-card,
+.flight-saved-alert-item.saved-alert-card,
+.ai-cart-item.saved-alert-card,
+.home-saved-item.saved-alert-card,
+.flight-saved-item.saved-alert-card,
+.hotel-saved-item.saved-alert-card,
+.rental-saved-item.saved-alert-card,
+.package-saved-item.saved-alert-card,
+.tour-saved-item.saved-alert-card,
+.group-saved-item.saved-alert-card {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: start !important;
+  gap: 10px !important;
+  min-height: 0 !important;
+  height: auto !important;
+  position: relative !important;
+  padding-right: 46px !important;
+}
+
+.saved-alert-card .home-saved-meta,
+.saved-alert-card .flight-saved-alert-meta,
+.saved-alert-card .flight-saved-item__meta,
+.saved-alert-card .flight-saved-item__content,
+.saved-alert-card .tour-saved-meta,
+.saved-alert-card .hotel-saved-item__content,
+.saved-alert-card .hotel-saved-item__meta,
+.saved-alert-card .rental-saved-item__meta,
+.saved-alert-card .package-saved-content,
+.saved-alert-card .group-saved-item__content,
+.saved-alert-card .ai-cart-item__content {
+  min-width: 0 !important;
+}
+
+.saved-alert-card .flight-saved-item__remove,
+.saved-alert-card .tour-saved-item__remove,
+.saved-alert-card .hotel-saved-item__remove,
+.saved-alert-card .rental-saved-item__remove,
+.saved-alert-card .package-saved-item__remove,
+.saved-alert-card .group-saved-item__remove,
+.saved-alert-card .home-saved-remove,
+.saved-alert-card .ai-cart-item__remove {
+  position: absolute !important;
+  top: 10px !important;
+  right: 10px !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  justify-self: auto !important;
+  align-self: auto !important;
+  z-index: 2 !important;
+}
+
+.saved-alert-card .home-saved-line,
+.saved-alert-card .flight-saved-alert-desc,
+.saved-alert-card .flight-saved-line,
+.saved-alert-card .flight-saved-item__meta,
+.saved-alert-card .tour-saved-line,
+.saved-alert-card .tour-saved-item__meta,
+.saved-alert-card .hotel-saved-line,
+.saved-alert-card .hotel-saved-item__meta,
+.saved-alert-card .rental-saved-item__meta,
+.saved-alert-card .package-saved-item__meta,
+.saved-alert-card .group-saved-item__meta,
+.saved-alert-card .ai-cart-item__line {
+  white-space: normal !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+  line-height: 1.45 !important;
+}
+
+.saved-alert-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin-top: 8px !important;
+}
+
+.saved-alert-btn {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  border: 1px solid #dbeafe !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-radius: 8px !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  cursor: pointer !important;
+}
+
+.saved-alert-btn.is-reject {
+  border-color: #fecaca !important;
+  background: #fef2f2 !important;
+  color: #991b1b !important;
+}
+
+.saved-alert-btn.is-delete {
+  border-color: #e5e7eb !important;
+  background: #fff !important;
+  color: #475569 !important;
+}
+
+.saved-alert-status {
+  display: inline-block !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+.saved-alert-status.is-pending {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+}
+
+.saved-alert-status.is-accepted {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+}
+
+.saved-alert-status.is-rejected {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+@media (max-width: 768px) {
+  .flight-saved-fab,
+  .tour-saved-fab,
+  .hotel-saved-fab,
+  .rental-saved-fab,
+  .package-saved-fab,
+  .group-saved-fab,
+  .home-saved-fab {
+    right: 14px !important;
+    bottom: 14px !important;
+  }
+
+  .flight-saved-drawer,
+  .tour-saved-drawer,
+  .hotel-saved-drawer,
+  .rental-saved-drawer,
+  .package-saved-drawer,
+  .group-saved-drawer,
+  .home-saved-drawer {
+    right: 12px !important;
+    left: 12px !important;
+    width: auto !important;
+    bottom: 70px !important;
+  }
+}
